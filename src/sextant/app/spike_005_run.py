@@ -468,14 +468,14 @@ def analyse(
         monthly_floats = [float(value) for _, value in item.monthly]
         independence = independence_of(monthly_floats)
         recording = recordings.get(item.construct) if item.policy == "USDT" else None
+        # Breadth is measured for the headline panel only. The secondary panel
+        # holds a thirteen-name universe, where "how many independent bets was
+        # this" is answered by the universe rather than by the strategy. There is
+        # exactly one shape for the absent case, so the two paths cannot drift.
         breadth = (
             breadth_for(world, recording, span.start, span.end)
             if recording is not None
-            else {
-                "median_positions": 0.0,
-                "mean_pairwise_correlation": 0.0,
-                "effective_positions": 0.0,
-            }
+            else _no_breadth()
         )
 
         combined_return = item.ledger.terminal_return
