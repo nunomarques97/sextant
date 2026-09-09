@@ -106,6 +106,12 @@ verified. Never report done without evidence.
 - Architecture/technical notes: `docs/adr/`, `.importlinter`
 - Live-trading contract: `docs/LIVE-GATES.md`
 - The calibrated null and how the rejection filter is used: `docs/NULL-BASELINE.md`
+- **The SEXTANT-005 verdict on whether momentum has an edge: `docs/VERDICT-005.md`**
+  (answer: no. Every number behind it: `docs/SPIKE-005-RESULTS.md`; what was going
+  to be tested, written before it was: `docs/PRE-REGISTRATION-005.md` and
+  `config/spike-005.yaml`)
+- Which bytes the Binance results were computed from:
+  `docs/binance-archive-checksums.md`
 - Every strategy and parameter set ever evaluated: `research/trial-registry.jsonl`
   (append-only, hash-chained, committed)
 - Pre-registered benchmark configuration: `config/benchmarks.yaml`

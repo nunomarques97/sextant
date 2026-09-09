@@ -3,14 +3,60 @@
 A multi-strategy, multi-venue quantitative crypto trading system.
 
 > **This software does not place real orders in its current state.**
-> There is no strategy, no indicator, no backtester and no network call to any
-> exchange in this repository. LIVE mode cannot start: the withdrawal-permission
-> probe is not wired, and preflight treats "cannot be determined" as unsafe.
+> There is a walk-forward backtester and there are sixteen pre-registered research
+> variants, none of which made money. Nothing places an order: the only network
+> calls in the repository fetch public historical archives, no private endpoint is
+> wired, and LIVE mode cannot start because the withdrawal-permission probe is not
+> wired and preflight treats "cannot be determined" as unsafe.
 
 ## Status
 
+**SEXTANT-005 - the question was asked properly, and the answer is no.**
+
+The project set out to find whether a momentum or trend-following effect in crypto
+survives realistic transaction costs, honest point-in-time universe construction,
+walk-forward out-of-sample evaluation and an honest count of every variant tried.
+Sixteen variants were specified and committed **before any data was downloaded**,
+then run over 52 out-of-sample months of Binance spot history in EUR.
+
+**Every one of the eighty variant-cells lost money.** The best lost 28.40% of the
+account and the worst lost 99.77%. EUR cash returned 0% and beat all eighty.
+Bitcoin, bought and held at the same costs, returned +86.31% and beat all eighty by
+at least 114 points. Every variant lost money *before a single fee was charged*, so
+no cost assumption could be relaxed to rescue it. The Deflated Sharpe Ratio is
+0.0000 across the headline panel at an honest trial count of 253.
+
+**The verdict is (B): insufficient evidence, close the trading project.**
+[`docs/VERDICT-005.md`](docs/VERDICT-005.md) states it, states what a sceptic
+should attack first, and states plainly where the registered verdict rule's letter
+and the evidence diverge - the rule says (C), and the document explains why (C)
+would be false here rather than quietly taking the softer letter.
+
+**Two findings are worth keeping whatever happens to the project.** Ten held names
+bought 2.3 effectively independent bets, because crypto names move together at a
+correlation of 0.36 - the same failure the Kraken window showed at 0.804 against
+Bitcoin, now measured on two venues over two disjoint windows. And a 52-month
+out-of-sample window can only resolve an annualised Sharpe above about 0.94, which
+is the honest limit of what any study this size could ever have claimed.
+
+- The verdict and its evidence: [`docs/VERDICT-005.md`](docs/VERDICT-005.md)
+- Every number behind it: [`docs/SPIKE-005-RESULTS.md`](docs/SPIKE-005-RESULTS.md)
+- What was going to be tested, written before it was:
+  [`docs/PRE-REGISTRATION-005.md`](docs/PRE-REGISTRATION-005.md) and
+  [`config/spike-005.yaml`](config/spike-005.yaml)
+- Which bytes the results were computed from:
+  [`docs/binance-archive-checksums.md`](docs/binance-archive-checksums.md)
+- Every strategy and parameter set ever evaluated, append-only and hash-chained:
+  [`research/trial-registry.jsonl`](research/trial-registry.jsonl)
+
+Commands: `uv run sextant binance all` acquires and ingests the archive;
+`uv run sextant spike-005 run` runs the whole grid and `uv run sextant spike-005
+report` renders it.
+
+### What came before
+
 **SEXTANT-004 - the walk-forward backtesting engine, and what no edge looks
-like.** There is now an engine, a real cost model and a calibrated null. Walk-
+like.** There is an engine, a real cost model and a calibrated null. Walk-
 forward is its only mode: fitting returns parameters and never an equity curve,
 so no object in the system holds in-sample performance. The engine ranks the
 point-in-time executable universe at every rebalance and allocates across it,
@@ -18,79 +64,22 @@ driven by the `Clock` and `BarRepository` ports, with every euro of accounting i
 `Decimal` and the identity `gross - fees - spread - slippage - funding - FX -
 delisting = net` asserted exactly rather than to a tolerance.
 
-**There is still no strategy.** What was run is three benchmark constructs:
-equal-weight passive over the whole executable universe, random selection of
-eight names, and single-asset buy and hold. Their results are the null every
-future strategy is measured against.
-
-**The window is too short to establish edge, and that is quantified rather than
-asserted.** Twenty-four monthly out-of-sample observations give an annualised
-Sharpe standard error of about 0.71, wider than the entire spread of the
-rejection thresholds. Every walk-forward threshold is also negative, because the
-cross-section fell over this window, so the filter rejects only strategies that
-lose more than chance did. It is a floor worth having and a low one.
+**The Kraken window was too short to establish edge, and that was quantified
+rather than asserted.** Twenty-four monthly out-of-sample observations give an
+annualised Sharpe standard error of about 0.71, wider than the entire spread of
+the rejection thresholds. That is what prompted SEXTANT-005 to acquire a longer
+window on a second venue rather than argue about the first.
 
 - What chance produces, net of costs, with the rejection filter stated in the
   only terms it may be read in:
   [`docs/NULL-BASELINE.md`](docs/NULL-BASELINE.md)
 - The gate itself, and the paper phase's obligation to measure the real
   maker/taker fill ratio: [`docs/LIVE-GATES.md`](docs/LIVE-GATES.md)
-- Every strategy and parameter set ever evaluated against this dataset, append-
-  only and hash-chained: [`research/trial-registry.jsonl`](research/trial-registry.jsonl)
 - The benchmark configuration, committed before any of it ran:
   [`config/benchmarks.yaml`](config/benchmarks.yaml)
 - Why numpy, scipy and polars, where each is confined, and one performance claim
   withdrawn after measurement:
   [`docs/adr/0006-research-dependencies-numpy-polars-scipy.md`](docs/adr/0006-research-dependencies-numpy-polars-scipy.md)
-
-Commands: `uv run sextant benchmark null` runs the whole grid and writes the
-report. `uv run sextant archive quarter-end-audit` reproduces the SEXTANT-004
-investigation into the two Q3-to-Q4 2025 exceptions, which are now closed.
-
-**SEXTANT-003 - Kraken historical ingestion and a point-in-time listing
-calendar.** Kraken's quarterly OHLCVT archives are read into a parquet bar
-store, and the diff between consecutive quarters is a listing calendar sourced
-from file presence rather than from any price series. A delisting is recorded as
-an interval, never as a date, so membership answers *listed*, *not listed* or
-*undetermined*. There is still no strategy, no indicator, no backtester, no cost
-model and no private endpoint.
-
-- What each venue can supply, revised: Kraken's NO-GO is superseded, with the
-  API findings kept intact beside the correction:
-  [`docs/DATA-AVAILABILITY.md`](docs/DATA-AVAILABILITY.md)
-- The universe tables over the archive window, and the delisting-haircut
-  sensitivity at 0%, 20% and 50%:
-  [`docs/kraken-archive-tables.md`](docs/kraken-archive-tables.md)
-- Why parquet and duckdb, and how they are quarantined:
-  [`docs/adr/0005-bar-storage-parquet-and-duckdb.md`](docs/adr/0005-bar-storage-parquet-and-duckdb.md)
-
-Commands: `uv run sextant archive scan | calendar | ingest | measure` builds the
-store and the tables from archives in `data/`, reaching no network.
-`uv run sextant snapshot-universe` records today's venue membership, idempotent
-per UTC day, so future delistings never need reconstructing.
-
-**All thirteen quarterly archives are held and checksummed**
-([`docs/kraken-archive-checksums.md`](docs/kraken-archive-checksums.md)), Q1
-2023 to Q1 2026. Measured across the full window: 1,640 pairs, 40 monthly
-refreshes, 184 delistings, peak research universe 43 on EUR and 129 on EUR+USD.
-EUR+USD clears 25 instruments in all 31 usable months; EUR alone does in 4.
-
-**SEXTANT-002 - data-availability spike and the public market-data read
-path.** Both venue adapters now implement `health`, `instruments` and
-`get_bars` against real public endpoints, read-only. No credential is used, no
-private endpoint is called and no order can be placed. There is still no
-strategy, no indicator, no backtester and no storage engine.
-
-- What history each venue can actually supply, measured rather than expected:
-  [`docs/DATA-AVAILABILITY.md`](docs/DATA-AVAILABILITY.md)
-- The month-by-month universe tables behind it:
-  [`docs/universe-tables.md`](docs/universe-tables.md)
-- The architecture proposal and the running risk register:
-  [`docs/PHASE-0-FINDINGS.md`](docs/PHASE-0-FINDINGS.md)
-
-**SEXTANT-001 - repository bootstrap.** Engineering foundation: package layout,
-an enforced layering contract, the capability model, layered configuration,
-credentials handling, preflight, structured logging and CI.
 
 ## What it is
 
