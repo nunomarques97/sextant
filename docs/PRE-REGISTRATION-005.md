@@ -399,9 +399,215 @@ pre-registration is never edited in place after a number has been seen.
 
 ## Part 2 — the dataset
 
-*Not yet written. Committed separately, after acquisition, with the archive's real facts in
-it: the exact public source, the period covered, the timeframes, the symbols, the size, the
-minimum set needed to run every variant above and nothing beyond it, the checksums, the usable
-window after the listing-age cold start, and the state of the delisting record over it.*
+**Committed 2026-09-09, after acquisition and before any strategy result was produced.**
+Part 1 above is unchanged and was committed first; its commit is the evidence that the
+variants were not chosen against these numbers.
 
-*No strategy result is produced before this section exists.*
+### 2.1 The source
+
+The venue publishes a static, unauthenticated archive at `data.binance.vision`, backed by
+a public S3 bucket whose listing endpoint is also public. Nothing here needed a key, a
+session, a browser or a manual download, so nothing was asked of the Sponsor.
+
+| | |
+|---|---|
+| object path | `data/spot/monthly/klines/<SYMBOL>/<interval>/<SYMBOL>-<interval>-<YYYY-MM>.zip` |
+| listing endpoint | `https://s3-ap-northeast-1.amazonaws.com/data.binance.vision` |
+| download host | `https://data.binance.vision` |
+| object shape | one ZIP holding one CSV: open time, OHLC, volume, close time, quote volume, trades, taker buy volumes |
+
+**Why the archive rather than the REST endpoint.** `/api/v3/klines` returns a thousand bars
+per call and would have covered every symbol's daily history in two requests each. It also
+answers only for symbols the venue lists **today**: a delisted symbol is an error there, not
+a thin answer. A dataset built from it would be survivorship-biased by construction with no
+way to notice afterwards. The archive keeps the objects of symbols that are long gone, which
+is the property this spike needs and the reason invariant 9 exists.
+
+**Two timestamp units in one archive.** Objects published from 2025 onward carry open times
+in microseconds; earlier ones use milliseconds, and both appear inside a single symbol's
+history. The unit is decided per row by magnitude, never by the object's publication date,
+which would be a rule about when we happened to download. Verified by hand against
+`BTCUSDT-1d-2017-08`, `BTCUSDT-1d-2025-06` and `BTCUSDT-1d-2026-08`, all three of which
+parse to the correct calendar days.
+
+### 2.2 What exists, and what was taken
+
+| | |
+|---|---:|
+| symbol directories in the spot monthly kline archive | 3,710 |
+| of those, quoted in USDT or EUR | 808 |
+| of those, publishing at least one daily month | 807 (734 USDT, 73 EUR) |
+| archive span across all of them | 2017-08 to 2026-08 |
+| timeframes the venue publishes | 1s, 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, **1d**, 3d, 1w, 1mo |
+| timeframes taken | **1d only** |
+
+**The minimum set, and how it was cut.** Every signal, every universe rule and the currency
+leg read daily closes, and nothing in part 1 asks for an intraday bar, so no intraday object
+was fetched. Symbols outside the two pre-registered quote policies were never fetched at all,
+though they were still *indexed*, because a symbol's absence from the universe should be a
+measured decision rather than a download that never happened. Within the policies, the fetch
+window starts thirteen months before the first scored month: the longest lookback is 360 days,
+the listing-age rule needs 180 and the turnover rule 30, the first two overlap so 360
+dominates, and one extra month absorbs the ragged edge of a calendar month against a day
+count.
+
+Fifty-three symbols were excluded before a single object was fetched:
+
+| reason | count |
+|---|---:|
+| leveraged token, by the pre-registered stem rule | 48 |
+| published no month inside the window plus its warm-up | 5 |
+
+The 48 are the `UP`/`DOWN`/`BULL`/`BEAR` pairs — `BTCUPUSDT`, `ADADOWNUSDT`, `BNBBULLUSDT`
+and their kin — every one of which has a stem that is itself a base asset in the archive, so
+the rule fired on evidence rather than on spelling. No genuine asset was caught by it.
+
+### 2.3 What was actually downloaded
+
+| | |
+|---|---:|
+| objects planned | 28,578 |
+| objects downloaded | **28,577** |
+| symbols | 754 |
+| bytes | 49,081,732 (49 MB) |
+| on disk, raw objects | 123 MB |
+| on disk, parquet store | 29 MB |
+| download wall clock | 17.8 minutes |
+| failures | 1 |
+
+**The one failure, and what it is.** `PORTOEUR-1d-2022-11.zip` is not a readable ZIP. It is
+not a truncated download: the venue serves it with `Content-Length: 0`, verified directly.
+The object exists in the listing, so the membership evidence still says PORTOEUR was listed
+that month, and the calendar records it as listed. What is missing is that month's *bars*.
+Nothing fills the gap. The consequence is that any lookback window spanning November 2022
+fails the 90-per-cent coverage rule for that symbol and produces **no signal**, so PORTOEUR
+is neither ranked nor held across it and is counted as not-evaluable. That is the intended
+behaviour of invariant 9 and it is why the gap is recorded here rather than patched.
+
+**Integrity.** Every object's ZIP central directory and CRC were checked before its bytes
+were accepted, so a truncated download is an error at the point of download rather than a
+short series three stages later. A SHA-256 was taken of every object.
+
+`docs/binance-archive-checksums.md` is committed and carries one row per symbol — the
+SHA-256 of that symbol's own per-object SHA-256s in month order — plus a single fingerprint
+over every row. Twenty-eight thousand individual digests would drown the repository; this is
+enough to prove two downloads are the same dataset and to localise a difference to a symbol.
+
+**Dataset fingerprint:** `1d4d21f2f631272c6b18fa6f471bd3929d5e8473677ea130e73e15bd7953ebaa`
+
+**The data itself stays out of git.** `data/` is ignored, as it was for the previous venue.
+
+### 2.4 Ingestion
+
+Through SEXTANT-003's machinery, unchanged: the same `ParquetBarStore`, the same
+`StoredBar`, the same `Instrument` and `Universe` types, the same on-disk schema, the same
+exact-decimal-text discipline. There is no second ingestion path. What is new is a venue
+adapter that reads this venue's objects and hands rows to the app, which converts them into
+stored bars exactly as the other venue's adapter does — an exchange adapter that reached the
+storage engines would break the layering contract, and the contract check catches it.
+
+| | |
+|---|---:|
+| series written | 754 |
+| bars written | 856,601 |
+| series holding no rows | 0 |
+| ingest wall clock | 0.7 minutes |
+
+The spell-cutting rule that turns presence into listing intervals was identical for both
+venues, so it now lives in one venue-neutral module and both calendars call it. The previous
+venue's calendar output is unchanged and its tests still pass.
+
+### 2.5 The listing calendar, and the delisting record
+
+| | |
+|---|---:|
+| entries | 807 |
+| months spanned | 109 (2017-08 to 2026-08) |
+| symbols the archive shows leaving and returning | 9 |
+| symbols with an interior hole widening their brackets | 9 |
+| **delistings bracketed inside the evaluation window** | **269** |
+
+Every bracket here is at most one month wide, because this venue publishes monthly where the
+previous one published quarterly. Provenance is `VENUE_ARCHIVE` throughout; nothing is
+`RECONSTRUCTED`, and no instant is inferred from the shape of a price series.
+
+269 delistings inside the scored window is the number that matters. It is the survivorship
+bias this dataset would have carried had the REST endpoint been used, and it is large: those
+are 269 instruments that a today-only universe would have deleted from history along with
+whatever they did on the way out. Each one that a strategy held is marked out at its last
+observed close less the 20 per cent haircut.
+
+### 2.6 The window the rule resolved to
+
+The rule was fixed in part 1 section 5 and consulted only listing metadata and FX
+availability. No return was read to resolve it.
+
+| | |
+|---|---|
+| FX pair `EURUSDT` first published | 2020-01 |
+| plus the 13-month warm-up the longest lookback needs | 2021-02 |
+| **first usable month** | **2021-02** |
+| archive's last complete month | 2026-08 |
+| **last usable month end** | **2026-08-01** |
+| **usable months** | **66** |
+| warm-up actually fetched | 397 days, from 2020-01 |
+
+Sixty-six months clears the pre-registered floor of 36 comfortably, so the spike proceeds
+rather than reporting verdict (C) on sample size alone. For comparison, the previous venue's
+window gave 24 scored months at a Sharpe standard error of 0.709.
+
+**The usable window after the cold start**, reported as it was for the previous venue: the
+first scored rebalance is 2022-02-01, after twelve months held back for fitting, and the last
+is 2026-06-01. **52 scored months.**
+
+**The delisting record is intact over it**, with the one exception in 2.3: the archive
+publishes a complete monthly object set for every month from 2020-01 to 2026-08 inclusive,
+and the window stops one month short of the archive's edge so that absence from the final
+published month is never read as a delisting.
+
+### 2.7 Universe breadth, measured
+
+| quote policy | rebalances | minimum | median | maximum |
+|---|---:|---:|---:|---:|
+| USDT | 67 | 114 | 307 | 372 |
+| EUR | 67 | 4 | 13 | 32 |
+
+The EUR-quoted universe is non-empty in all 67 months and its median size is 13, so it clears
+both conditions part 1 section 4 set for the secondary policy and it **is** reported rather
+than declared not evaluable.
+
+**Two feasibility rules are inert on this dataset, and that is stated rather than hidden.**
+The minimum-notional and lot-size rules test an instrument's tick, lot and minimum-order
+value against the account. No historical record of those constraints exists for a delisted
+symbol on this venue: today's instrument endpoint describes survivors and nothing else, and
+using it would have made the two rules selectively strict — admitting every delisted name and
+filtering only the live ones, which is bias in the direction that flatters. Zero is therefore
+carried for every symbol uniformly, which makes both rules admit everything. The practical
+effect is nil, because this venue's minimum order values are single-digit quote units against
+a 150 EUR target position, but the rules are not doing work here and no result should be read
+as though they were.
+
+### 2.8 Deviations from part 1, stated rather than left to be noticed
+
+**D1 — the walk-forward remainder.** Part 1 section 5 says the fold length is
+`(usable_months - 12) / 4` floored *with the remainder added to the final fold*. The engine's
+plan builder, which is shared with the published SEXTANT-004 results, instead leaves the
+remainder off the end. 66 months less 12 leaves 54, which divides into four folds of 13 with
+2 left over, so the scored window is **52 months rather than 54**. The deviation shortens the
+scored window rather than lengthening it, and changing the shared plan builder to match the
+sentence would have altered a code path a published result already rests on. Recorded here;
+part 1 is not edited.
+
+**D2 — the secondary quote policy is reported in one cost cell, not four.** Part 1 section 4
+says the EUR policy is "reported" without fixing its grid. It is run in the headline cost cell
+only. Its cross-section is a twentieth the width of the USDT one, and running the cost
+sensitivity over it would add four more rows saying what the USDT panel already says about a
+fee schedule. This narrows the registered grid; it does not widen it.
+
+**D3 — the trial count.** Part 1 section 12 expected 146 trials. The realised count is higher
+because the secondary policy adds a panel and because each benchmark is counted per cell. The
+registry's own count is authoritative and is what the Deflated Sharpe uses; the divergence is
+reported in the results rather than reconciled away.
+
+*Nothing in part 1 has been edited. Both parts were committed before any strategy result
+existed.*
