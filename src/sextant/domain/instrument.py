@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from sextant.domain.errors import DomainError
 from sextant.domain.money import Notional, Price, Quantity
+from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timestamp
 from sextant.domain.venue import Venue
 
@@ -45,6 +46,9 @@ class Instrument:
     lot_size: Quantity
     min_notional: Notional
     delisted_at: Timestamp | None = None
+    provenance: Provenance = Provenance.UNVERIFIED
+    """How the listing window above was established. Defaults to unverified on
+    purpose: an instrument built without stating a source is not evidence."""
 
     def __post_init__(self) -> None:
         if self.delisted_at is not None and self.delisted_at <= self.listed_at:

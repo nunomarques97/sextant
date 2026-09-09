@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from sextant.domain.errors import DomainError
 from sextant.domain.instrument import Instrument
-from sextant.domain.money import Price, Quantity
+from sextant.domain.money import Notional, Price, Quantity
 from sextant.domain.time import Timeframe, Timestamp
 
 
@@ -40,6 +40,13 @@ class Bar:
     close: Price
     volume: Quantity
     is_closed: bool
+    quote_volume: Notional | None = None
+    """Turnover in the quote currency over the bar, when the venue reports it.
+
+    Carried rather than derived: ``close * volume`` is not the same number, and
+    the liquidity rules in the universe are stated in quote units. Optional
+    because not every source supplies it, and a fabricated value would be worse
+    than an absent one."""
 
     @property
     def close_time(self) -> Timestamp:

@@ -35,7 +35,7 @@ forbidden_modules =
     sextant.app
 
 [importlinter:contract:exchange-sdks-are-quarantined]
-name = exchange SDKs and the HTTP client may only be imported inside adapters.exchanges
+name = exchange SDKs may only be imported inside adapters.exchanges
 type = forbidden
 source_modules =
     sextant.domain
@@ -51,8 +51,42 @@ forbidden_modules =
     python_binance
     krakenex
     pykrakenapi
+allow_indirect_imports = False
+
+# httpx needs two contracts rather than one, because `app` is by definition the
+# layer that wires concrete adapters to ports. It therefore reaches httpx
+# transitively through whichever adapter it builds, and always will. Banning the
+# reachable *path* from app would ban the wiring layer from doing its job.
+#
+# What actually matters is stated as two separate facts:
+#   1. domain, ports and engine cannot reach httpx at all, by any path. That is
+#      the acceptance criterion, and it is what keeps the engine testable
+#      without a network and portable across venues.
+#   2. app may not import httpx itself. It may hold an adapter that speaks HTTP;
+#      it may not speak HTTP.
+
+[importlinter:contract:http-client-unreachable-from-the-core]
+name = domain, ports and engine cannot reach the HTTP client by any path
+type = forbidden
+source_modules =
+    sextant.domain
+    sextant.ports
+    sextant.engine
+    sextant.adapters.storage
+    sextant.adapters.llm
+    sextant.adapters.clocks
+forbidden_modules =
     httpx
 allow_indirect_imports = False
+
+[importlinter:contract:http-client-not-spoken-by-the-wiring-layer]
+name = app wires adapters that speak HTTP, and never speaks HTTP itself
+type = forbidden
+source_modules =
+    sextant.app
+forbidden_modules =
+    httpx
+allow_indirect_imports = True
 
 [importlinter:contract:venues-are-independent-peers]
 name = binance and kraken are peers, not a chain
