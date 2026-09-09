@@ -133,10 +133,23 @@ class KrakenClient(BaseExchangeClient):
         country_code: str | None = None,
     ) -> None:
         super().__init__(account_permitted, jurisdiction_eligible)
-        self._transport = transport or default_transport()
+        self._transport_or_none: HttpTransport | None = transport
         self._calendar = calendar
         self._country_code = country_code
         self._metadata: Mapping[str, PairMetadata] | None = None
+
+    @property
+    def _transport(self) -> HttpTransport:
+        """The HTTP transport, built on first use.
+
+        Lazy on purpose. ``app`` wires an adapter for every run, including runs
+        that never fetch anything - ``sextant status`` among them - and a
+        connection pool that is allocated and never used is a resource leak
+        wearing the costume of dependency injection.
+        """
+        if self._transport_or_none is None:
+            self._transport_or_none = default_transport()
+        return self._transport_or_none
 
     # -- availability --------------------------------------------------------
 
