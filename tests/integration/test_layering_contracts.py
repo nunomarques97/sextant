@@ -31,6 +31,12 @@ EXPECTED_CONTRACTS = {
     "storage-engines-unreachable-from-the-core",
     "storage-engines-not-spoken-by-the-wiring-layer",
     "venues-are-independent-peers",
+    # SEXTANT-004 added the array libraries. Three facts rather than two: domain
+    # and ports see none of them, the engine may compute with numpy and scipy but
+    # never loads a dataframe, and app wires the loader without speaking polars.
+    "array-libraries-unreachable-from-domain-and-ports",
+    "dataframes-unreachable-from-the-engine",
+    "dataframes-not-spoken-by-the-wiring-layer",
 }
 
 

@@ -15,6 +15,9 @@ dependencies = [
     "httpx>=0.27",            # public market data over HTTP; quarantined to adapters.exchanges
     "pyarrow>=17.0",          # parquet bar store; quarantined to adapters.storage
     "duckdb>=1.1",            # queries across the parquet store; quarantined to adapters.storage
+    "numpy>=2.1",             # float arrays for the statistics; never for money. ADR 0006
+    "scipy>=1.14",            # the normal CDF/quantile the Deflated Sharpe needs. ADR 0006
+    "polars>=1.9",            # bulk panel loading; quarantined to adapters.storage. ADR 0006
 ]
 
 [project.scripts]
@@ -78,6 +81,13 @@ ignore = [
 "src/sextant/app/archive_ingest.py" = ["T20"]
 "src/sextant/app/archive_measure.py" = ["T20"]
 "src/sextant/app/universe_snapshot.py" = ["T20"]
+"src/sextant/app/null_baseline.py" = ["T20"]
+"src/sextant/app/quarter_end_audit.py" = ["T20"]
+# S311 flags `random` as unsuitable for cryptography, which is true and
+# irrelevant: this is a reproducible simulation and a cryptographic generator
+# would be the defect. The generator is explicitly constructed and seeded per
+# run - never the global one - so a library imported elsewhere cannot disturb it.
+"src/sextant/engine/backtest/baselines.py" = ["S311"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -113,6 +123,13 @@ files = ["src", "tests"]
 # site - int(), str(), bool() - so nothing untyped escapes adapters.storage.
 [[tool.mypy.overrides]]
 module = ["pyarrow.*"]
+ignore_missing_imports = true
+
+# scipy ships no py.typed marker either. numpy and polars both do, and need no
+# entry. Only `scipy.stats.norm` is used, in one module, and its two call sites
+# are wrapped in float() so nothing untyped escapes engine.statistics.
+[[tool.mypy.overrides]]
+module = ["scipy.*"]
 ignore_missing_imports = true
 
 # ------------------------------------------------------------------------------

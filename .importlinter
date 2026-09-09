@@ -130,3 +130,49 @@ type = independence
 modules =
     sextant.adapters.exchanges.binance
     sextant.adapters.exchanges.kraken
+
+# numpy, scipy and polars, quarantined by the rule stated in ADR 0006.
+#
+# Three separate facts, because the three libraries are not allowed in the same
+# places:
+#
+#   1. domain and ports see none of them. Those layers describe money and
+#      contracts; a float array has no business in either.
+#   2. engine may compute with numpy and scipy - that is what they are for - but
+#      never with polars. polars is a data-loading library, and the engine does
+#      no loading: it asks the BarRepository port.
+#   3. app wires the loader; it does not speak polars itself, exactly as it does
+#      not speak parquet or HTTP.
+
+[importlinter:contract:array-libraries-unreachable-from-domain-and-ports]
+name = domain and ports cannot reach numpy, scipy or polars by any path
+type = forbidden
+source_modules =
+    sextant.domain
+    sextant.ports
+forbidden_modules =
+    numpy
+    scipy
+    polars
+allow_indirect_imports = False
+
+[importlinter:contract:dataframes-unreachable-from-the-engine]
+name = the engine computes with arrays and never loads a dataframe
+type = forbidden
+source_modules =
+    sextant.engine
+    sextant.adapters.exchanges
+    sextant.adapters.llm
+    sextant.adapters.clocks
+forbidden_modules =
+    polars
+allow_indirect_imports = False
+
+[importlinter:contract:dataframes-not-spoken-by-the-wiring-layer]
+name = app wires loaders that speak polars, and never speaks polars itself
+type = forbidden
+source_modules =
+    sextant.app
+forbidden_modules =
+    polars
+allow_indirect_imports = True
