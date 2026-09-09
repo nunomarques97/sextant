@@ -22,7 +22,7 @@ historical question with today's survivors.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -56,6 +56,9 @@ API_BASE = "https://api.binance.com"
 
 ARCHIVE_BASE = "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"
 """The venue's official public data archive, addressed as a plain S3 bucket."""
+
+BASIS_POINTS = Decimal(10_000)
+"""One basis point is one ten-thousandth. Spreads are reported in them."""
 
 KLINE_PAGE_LIMIT = 1000
 """Maximum bars per klines call, per the venue's published documentation."""
@@ -319,6 +322,31 @@ class BinanceClient(BaseExchangeClient):
             if len(rows) < KLINE_PAGE_LIMIT:
                 break
         return tuple(bars)
+
+    def top_of_book_spreads_bps(self, symbols: Collection[str]) -> Mapping[str, Decimal]:
+        """Current best-bid/ask spread in basis points, for the named symbols.
+
+        One snapshot of one instant. It is emphatically not a history: the venue
+        publishes no historical quote data, so this can calibrate a spread rule
+        for today and for no other date. Callers must not extrapolate it
+        backwards, and the report labels every use of it accordingly.
+        """
+        payload = self._transport.get_json("/api/v3/ticker/bookTicker", cost=4.0)
+        rows = as_sequence(payload, context="bookTicker")
+        wanted = set(symbols)
+        spreads: dict[str, Decimal] = {}
+        for row in rows:
+            entry = as_mapping(row, context="bookTicker[]")
+            symbol = as_str(field_of(entry, "symbol", context="bookTicker"), context="symbol")
+            if symbol not in wanted:
+                continue
+            bid = Decimal(as_str(field_of(entry, "bidPrice", context=symbol), context="bidPrice"))
+            ask = Decimal(as_str(field_of(entry, "askPrice", context=symbol), context="askPrice"))
+            if bid <= 0 or ask <= 0 or ask < bid:
+                continue
+            mid = (bid + ask) / Decimal(2)
+            spreads[symbol] = (ask - bid) / mid * BASIS_POINTS
+        return spreads
 
     def earliest_bar_open_time(self, symbol: str, timeframe: Timeframe) -> Timestamp | None:
         """The first bar the venue will serve for ``symbol``, or None if it serves none.

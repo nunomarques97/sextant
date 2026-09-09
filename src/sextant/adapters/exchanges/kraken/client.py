@@ -56,6 +56,9 @@ from sextant.domain.venue import Venue
 API_BASE = "https://api.kraken.com"
 """Public REST host. No credential is ever attached to a request to it."""
 
+BASIS_POINTS = Decimal(10_000)
+"""One basis point is one ten-thousandth. Spreads are reported in them."""
+
 OHLC_MAX_CANDLES = 720
 """Documented ceiling on candles per OHLC call. Measured at 721 for daily."""
 
@@ -285,6 +288,38 @@ class KrakenClient(BaseExchangeClient):
                 bars.append(bar)
         return tuple(bars)
 
+    def top_of_book_spreads_bps(self, symbols: Sequence[str]) -> Mapping[str, Decimal]:
+        """Current best-bid/ask spread in basis points, for the named pairs.
+
+        A snapshot of one instant, batched because the venue accepts a comma
+        separated pair list. The venue's ``Spread`` endpoint returns only recent
+        quotes and offers no ``since`` reaching further back, so this is the
+        only spread measurement available and it dates from today alone.
+        """
+        spreads: dict[str, Decimal] = {}
+        canonical_to_symbol = {
+            item.canonical: item.symbol for item in self.pair_metadata().values()
+        }
+        batch_size = 100
+        for offset in range(0, len(symbols), batch_size):
+            batch = symbols[offset : offset + batch_size]
+            payload = self._result(
+                self._transport.get_json("/0/public/Ticker", {"pair": ",".join(batch)}),
+                context="Ticker",
+            )
+            body = as_mapping(payload, context="Ticker")
+            for canonical, raw in body.items():
+                entry = as_mapping(raw, context=f"Ticker.{canonical}")
+                bid = _first_level(entry, "b", canonical)
+                ask = _first_level(entry, "a", canonical)
+                if bid <= 0 or ask <= 0 or ask < bid:
+                    continue
+                mid = (bid + ask) / Decimal(2)
+                spreads[canonical_to_symbol.get(canonical, canonical)] = (
+                    (ask - bid) / mid * BASIS_POINTS
+                )
+        return spreads
+
     # -- error envelope ------------------------------------------------------
 
     def _result(self, payload: JsonValue, *, context: str) -> JsonValue:
@@ -312,6 +347,12 @@ class KrakenClient(BaseExchangeClient):
 # ----------------------------------------------------------------------------
 # Parsing
 # ----------------------------------------------------------------------------
+
+
+def _first_level(entry: Mapping[str, JsonValue], key: str, canonical: str) -> Decimal:
+    """Read the price out of a Ticker best-bid or best-ask array."""
+    level = as_sequence(field_of(entry, key, context=canonical), context=f"{canonical}.{key}")
+    return Decimal(as_str(level[0], context=f"{canonical}.{key}[0]"))
 
 
 def _parse_pair(canonical: str, row: JsonValue) -> PairMetadata | None:
