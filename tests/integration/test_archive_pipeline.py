@@ -24,6 +24,7 @@ import pytest
 from sextant.adapters.clocks import SimulatedClock
 from sextant.adapters.exchanges.kraken.archive import (
     ARCHIVE_INTERVAL_MINUTES,
+    ArchiveManifest,
     Quarter,
     quarters_between,
 )
@@ -67,10 +68,20 @@ def write_quarter(root: Path, quarter: Quarter, pairs: dict[str, str]) -> None:
 
 @dataclass(frozen=True, slots=True)
 class Fixture:
-    """A built archive root and the store root beside it."""
+    """A built archive root, the store root beside it, and a scratch checksum file.
+
+    ``checksums`` is redirected away from the repository on purpose. The scan
+    stage writes a committed record of the real dataset, and a test over fixture
+    archives must never be able to overwrite it.
+    """
 
     archives: Path
     store_root: Path
+    checksums: Path
+
+    def scan(self) -> ArchiveManifest:
+        """Run the scan stage with every path pointed at the fixture."""
+        return archive_ingest.scan(self.archives, self.store_root, checksums_path=self.checksums)
 
 
 @pytest.fixture
@@ -96,7 +107,11 @@ def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Fixture:
     )
     monkeypatch.setattr(archive_ingest, "FIRST_QUARTER", Quarter(2024, 2))
     monkeypatch.setattr(archive_ingest, "LAST_QUARTER", Quarter(2024, 4))
-    return Fixture(archives=archives, store_root=tmp_path / "store")
+    return Fixture(
+        archives=archives,
+        store_root=tmp_path / "store",
+        checksums=tmp_path / "checksums.md",
+    )
 
 
 def store_fingerprint(root: Path) -> str:
@@ -114,7 +129,7 @@ def store_fingerprint(root: Path) -> str:
 def test_the_scan_records_a_checksum_per_file_and_names_the_rest(
     built: Fixture, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
 
     assert [quarter.label for quarter in manifest.quarters] == ["Q2_2024", "Q3_2024"]
     assert [quarter.label for quarter in manifest.missing] == ["Q4_2024"]
@@ -131,7 +146,9 @@ def test_the_scan_reports_holding_nothing_rather_than_failing(
     monkeypatch.setattr(archive_ingest, "FIRST_QUARTER", Quarter(2024, 2))
     monkeypatch.setattr(archive_ingest, "LAST_QUARTER", Quarter(2024, 2))
 
-    manifest = archive_ingest.scan(tmp_path / "empty", tmp_path / "store")
+    manifest = archive_ingest.scan(
+        tmp_path / "empty", tmp_path / "store", checksums_path=tmp_path / "checksums.md"
+    )
 
     assert manifest.quarters == ()
     assert "held 0/1: none" in capsys.readouterr().out
@@ -139,7 +156,7 @@ def test_the_scan_reports_holding_nothing_rather_than_failing(
 
 def test_a_manifest_is_reused_rather_than_rehashed(built: Fixture) -> None:
     """Hashing is 300 MB per file. It happens once and every later read is verified."""
-    archive_ingest.scan(built.archives, built.store_root)
+    built.scan()
 
     loaded = archive_ingest.load_manifest(built.store_root, built.archives)
 
@@ -159,7 +176,7 @@ def test_a_manifest_is_built_on_demand_when_absent(built: Fixture) -> None:
 def test_the_calendar_stage_writes_intervals_and_the_missing_quarters(
     built: Fixture, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
 
     calendar = archive_ingest.build_calendar(manifest, built.store_root)
 
@@ -178,7 +195,7 @@ def test_no_point_delisting_date_is_written_anywhere(built: Fixture) -> None:
     Every delisting in the persisted calendar carries two bounds or an open end.
     A single instant would mean somebody narrowed a bracket to a date.
     """
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     archive_ingest.build_calendar(manifest, built.store_root)
 
     written = json.loads((built.store_root / "listing_calendar.json").read_text(encoding="utf-8"))
@@ -194,7 +211,7 @@ def test_no_point_delisting_date_is_written_anywhere(built: Fixture) -> None:
 
 
 def test_the_ingest_writes_daily_and_hourly_for_every_pair(built: Fixture) -> None:
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     store = ParquetBarStore(built.store_root)
 
     report = archive_ingest.ingest(manifest, store, clock=SimulatedClock(NOW))
@@ -210,7 +227,7 @@ def test_the_ingest_writes_daily_and_hourly_for_every_pair(built: Fixture) -> No
 def test_a_pair_present_in_both_quarters_gets_one_continuous_series(
     built: Fixture,
 ) -> None:
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     store = ParquetBarStore(built.store_root)
     archive_ingest.ingest(manifest, store, clock=SimulatedClock(NOW))
 
@@ -223,7 +240,7 @@ def test_a_pair_present_in_both_quarters_gets_one_continuous_series(
 
 def test_an_untraded_pair_is_stored_empty_rather_than_skipped(built: Fixture) -> None:
     """Listed-and-untraded has to survive the storage layer too."""
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     store = ParquetBarStore(built.store_root)
 
     report = archive_ingest.ingest(manifest, store, clock=SimulatedClock(NOW))
@@ -236,7 +253,7 @@ def test_an_untraded_pair_is_stored_empty_rather_than_skipped(built: Fixture) ->
 
 def test_running_the_ingest_twice_produces_the_same_store(built: Fixture) -> None:
     """The acceptance criterion, asserted on every byte of the tree."""
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     store = ParquetBarStore(built.store_root)
 
     first = archive_ingest.ingest(manifest, store, clock=SimulatedClock(NOW))
@@ -249,7 +266,7 @@ def test_running_the_ingest_twice_produces_the_same_store(built: Fixture) -> Non
 
 def test_the_closed_flag_comes_from_the_clock_not_the_wall(built: Fixture) -> None:
     """A backtest clock therefore produces a deterministic store."""
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     store = ParquetBarStore(built.store_root)
 
     archive_ingest.ingest(manifest, store, clock=SimulatedClock(at("2024-05-01")))
@@ -265,7 +282,7 @@ def test_the_closed_flag_comes_from_the_clock_not_the_wall(built: Fixture) -> No
 def test_the_measure_stage_writes_tables_and_the_haircut_sensitivity(
     built: Fixture, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     calendar = archive_ingest.build_calendar(manifest, built.store_root)
     store = ParquetBarStore(built.store_root)
     archive_ingest.ingest(manifest, store, clock=SimulatedClock(NOW))
@@ -293,7 +310,7 @@ def test_the_measure_stage_writes_tables_and_the_haircut_sensitivity(
 
 
 def test_the_haircut_rows_span_zero_twenty_and_fifty_percent(built: Fixture) -> None:
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     calendar = archive_ingest.build_calendar(manifest, built.store_root)
     store = ParquetBarStore(built.store_root)
     archive_ingest.ingest(manifest, store, clock=SimulatedClock(NOW))
@@ -308,7 +325,7 @@ def test_the_haircut_rows_span_zero_twenty_and_fifty_percent(built: Fixture) -> 
 
 
 def test_the_measured_window_spans_the_held_quarters(built: Fixture) -> None:
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
     calendar = archive_ingest.build_calendar(manifest, built.store_root)
 
     months = archive_measure.month_starts(
@@ -330,7 +347,7 @@ def test_an_empty_calendar_refuses_to_be_measured(built: Fixture) -> None:
     """Rather than reporting an empty universe, which looks like a finding."""
     from sextant.adapters.exchanges.kraken.listing_calendar import KrakenListingCalendar
 
-    manifest = archive_ingest.scan(built.archives, built.store_root)
+    manifest = built.scan()
 
     with pytest.raises(ValueError, match="empty calendar"):
         archive_measure.measure_all(
@@ -346,3 +363,61 @@ def test_the_thirteen_quarter_window_is_the_one_the_venue_publishes() -> None:
     assert len(quarters_between(Quarter(2023, 1), Quarter(2026, 1))) == 13
     assert Quarter(2023, 1) == archive_ingest.FIRST_QUARTER
     assert Quarter(2026, 1) == archive_ingest.LAST_QUARTER
+
+
+def test_the_scan_writes_its_checksum_record_where_it_is_told(built: Fixture) -> None:
+    """And nowhere else.
+
+    The scan stage writes a record that is committed to the repository, which
+    makes it the one stage that can damage tracked files. An earlier version
+    hardcoded the path, and running the suite overwrote the real dataset's
+    checksums with fixture hashes. The committed file must be unreachable from
+    a test.
+    """
+    committed = Path(__file__).resolve().parents[2] / archive_ingest.CHECKSUMS_PATH
+    before = committed.read_text(encoding="utf-8") if committed.is_file() else None
+
+    manifest = built.scan()
+
+    written = built.checksums.read_text(encoding="utf-8")
+    assert "Held: 2 of 3 quarters" in written
+    assert manifest.files["Q2_2024"].sha256 in written
+    assert "Q4_2024" in written.split("## Not held")[1]
+    assert (committed.read_text(encoding="utf-8") if committed.is_file() else None) == before
+
+
+def test_a_complete_manifest_says_so_rather_than_listing_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(archive_ingest, "FIRST_QUARTER", Quarter(2024, 2))
+    monkeypatch.setattr(archive_ingest, "LAST_QUARTER", Quarter(2024, 2))
+    archives = tmp_path / "data"
+    write_quarter(archives, Quarter(2024, 2), {"XBTEUR": daily("2024-04-01", 3)})
+    target = tmp_path / "checksums.md"
+
+    archive_ingest.scan(archives, tmp_path / "store", checksums_path=target)
+
+    written = target.read_text(encoding="utf-8")
+    assert "Held: 1 of 1 quarters" in written
+    assert "## Not held" not in written
+    assert "No listing interval in the" in written
+
+
+def test_building_a_manifest_on_demand_never_touches_the_committed_record(
+    built: Fixture,
+) -> None:
+    """Only the scan stage writes into the repository.
+
+    `load_manifest` builds a manifest when none exists, and it briefly did that
+    by calling `scan`, which meant any code path needing a manifest could
+    rewrite a tracked file.
+    """
+    committed = Path(__file__).resolve().parents[2] / archive_ingest.CHECKSUMS_PATH
+    before = committed.read_text(encoding="utf-8") if committed.is_file() else None
+
+    loaded = archive_ingest.load_manifest(built.store_root, built.archives)
+
+    assert len(loaded.files) == 2
+    assert (built.store_root / archive_ingest.MANIFEST_NAME).is_file()
+    assert not built.checksums.exists()
+    assert (committed.read_text(encoding="utf-8") if committed.is_file() else None) == before

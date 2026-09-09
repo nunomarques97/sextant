@@ -1,6 +1,7 @@
 # Data availability - what each venue can actually supply
 
-**Tasks:** SEXTANT-002, revised by SEXTANT-003. **Measured:** 2026-09-09.
+**Tasks:** SEXTANT-002, revised by SEXTANT-003. **Measured:** 2026-09-09, over
+all thirteen quarterly archives.
 **Method:** real requests to public endpoints, journalled; plus the venue's own
 downloadable quarterly archives, checksummed and read.
 
@@ -41,15 +42,19 @@ in-scope instruments were listed and 119 of them - exactly half - no longer
 trade today**. A backtest built from today's instrument list would silently drop
 half its 2021 universe, and drop it non-randomly: the half that died.
 
-Go / no-go: **go on Binance. Go on Kraken via the archives, conditionally** -
-see §9 for the two conditions, of which one is currently unmet.
+Go / no-go: **go on Binance, and go on Kraken via the archives.**
 
-**Kraken is the current leading candidate for both research and execution.**
-That is provisional until the archives are shown sufficient to reconstruct the
-required point-in-time universe over the intended backtest window, which
-SEXTANT-003 could not establish because 11 of the 13 quarterly files remain
-undownloadable. Binance stays a first-class independent adapter and historical
-cross-check.
+All thirteen quarterly archives are held and checksummed
+([`docs/kraken-archive-checksums.md`](kraken-archive-checksums.md)). Across
+Q1 2023 to Q1 2026 the archives yield **1,640 pairs and 40 monthly refreshes**,
+of which 31 are usable. On the EUR+USD policy **31 of those 31 months clear 25
+instruments**, peaking at 129. On EUR alone the picture is thinner and the
+verdict is different: 24 of 40 months land in the 15-to-25 low-power band and
+only 4 clear 25.
+
+**Kraken is the leading candidate for both research and execution**, on EUR+USD
+rather than on EUR alone. Binance stays a first-class independent adapter and
+historical cross-check.
 
 ## 1. What was fetched, and from where
 
@@ -253,35 +258,69 @@ Listed-and-untraded is carried as its own state from the archive reader through
 the calendar to the parquet store, where it is a real zero-row series rather
 than an absent one.
 
-#### What is still missing, precisely
+#### Acquisition, and what it cost
 
-**Eleven of the thirteen quarterly files could not be obtained.** Programmatic
-download was attempted on 2026-09-09: the Drive folder listing was fetched and
-all thirteen file identifiers extracted, and every one of the thirteen returned
-`Google Drive - Quota exceeded` at the confirmation step. The quota is
-folder-wide, not per file, and it also blocks the two files we do hold - which
-were fetched by hand from a signed-in browser. That is the workaround.
+Programmatic download was attempted on 2026-09-09. The Drive folder listing was
+fetched and all thirteen file identifiers extracted, and every one of the
+thirteen returned `Google Drive - Quota exceeded` at the confirmation step. The
+quota is **folder-wide, not per file**, and it blocks anonymous downloads of
+files that a signed-in browser fetches without difficulty. That is the
+workaround, and it is a Sponsor action rather than a code change.
 
-| Quarter | Held | Quarter | Held |
-|---|---|---|---|
-| Q1 2023 | **missing** | Q3 2024 | yes |
-| Q2 2023 | **missing** | Q4 2024 | **missing** |
-| Q3 2023 | **missing** | Q1 2025 | **missing** |
-| Q4 2023 | **missing** | Q2 2025 | **missing** |
-| Q1 2024 | **missing** | Q3 2025 | **missing** |
-| Q2 2024 | yes | Q4 2025 | **missing** |
-| | | Q1 2026 | **missing** |
+**All thirteen were subsequently acquired by hand.** They total 4.9 GB, and
+every file's SHA-256 is recorded in
+[`docs/kraken-archive-checksums.md`](kraken-archive-checksums.md) so the dataset
+a result was computed from can be verified later without re-downloading
+anything. Every read re-checks against the manifest and raises
+`ChecksumMismatch` rather than reading a truncated file as a short quarter.
 
-The two held files are checksummed in `data/kraken-archive/manifest.json` and
-re-verified on every read.
+#### The quarter-end rule, checked across all thirteen
 
-**The consequence is not cosmetic.** With two adjacent quarters the archive
-covers 2024-04-01 to 2024-10-01, and the earliest instant any pair is
-*certainly* listed by is 2024-07-01, the end of the first held quarter. Rule 2
-requires 180 days from there, which is 2024-12-28, past the end of the data. So
-the point-in-time research universe is **zero in every month**, for arithmetic
-reasons rather than empirical ones, and it stays that way until earlier quarters
-are acquired. §6 gives the tables.
+The whole calendar rests on one property: each quarterly file contains the pairs
+listed at the end of that quarter. It is now checkable rather than assumed, and
+it holds.
+
+For every quarter transition, take the pairs present in quarter *N* and absent
+in *N+1*, and ask when their last bar in *N* falls. If the rule holds they were
+trading up to the quarter end and then vanished.
+
+| Transition | Pairs that died | Priced | With a bar within 7 days of quarter end |
+|---|---:|---:|---:|
+| Q1→Q2 2023 | 2 | 2 | 2 |
+| Q4 2023→Q1 2024 | 25 | 25 | 25 |
+| Q1→Q2 2024 | 3 | 3 | 3 |
+| Q2→Q3 2024 | 13 | 6 | 6 |
+| Q3→Q4 2024 | 45 | 45 | 45 |
+| Q1→Q2 2025 | 21 | 17 | 17 |
+| Q2→Q3 2025 | 11 | 11 | 11 |
+| Q3→Q4 2025 | 56 | 48 | 46 |
+| Q4 2025→Q1 2026 | 8 | 8 | 8 |
+
+**184 deaths, 165 priced, 163 with a bar within a week of the quarter boundary,
+median gap one day.** Three transitions produced no deaths at all. The two
+exceptions are both in the Q3→Q4 2025 transition; they are not explained here
+and are not smoothed over either. The gap between "died" and "priced" is the
+listed-and-untraded population: pairs shipped with zero rows, which have no last
+bar to measure.
+
+A second, independent check. The archive's final quarter lists 1,467 pairs;
+`AssetPairs` on 2026-09-09 lists 1,449, and **1,344 appear in both** - 91.6% of
+the archive's final quarter. The 123 that are in the archive and gone from the
+live endpoint are exactly the delistings inside the unremediable window of §10,
+and the 105 in the live endpoint and absent from the archive are pairs listed
+since 2026-04-01. Both differences point the way the rule predicts.
+
+#### A pair may live more than once
+
+**Eight pairs delist and later relist**: `KEEPEUR`, `KEEPUSD`, `REPEUR` (three
+spells each), `LSKEUR`, `LSKUSD`, `RLUSDEUR`, `TRXUSDD`, `USDGEUR` (two each).
+`KEEPEUR` is absent for Q2 2025, returns in Q3, is absent again for Q4, and
+returns in Q1 2026.
+
+A single listing window per pair would report all eight as continuously tradable
+through periods the archive says they were gone. They are recorded as separate
+spells, each with its own bracketed ends, and a pair firmly inside any one spell
+is listed regardless of how fuzzy the edges of the others are.
 
 ### What `instruments(at)` can honestly answer
 
@@ -493,16 +532,14 @@ provisionally.** The "research on Binance, execute on Kraken" split is withdrawn
 before it was tested, because it is no longer needed: it is the venue we can
 actually trade from Portugal, and it now has the deeper EUR history.
 
-The provisionality is not a formality. It rests on one unmet condition:
+Both conditions SEXTANT-003 named are now met.
 
-1. **The archives must cover the intended backtest window.** Two of thirteen
-   quarters are held. At two quarters the research universe is arithmetically
-   zero, so nothing about the venue's suitability has actually been
-   demonstrated - only that the method works. **Unmet.**
-2. **The method must be sound.** Demonstrated: the calendar reproduces both
-   facts verified by hand against the real files, and the ANT delisting instant
-   Kraken announced falls inside a bracket derived without reference to it.
-   **Met.**
+1. **The method is sound.** The calendar reproduces both facts verified by hand
+   against the real files, the ANT delisting instant Kraken announced falls
+   inside a bracket derived without reference to it, and the quarter-end rule
+   holds across all thirteen quarters on 163 of 165 priced deaths.
+2. **The archives cover the intended window.** All thirteen are held: Q1 2023
+   to Q1 2026, 1,640 pairs, 40 monthly refreshes.
 
 **Binance stays a first-class independent adapter and historical cross-check**,
 and it remains the only venue where an effective-spread estimate is buildable at
@@ -511,58 +548,150 @@ peers that cannot import each other.
 
 ### The archive tables
 
-Full month-by-month tables over the archive window, with per-rule exclusion
-counts and the haircut sensitivity, are in
-[`docs/kraken-archive-tables.md`](kraken-archive-tables.md).
+Full month-by-month tables, per-rule exclusion counts and the haircut
+sensitivity are in
+[`docs/kraken-archive-tables.md`](kraken-archive-tables.md). Summarised:
 
-Read against the SEXTANT-002 API-only Kraken tables, the comparison is:
+| | EUR | EUR+USD |
+|---|---:|---:|
+| Candidate pairs | 1,640 | 1,640 |
+| Rejected by quote currency | 1,001 | 318 |
+| Monthly refreshes | 40 | 40 |
+| Months with a non-empty research universe | 31 | 31 |
+| Peak research universe | **43** (2024-04) | **129** (2024-04) |
+| Research universe, final month | 18 | 74 |
+| Months above 25 ("ok") | 4 | **31** |
+| Months 15-25 ("low power") | 24 | 0 |
+| Months below 15 ("too thin") | 12 | 9 |
+
+**EUR+USD is viable and EUR alone is marginal.** On EUR+USD every one of the 31
+usable months clears 25 instruments. On EUR alone only 4 do, 24 sit in the
+low-power band, and the peak of 43 is reached once. That is a materially better
+EUR picture than Binance, where 83 of 109 months fall below 15 and the current
+membership is six names - but it is not a comfortable cross-sectional universe
+on its own.
+
+**The account does not bind at any point.** Across all 40 months and both
+policies the research and executable universes are **identical**, and the
+largest gap between them is zero. Kraken's `costmin` is 0.45 EUR or less for
+almost every pair, against a ceiling of 46.875 EUR. This is consistent with the
+API-only measurement and is now confirmed over 40 months rather than 24.
+
+**Caveat on that, stated rather than buried.** 292 of the 1,640 pairs - 17.8% -
+no longer appear in `AssetPairs` at all, so no tick size, lot size or minimum
+notional survives for them. Rules 5 and 6 admit an instrument whose stated
+constraints are zero, so those 292 pass the account filter without being tested
+by it. The executable universe is therefore honestly measured for the 1,348
+pairs the venue still describes and *assumed* for the 292 it does not. Given
+that the account rules reject nothing anywhere, this is unlikely to be hiding
+much, but it is an assumption rather than a measurement.
+
+### Comparison against the API-only measurement
 
 | | API-only (SEXTANT-002) | Archives (SEXTANT-003) |
 |---|---|---|
-| Window | 2024-09-19 to 2026-09-08 | 2024-04-01 to 2024-10-01 |
-| Monthly refreshes | 24 | 7 |
-| Candidate pairs | 1,260 | 775 |
-| Pairs with an unverifiable listing date | 489 of 1,260 | **0 of 775** |
-| Delisted pairs in the candidate set | 0 | 13 in one quarter |
-| Peak EUR research universe | 4 | 0, for want of window length |
+| Window | 2024-09-19 to 2026-09-08 | 2023-01-01 to 2026-04-01 |
+| Monthly refreshes | 24 | 40 |
+| Candidate pairs | 1,260 | 1,640 |
+| Pairs with an unverifiable listing date | 489 of 1,260 | **0 of 1,640** |
+| Delisted pairs in the candidate set | 0 | **184 deaths across 13 quarters** |
+| Peak EUR research universe | 4 | **43** |
+| Peak EUR+USD research universe | 27 | **129** |
+| EUR+USD months above 25 | 1 of 24 | **31 of 40** |
 
-**How much of the previous Kraken picture was an artefact of the truncation?**
-The listing-date part, entirely. SEXTANT-002 reported that 489 of 1,260 pairs
-could never enter a point-in-time universe because their first observed bar
-dated the endpoint's truncation rather than a listing. Against the archives that
-number is zero: every pair's listing is bracketed from file presence and carries
-`VENUE_ARCHIVE`. The claim that "Kraken's research universe is small because
-Kraken will not tell us when anything listed" is withdrawn - Kraken does tell
-us, in the archives.
+**How much of the previous Kraken picture was an artefact of the two-year
+truncation? Almost all of it.**
 
-**What has not been demonstrated is the opposite claim.** The research universe
-is still zero here, for a different and purely arithmetic reason: 180 days of
-required listing age do not fit inside a two-quarter window. Whether Kraken's
-EUR research universe is actually large enough is **not answered by this task**
-and cannot be until more quarters are downloaded. The liquidity column - rules
-1, 3 and 7, no listing age - reaches 16 pairs on EUR and 64 on EUR+USD, which is
-a floor rather than a finding.
+The truncation did two things at once. It hid the delisted pairs entirely, and
+it destroyed the listing dates of everything that was already trading when the
+window opened - 489 of 1,260 pairs, which could therefore never enter a
+point-in-time universe. Against the archives that second number is **zero**:
+every pair's listing is bracketed from file presence and carries
+`VENUE_ARCHIVE`.
+
+The effect on the answer is roughly an order of magnitude. Peak EUR+USD research
+goes from 27 to 129, and months clearing 25 instruments from 1 of 24 to 31 of
+31 usable. The SEXTANT-002 sentence "Kraken's research universe is not small
+because Kraken is illiquid, it is small because Kraken will not tell us when
+anything listed" was the right diagnosis and the wrong subject: *the endpoint*
+will not tell us. The archives do.
+
+### Two artefacts of a quarterly archive, quantified
+
+**Cold start: the first nine months are unusable.** The window opens
+2023-01-01, but the earliest instant any pair is *certainly* listed by is
+2023-04-01, the end of the first quarter, because pairs present in the first
+held quarter have listing brackets open into the past. Rule 2 needs 180 days
+from there, which is 2023-09-28. So **2023-01 through 2023-09 have an empty
+research universe for arithmetic reasons**, and the first fully usable month is
+**2023-10**, on both quote policies.
+
+This is a fixed nine-month cost of the archive's left edge, not a property of
+the venue, and it does not decay: acquiring earlier quarters would move it
+earlier, and nothing else will. Any backtest should start at 2023-10 at the
+earliest. The liquidity column, which omits rule 2, is non-empty from 2023-04
+and is the only thing with content in those nine months.
+
+**Mid-quarter membership is undetermined, and it costs less than expected.**
+Membership is certain only at quarter boundaries. In the other two months of
+each quarter, pairs whose listing or delisting bracket straddles the refresh
+instant answer *undetermined* and are excluded - a median of 108 pairs per
+mid-quarter month, peaking at 281.
+
+The intuition is that this should produce a sawtooth, with the universe
+collapsing between boundaries. **It does not.** Median research universe at
+boundary months is 17 on EUR and 72 on EUR+USD; at mid-quarter months it is 20
+and 77. The undetermined population is dominated by pairs that fail the volume
+or listing-age rules anyway, so excluding them costs almost nothing. That is a
+measurement, not a reassurance, and it would change if the universe rules were
+loosened.
+
+### The delisting haircut, over the full population
+
+| Haircut | Positions | Haircut applied to | Gross proceeds | Cost | Cost / gross |
+|---:|---:|---:|---:|---:|---:|
+| 0% | 1,629 | 162 | 305,437.50 | 0.00 | 0.00% |
+| **20%** | 1,629 | 162 | 305,437.50 | 6,075.00 | **1.99%** |
+| 50% | 1,629 | 162 | 305,437.50 | 15,187.50 | 4.97% |
+
+**162 of 1,629 priced pairs - 9.9% - are delisted by the end of the archive.**
+At the default 20% haircut the assumption is worth 1.99% of gross proceeds
+across the whole population; at 50% it is 4.97%.
+
+The two-quarter sample reported 0.16%, on 6 delistings. The full archive is an
+order of magnitude larger and the number is now meaningful rather than
+decorative. **A strategy whose verdict moves by less than about five percentage
+points of terminal value across the 0%-to-50% range is not being decided by this
+assumption. One that moves more is.** No strategy exists yet to test against it.
+
+The haircut remains a placeholder chosen to be pessimistic. Nothing in this
+dataset can calibrate it, because the prices it stands in for are precisely the
+ones the archive does not contain.
 
 ## 7. What remains unverified
 
 Stated so that none of it is mistaken for a finding.
 
-1. **Whether Kraken's quarterly archives cover the intended backtest window.**
-   Two of thirteen files are held; the other eleven are named in §3. This is the
-   one unmet condition behind the Kraken recommendation, and it is a download
-   rather than a code change.
-2. **The size of Kraken's EUR research universe.** Not answered. The archive
-   window currently held is shorter than the listing-age rule, so every research
-   number is zero for arithmetic reasons. Nothing about the venue's suitability
-   was established either way.
-3. **Membership between 2026-04-01 and today.** The archive ends at the close of
+1. **Whether the two Q3 2025 exceptions to the quarter-end rule matter.** Of
+   165 priced deaths across thirteen quarters, 163 have a bar within a week of
+   the quarter boundary. Two do not, and they were not investigated. The rule
+   holds at 98.8%; what the residual is remains unexamined.
+2. **Whether EUR alone is a viable research universe.** Measured, not resolved.
+   4 of 40 months clear 25 instruments and 24 sit in the 15-to-25 low-power
+   band. Whether a cross-sectional strategy works on a universe of that size is
+   a question for a backtester, which does not exist.
+3. **The executable universe for the 292 pairs the venue no longer describes.**
+   Their tick size, lot size and minimum notional do not survive anywhere, so
+   the account rules admit them untested. Since those rules reject nothing at
+   all across 40 months, this probably hides nothing, but it is assumed rather
+   than measured.
+4. **Membership between 2026-04-01 and today.** The archive ends at the close of
    Q1 2026. A pair that listed and delisted inside that window is absent from the
    archive and absent from `AssetPairs`, and no endpoint will still serve it.
    **This one has no available remedy**, and §10 states where it must be
-   declared.
-4. **The full count of Kraken pairs delisted during any window.** Now sourced
-   from the archives for the quarters held - 13 during Q3 2024 - and unknown
-   for the quarters not held.
+   declared. It is now quantified: 123 pairs present in the archive's final
+   quarter are already gone from `AssetPairs`, 8.4% of that quarter's universe,
+   in five months.
 5. **Binance listing and delisting instants.** Reconstructed from first and last
    observed bar, never published by the venue. Bounds, not facts.
 6. **Historical trading constraints on both venues.** Current values applied to
@@ -578,7 +707,8 @@ Stated so that none of it is mistaken for a finding.
 9. **The magnitude of the lost-final-quarter bias.** The 20% haircut is a
    placeholder chosen to be pessimistic, not a calibration. Nothing in this
    dataset can calibrate it, because the prices it stands in for are the ones the
-   archive does not contain.
+   archive does not contain. Its *exposure* is now measured - 9.9% of the priced
+   population, worth 1.99% of gross at the default - but its correctness is not.
 
 ---
 
@@ -619,16 +749,23 @@ quota, and the smallest step named there - download one quarterly file and check
 whether `WAVESEUR` and `ANTEUR` appear - was the right step and produced the
 right answer.
 
-**What is still open.** Eleven of thirteen quarters. Until they are downloaded,
-the method is demonstrated and the venue is not. No backtest window on Kraken
-should be treated as reconstructed on the strength of what is held today.
+**What is still open.** Not the acquisition: all thirteen quarters are held and
+checksummed, and the venue's suitability is measured rather than asserted. What
+is open is narrower and listed in §7 - two unexplained exceptions to the
+quarter-end rule, the executable universe for pairs the venue no longer
+describes, and whether an EUR-only universe of 15 to 25 names is enough for a
+cross-sectional strategy. The last of those is a question for a backtester and
+not for a dataset.
 
 ---
 
 ## 10. The unremediable window
 
 **Between 2026-04-01 and the first `sextant snapshot-universe` record, Kraken
-membership rests on no source at all.** The quarterly archive ends at the close
+membership rests on no source at all, and 123 pairs have already been lost to
+it.** The archive's final quarter lists 1,467 pairs and only 1,344 still appear
+in `AssetPairs` - so 8.4% of that universe delisted inside a five-month window
+with no record of when or in what order. The quarterly archive ends at the close
 of Q1 2026. A pair that listed and delisted inside that window left nothing
 behind: it is absent from the archive because the archive stops before it, and
 absent from `AssetPairs` because the venue removed it. No endpoint will still

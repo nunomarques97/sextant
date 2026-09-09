@@ -435,12 +435,21 @@ calendar sourced from file presence rather than from any price series. Every
 entry carries `VENUE_ARCHIVE`, and the count of pairs with an unverifiable
 listing date drops from 489 of 1,260 to zero.
 
-**Two of the thirteen quarterly files are held.** The Drive quota blocks the
-other eleven, folder-wide, and the two we have were fetched by hand from a
-signed-in browser. Until more are acquired the method is demonstrated and the
-venue's suitability is not: a two-quarter window is shorter than the 180-day
-listing-age rule, so every research universe measured on it is arithmetically
-zero.
+**All thirteen quarterly files are held and checksummed**, Q1 2023 to Q1 2026,
+in `docs/kraken-archive-checksums.md`. The Drive quota blocks anonymous
+downloads folder-wide and every file was fetched by hand from a signed-in
+browser.
+
+Measured across the full window: 1,640 pairs, 40 monthly refreshes, 184
+delistings, and a peak research universe of 43 on EUR and 129 on EUR+USD. On
+EUR+USD all 31 usable months clear 25 instruments; on EUR alone only 4 do and 24
+sit in the 15-to-25 low-power band. **EUR+USD is viable; EUR alone is
+marginal.** The account rules bind nowhere: research and executable are
+identical in all 40 months.
+
+The quarter-end rule that the whole calendar rests on is now checked rather than
+assumed. Of 165 priced pairs that vanish between consecutive quarters, 163 have
+a bar within seven days of the quarter boundary, median gap one day.
 
 Standing fallback, per PO decision D7: where delisted history cannot be
 obtained, restrict the backtest window rather than accept the bias. On Kraken
@@ -458,6 +467,14 @@ default 20%, reported at 0%, 20% and 50% in every result. It cannot be
 calibrated from this dataset, because the prices it stands in for are the ones
 the dataset does not contain.
 
+**1a-bis. A quarterly archive has a nine-month cold start.** Pairs present in
+the first held quarter have listing brackets open into the past, so the earliest
+instant any pair is *certainly* listed by is the end of that quarter. Rule 2
+then needs 180 days from there. With the window opening 2023-01-01 the first
+fully usable month is **2023-10**, and the nine before it have an empty research
+universe for arithmetic reasons rather than empirical ones. This is a fixed cost
+of the archive's left edge; no backtest should start before 2023-10.
+
 **1b. Presence in an archive is not tradability.** `WAVESEUR` is present in
 Q2 2024 with zero rows at every granularity while its announcement says trading
 stopped 2024-07-08. Listed-and-untraded is a real state, distinct from absent,
@@ -471,7 +488,9 @@ Kraken membership at all.** The archive ends at the close of Q1 2026 and today
 is later. A pair that listed and delisted inside that window is absent from the
 archive and absent from `AssetPairs`, and no endpoint will still serve it.
 **There is no available remedy**; the window must be excluded from any result
-rather than qualified. `sextant snapshot-universe` closes it going forward and
+rather than qualified. It is quantified: the archive's final quarter lists 1,467
+pairs and only 1,344 still appear in `AssetPairs`, so **123 pairs - 8.4% of that
+universe - delisted inside five months with no record of when.** `sextant snapshot-universe` closes it going forward and
 does nothing for the past.
 
 **2. Statistical power may never be sufficient.** This is the risk the whole

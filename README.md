@@ -31,11 +31,11 @@ store and the tables from archives in `data/`, reaching no network.
 `uv run sextant snapshot-universe` records today's venue membership, idempotent
 per UTC day, so future delistings never need reconstructing.
 
-**Two of thirteen quarterly archives are held.** The Google Drive quota blocks
-the rest folder-wide and they must be downloaded by hand. Until then the method
-is demonstrated and the venue's suitability is not: a two-quarter window is
-shorter than the 180-day listing-age rule, so every research universe measured
-on it is zero for arithmetic reasons.
+**All thirteen quarterly archives are held and checksummed**
+([`docs/kraken-archive-checksums.md`](docs/kraken-archive-checksums.md)), Q1
+2023 to Q1 2026. Measured across the full window: 1,640 pairs, 40 monthly
+refreshes, 184 delistings, peak research universe 43 on EUR and 129 on EUR+USD.
+EUR+USD clears 25 instruments in all 31 usable months; EUR alone does in 4.
 
 **SEXTANT-002 - data-availability spike and the public market-data read
 path.** Both venue adapters now implement `health`, `instruments` and
