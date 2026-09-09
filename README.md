@@ -23,6 +23,13 @@ equal-weight passive over the whole executable universe, random selection of
 eight names, and single-asset buy and hold. Their results are the null every
 future strategy is measured against.
 
+**The window is too short to establish edge, and that is quantified rather than
+asserted.** Twenty-four monthly out-of-sample observations give an annualised
+Sharpe standard error of about 0.71, wider than the entire spread of the
+rejection thresholds. Every walk-forward threshold is also negative, because the
+cross-section fell over this window, so the filter rejects only strategies that
+lose more than chance did. It is a floor worth having and a low one.
+
 - What chance produces, net of costs, with the rejection filter stated in the
   only terms it may be read in:
   [`docs/NULL-BASELINE.md`](docs/NULL-BASELINE.md)
