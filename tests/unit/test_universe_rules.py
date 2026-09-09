@@ -16,6 +16,7 @@ import pytest
 
 from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.money import Notional, Price, Quantity
+from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timestamp
 from sextant.domain.venue import Venue
 from sextant.engine.universe.policy import UniversePolicy, executable_from, power_band
@@ -49,8 +50,9 @@ def instrument(
     listed_at: Timestamp | None = None,
     min_notional: str = "10",
     lot_size: str = "0.0001",
+    provenance: Provenance = Provenance.RECONSTRUCTED,
 ) -> Instrument:
-    """A candidate instrument with explicit constraints."""
+    """A candidate instrument with explicit constraints and a sourced window."""
     return Instrument(
         venue=VENUE,
         symbol=symbol,
@@ -60,6 +62,7 @@ def instrument(
         tick_size=Price(Decimal("0.01")),
         lot_size=Quantity(Decimal(lot_size)),
         min_notional=Notional(Decimal(min_notional)),
+        provenance=provenance,
     )
 
 
@@ -133,6 +136,24 @@ def test_the_listing_age_rule_rejects_an_instrument_that_is_too_young() -> None:
 
     assert rule.evaluate(young, DECISION) is RuleOutcome.REJECT
     assert rule.evaluate(seasoned, DECISION) is RuleOutcome.ADMIT
+
+
+def test_an_unsourced_listing_date_cannot_support_an_age_judgement() -> None:
+    """A truncated history hands back the window edge, not a listing date.
+
+    Ageing every instrument from that edge would give them all the same
+    fabricated birthday and admit or reject them together, which looks like a
+    universe and is an artefact of the endpoint.
+    """
+    rule = ListingAgeRule(minimum_days=180)
+    unsourced = instrument(
+        "AAAEUR",
+        listed_at=Timestamp(DECISION.value - timedelta(days=400)),
+        provenance=Provenance.UNVERIFIED,
+    )
+
+    assert rule.evaluate(unsourced, DECISION) is RuleOutcome.NOT_EVALUABLE
+    assert rule.admits(unsourced, DECISION) is False
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +265,7 @@ def test_a_delisted_instrument_is_a_member_before_its_delisting_and_not_after() 
         lot_size=Quantity(Decimal("0.0001")),
         min_notional=Notional(Decimal(10)),
         delisted_at=Timestamp(datetime(2024, 7, 1, tzinfo=UTC)),
+        provenance=Provenance.VENUE_ANNOUNCEMENT,
     )
     policy = UniversePolicy.of(
         "research",

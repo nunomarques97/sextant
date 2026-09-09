@@ -471,6 +471,14 @@ class VenueResearchProfile:
 
     venue: Venue
     live_statuses: frozenset[str]
+    truncates_history: bool
+    """Whether the venue refuses to serve bars beyond a fixed recent window.
+
+    When it does, the earliest bar we can obtain for *every* symbol is the same
+    day, and that day is a property of the endpoint rather than of any listing.
+    Treating it as a listing date would give every instrument the same
+    fabricated birthday, so the calendar marks those windows unverified."""
+
     known_missing: tuple[tuple[str, str], ...]
     """Pairs the venue's instrument endpoint no longer describes at all, each
     with the instant its own announcement says trading stopped. Only pairs named
@@ -482,6 +490,7 @@ RESEARCH_PROFILES: Mapping[str, VenueResearchProfile] = {
     "binance": VenueResearchProfile(
         venue=Venue("binance"),
         live_statuses=frozenset({"TRADING"}),
+        truncates_history=False,
         # Nothing is missing: the venue keeps delisted symbols in exchangeInfo
         # with status BREAK and keeps serving their klines.
         known_missing=(),
@@ -491,6 +500,7 @@ RESEARCH_PROFILES: Mapping[str, VenueResearchProfile] = {
         live_statuses=frozenset(
             {"online", "post_only", "cancel_only", "limit_only", "reduce_only"}
         ),
+        truncates_history=True,
         known_missing=(
             ("WAVESEUR", "2024-07-08T12:00:00+00:00"),
             ("WAVESUSD", "2024-07-08T12:00:00+00:00"),
@@ -535,18 +545,19 @@ def measure_all(root: Path = DATA_ROOT) -> None:
             print(f"[{name}] no fetched data at {venue_root}; skipping")
             continue
         dataset = VenueDataset.load(profile.venue, venue_root)
+        window = observed_window(dataset)
+        if window is None:
+            print(f"[{name}] no bars fetched; skipping")
+            continue
         calendar = reconstruct_calendar(
             dataset,
             live_statuses=profile.live_statuses,
+            truncation_boundary=window[0] if profile.truncates_history else None,
             known_missing=tuple(
                 (symbol, Timestamp.parse(instant)) for symbol, instant in profile.known_missing
             ),
         )
         calendar.write_json(venue_root / "listing_calendar.json")
-        window = observed_window(dataset)
-        if window is None:
-            print(f"[{name}] no bars fetched; skipping")
-            continue
         months = month_starts(*window)
         print(
             f"[{name}] {len(dataset.series)} series, "

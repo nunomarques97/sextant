@@ -27,6 +27,7 @@ from typing import Protocol, runtime_checkable
 
 from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.money import Notional
+from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timestamp
 from sextant.engine.universe.statistics import InstrumentHistory
 
@@ -136,6 +137,13 @@ class ListingAgeRule(_Rule):
     Defends against listing-pump artefacts, which are real, large and not
     repeatable, and against the look-ahead of scoring an instrument on a window
     that predates its own existence.
+
+    An instrument whose listing window is ``UNVERIFIED`` is *not evaluable*
+    here: never rejected and never admitted. This matters more than it looks. A
+    venue that truncates its history at two years hands back a first bar that is
+    the edge of its own window rather than the day the pair listed. Treating
+    that edge as a listing date would age every instrument from the same
+    fictional birthday and produce a confident, wrong universe.
     """
 
     minimum_days: int = 180
@@ -146,7 +154,9 @@ class ListingAgeRule(_Rule):
         return "listing_age"
 
     def evaluate(self, instrument: Instrument, at: Timestamp) -> RuleOutcome:
-        """Admit when ``at`` is at least ``minimum_days`` after the listing."""
+        """Admit when ``at`` is at least ``minimum_days`` after a sourced listing."""
+        if instrument.provenance is Provenance.UNVERIFIED:
+            return RuleOutcome.NOT_EVALUABLE
         age_reached = instrument.listed_at.plus(timedelta(days=self.minimum_days))
         return RuleOutcome.ADMIT if at >= age_reached else RuleOutcome.REJECT
 

@@ -109,6 +109,7 @@ def reconstruct_calendar(
     *,
     live_statuses: frozenset[str],
     known_missing: Sequence[tuple[str, Timestamp]] = (),
+    truncation_boundary: Timestamp | None = None,
 ) -> ListingCalendar:
     """Infer a listing window per symbol from observed bars and venue status.
 
@@ -117,6 +118,10 @@ def reconstruct_calendar(
     * ``listed_at`` is the open time of the first daily bar the venue will
       serve. That is a *lower bound* on the listing date: a pair listed on a day
       with no trades has no bar for that day. Recorded as ``RECONSTRUCTED``;
+    * unless that first bar sits on ``truncation_boundary``, the edge of what
+      the venue is willing to serve at all. Then it says nothing about when
+      the pair listed, and the window is recorded as ``UNVERIFIED`` so that no
+      rule downstream mistakes a truncation artefact for a listing date;
     * ``delisted_at`` is set only when the venue's own metadata says the symbol
       is no longer live. The *fact* of being delisted is the venue's statement;
       the *instant* is the close of the last observed bar, and is reconstructed;
@@ -136,16 +141,23 @@ def reconstruct_calendar(
         last = Timestamp.from_epoch_millis(rows[-1][0])
         status = dataset.metadata[symbol].get("status", "")
         still_live = status in live_statuses
+        truncated = truncation_boundary is not None and first <= truncation_boundary.plus(
+            Timeframe.D1.duration
+        )
         entries.append(
             CalendarEntry(
                 symbol=symbol,
                 window=ListingWindow(
                     listed_at=first,
                     delisted_at=None if still_live else last.plus(Timeframe.D1.duration),
-                    provenance=Provenance.RECONSTRUCTED,
+                    provenance=(Provenance.UNVERIFIED if truncated else Provenance.RECONSTRUCTED),
                     note=(
-                        f"venue status {status!r}; first and last observed daily bar. "
-                        "Listing instant is a lower bound."
+                        f"venue status {status!r}; first observed bar sits on the edge "
+                        "of the servable window, so it dates the truncation, not the "
+                        "listing"
+                        if truncated
+                        else f"venue status {status!r}; first and last observed daily "
+                        "bar. Listing instant is a lower bound."
                     ),
                 ),
                 metadata_available=True,
@@ -223,23 +235,38 @@ def policies(
     history_map: Mapping[InstrumentKey, InstrumentHistory],
     account: AccountParameters,
     spreads: Mapping[tuple[InstrumentKey, Timestamp], Decimal],
-) -> tuple[UniversePolicy, UniversePolicy]:
-    """The research policy and the executable policy derived from it.
+) -> tuple[UniversePolicy, UniversePolicy, UniversePolicy, UniversePolicy]:
+    """Three policies, because one of the seven rules is not computable.
 
-    The split is PO decision D1: rules 1, 2, 3, 4 and 7 describe the market and
-    belong to research; rules 5 and 6 describe our wallet and belong only to
-    execution.
+    The research/executable split is PO decision D1: rules 1, 2, 3, 4 and 7
+    describe the market and belong to research; rules 5 and 6 describe our
+    wallet and belong only to execution.
+
+    Rule 4, the spread cap, is stated over a trailing median of quoted spread.
+    Neither venue publishes historical quotes, so at every past instant it
+    returns ``NOT_EVALUABLE`` and, since an unverifiable instrument is never
+    admitted, the full research policy is empty for every month but the one we
+    measured live. That is the correct behaviour and a useless table.
+
+    So both are reported. ``research`` applies the four computable rules and is
+    the number the reader should use; ``research_with_spread`` applies all five
+    and shows exactly how much of the universe the missing dataset costs. The
+    rule is not weakened, relaxed or removed - it is reported as unevaluable,
+    which is what it is.
     """
-    research = UniversePolicy.of(
-        "research",
-        (
-            QuoteCurrencyRule(allowed=quotes),
-            ListingAgeRule(minimum_days=MIN_LISTING_AGE_DAYS),
-            MedianQuoteVolumeRule(minimum=MIN_MEDIAN_QUOTE_VOLUME, histories=history_map),
-            MedianSpreadRule(maximum_bps=MAX_MEDIAN_SPREAD_BPS, observed_bps=spreads),
-            ExcludedAssetClassRule(excluded_bases=excluded_bases),
-        ),
+    computable = (
+        QuoteCurrencyRule(allowed=quotes),
+        ListingAgeRule(minimum_days=MIN_LISTING_AGE_DAYS),
+        MedianQuoteVolumeRule(minimum=MIN_MEDIAN_QUOTE_VOLUME, histories=history_map),
+        ExcludedAssetClassRule(excluded_bases=excluded_bases),
     )
+    spread_rule = MedianSpreadRule(maximum_bps=MAX_MEDIAN_SPREAD_BPS, observed_bps=spreads)
+    liquidity = UniversePolicy.of(
+        "liquidity",
+        (computable[0], computable[2], computable[3]),
+    )
+    research = UniversePolicy.of("research", computable)
+    research_with_spread = UniversePolicy.of("research+spread", (*computable, spread_rule))
     executable = executable_from(
         research,
         (
@@ -247,7 +274,7 @@ def policies(
             LotSizeFeasibilityRule(account=account, histories=history_map),
         ),
     )
-    return research, executable
+    return liquidity, research, research_with_spread, executable
 
 
 def month_starts(first: Timestamp, last: Timestamp) -> tuple[Timestamp, ...]:
@@ -278,7 +305,14 @@ class MonthlyRow:
     """One row of the R4 table."""
 
     month: str
+    liquidity: UniverseEvaluation
+    """Rules 1, 3 and 7 only. Not point-in-time complete: it drops the
+    listing-age rule, so it screens for what is liquid rather than resolving a
+    universe. Reported because on a venue that cannot date its own listings it
+    is the only number with any content left in it."""
+
     research: UniverseEvaluation
+    research_with_spread: UniverseEvaluation
     executable: UniverseEvaluation
     known_missing: int
 
@@ -286,7 +320,9 @@ class MonthlyRow:
         """Serialisable form, sorted so two runs diff cleanly."""
         return {
             "month": self.month,
+            "liquidity_size": self.liquidity.size,
             "research_size": self.research.size,
+            "research_with_spread_size": self.research_with_spread.size,
             "executable_size": self.executable.size,
             "known_missing": self.known_missing,
             "power_band": power_band(self.research.size),
@@ -309,7 +345,7 @@ def measure(
     account: AccountParameters,
     months: Sequence[Timestamp],
 ) -> tuple[MonthlyRow, ...]:
-    """Evaluate both universes at every refresh instant."""
+    """Evaluate every universe variant at every refresh instant."""
     history_map = histories(dataset)
     instruments = candidates(dataset, calendar)
     spread_map: dict[tuple[InstrumentKey, Timestamp], Decimal] = {}
@@ -317,11 +353,15 @@ def measure(
         latest = months[-1]
         for symbol, value in dataset.spreads_bps.items():
             spread_map[(InstrumentKey(dataset.venue, symbol), latest)] = value
-    research, executable = policies(quotes, excluded_bases, history_map, account, spread_map)
+    liquidity, research, research_with_spread, executable = policies(
+        quotes, excluded_bases, history_map, account, spread_map
+    )
     return tuple(
         MonthlyRow(
             month=f"{at.value.year:04d}-{at.value.month:02d}",
+            liquidity=liquidity.evaluate(instruments, at),
             research=research.evaluate(instruments, at),
+            research_with_spread=research_with_spread.evaluate(instruments, at),
             executable=executable.evaluate(instruments, at),
             known_missing=len(calendar.missing_at(at)),
         )
@@ -333,20 +373,22 @@ def render_markdown(venue: Venue, policy_name: str, rows: Sequence[MonthlyRow]) 
     """One R4 table, as markdown."""
     header = (
         f"#### {venue.name} - quote policy `{policy_name}`\n\n"
-        "| month | research | executable | band | known missing | "
-        "rej: quote | rej: age | rej: volume | n/e: volume | n/e: spread | "
-        "rej: class | rej: min_notional | rej: lot_size |\n"
-        "|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+        "| month | liquidity | research | +spread | executable | band | missing | "
+        "rej: quote | rej: age | n/e: age | rej: volume | n/e: volume | "
+        "n/e: spread | rej: class | rej: min_notional | rej: lot_size |\n"
+        "|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
     )
     lines = []
     for row in rows:
         rejected = row.research.rejection_counts()
-        unknown = row.research.not_evaluable_counts()
+        unknown = row.research_with_spread.not_evaluable_counts()
         exec_rejected = row.executable.rejection_counts()
         lines.append(
-            f"| {row.month} | {row.research.size} | {row.executable.size} | "
+            f"| {row.month} | {row.liquidity.size} | {row.research.size} | "
+            f"{row.research_with_spread.size} | {row.executable.size} | "
             f"{power_band(row.research.size)} | {row.known_missing} | "
             f"{rejected.get('quote_currency', 0)} | {rejected.get('listing_age', 0)} | "
+            f"{row.research.not_evaluable_counts().get('listing_age', 0)} | "
             f"{rejected.get('median_quote_volume', 0)} | "
             f"{unknown.get('median_quote_volume', 0)} | {unknown.get('median_spread', 0)} | "
             f"{rejected.get('asset_class', 0)} | "
