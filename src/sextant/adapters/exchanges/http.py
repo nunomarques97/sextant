@@ -229,6 +229,23 @@ class HttpTransport:
         """Fetch a resource as text, retrying transient failures."""
         return self._get(path, params or {}, cost=cost).text
 
+    def get_bytes(
+        self,
+        path: str,
+        params: Mapping[str, str] | None = None,
+        *,
+        cost: float = 1.0,
+    ) -> bytes:
+        """Fetch a resource as raw bytes, retrying transient failures.
+
+        Exists because a venue may publish history as an archive rather than as
+        JSON. Decoding it is the caller's problem; what belongs here is that
+        the retry, rate-limit and journal behaviour is identical whatever the
+        body turns out to be, so an archive fetch cannot quietly acquire its own
+        weaker rules.
+        """
+        return self._get(path, params or {}, cost=cost).content
+
     def get_json(
         self,
         path: str,

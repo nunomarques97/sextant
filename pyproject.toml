@@ -86,11 +86,22 @@ ignore = [
 "src/sextant/app/universe_snapshot.py" = ["T20"]
 "src/sextant/app/null_baseline.py" = ["T20"]
 "src/sextant/app/quarter_end_audit.py" = ["T20"]
+"src/sextant/app/binance_archive.py" = ["T20"]
+# S314 flags stdlib XML parsing. The only XML this module reads is the S3 bucket
+# listing for a public, read-only archive over TLS, and adding a hardened parser
+# would be a new runtime dependency and therefore an ADR. The exposure is a
+# malformed listing from AWS, which fails closed as ArchiveError.
+"src/sextant/adapters/exchanges/binance/archive.py" = ["S314"]
+"src/sextant/app/binance_pipeline.py" = ["T20"]
+"src/sextant/app/spike_005.py" = ["T20"]
 # S311 flags `random` as unsuitable for cryptography, which is true and
 # irrelevant: this is a reproducible simulation and a cryptographic generator
 # would be the defect. The generator is explicitly constructed and seeded per
 # run - never the global one - so a library imported elsewhere cannot disturb it.
 "src/sextant/engine/backtest/baselines.py" = ["S311"]
+# Same reasoning for the pre-registered nulls of SEXTANT-005: a cryptographic
+# generator here would make the null unreproducible, which is the defect.
+"src/sextant/engine/strategies/momentum.py" = ["S311"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

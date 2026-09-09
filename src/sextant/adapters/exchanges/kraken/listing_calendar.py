@@ -48,6 +48,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sextant.adapters.exchanges.kraken.archive import PairPresence, Quarter
+from sextant.adapters.exchanges.membership_intervals import spells_from_presence
 from sextant.domain.listing import EventInterval, IntervalListingWindow, MembershipState
 from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timestamp
@@ -343,35 +344,14 @@ def _entry_for(
 ) -> CalendarEntry:
     """Build one entry by walking the held quarters and cutting spells at gaps.
 
-    Every bracket is drawn against the *held* quarters, so a hole in the
-    download widens the bracket rather than being papered over. Where a pair is
-    present in the earliest or latest held quarter, that side of the bracket is
-    unbounded instead of being pinned to the archive's edge.
+    The spell-cutting rule is venue-neutral and lives in
+    :mod:`sextant.adapters.exchanges.membership_intervals`, because Binance
+    publishes the same evidence in a monthly grain and the inference on top of
+    it is identical. What stays here is what is Kraken's: which quarters were
+    held, and which of them showed the pair listed and untraded.
     """
     present = [symbol in snapshot.symbols for snapshot in ordered]
-    spells: list[IntervalListingWindow] = []
-    index = 0
-    while index < len(present):
-        if not present[index]:
-            index += 1
-            continue
-        start = index
-        while index + 1 < len(present) and present[index + 1]:
-            index += 1
-        end = index
-
-        listed = (
-            EventInterval.at_or_before(held[start].ends_at)
-            if start == 0
-            else EventInterval.between(held[start - 1].ends_at, held[start].ends_at)
-        )
-        delisted = (
-            EventInterval.after_only(held[end].ends_at)
-            if end == len(held) - 1
-            else EventInterval.between(held[end].ends_at, held[end + 1].ends_at)
-        )
-        spells.append(IntervalListingWindow(listed_during=listed, delisted_during=delisted))
-        index += 1
+    spells = spells_from_presence(present, held)
 
     appearances = [snapshot for snapshot in ordered if symbol in snapshot.symbols]
     return CalendarEntry(

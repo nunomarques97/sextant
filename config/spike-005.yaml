@@ -62,7 +62,7 @@ account:
 # Universe construction and quote policy
 # ---------------------------------------------------------------------------
 universe:
-  primary_quote_policy: USDT
+  headline_quote_policy: USDT
   secondary_quote_policy: EUR
   secondary_reported_when: >
     The EUR-quoted executable universe is non-empty for at least 24 of the
@@ -157,7 +157,7 @@ window:
       note: >
         Reported alongside. Still walk-forward; there is no code path that
         scores a strategy on its fitting data.
-  primary_plan: walk_forward
+  headline_plan: walk_forward
 
 # ---------------------------------------------------------------------------
 # The variants
@@ -254,7 +254,7 @@ variants:
 # they have drifted.
 costs:
   regimes:
-    primary:
+    headline:
       id: binance_vip0
       kind: published schedule
       maker_bps: "10"
@@ -391,8 +391,8 @@ null_experiment:
   seed_counts:
     exposure_matched_per_cell: 500
     fully_invested_per_cell: 2000
-  seed_fallback_ladder: [500, 250, 100]
-  seed_fallback_rule: >
+  seed_reduction_ladder: [500, 250, 100]
+  seed_reduction_rule: >
     If measured wall clock projects the run beyond the compute budget, the
     exposure-matched seed count steps DOWN the ladder and the reduction is
     reported with the projection that caused it. It is never stepped up, and
