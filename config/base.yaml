@@ -1,0 +1,100 @@
+# Shared configuration ground. A profile file overlays this; the environment
+# overlays that. Unknown keys are rejected at startup rather than ignored.
+#
+# There is deliberately no `run.venue` here. A run names the venue it uses, in
+# its own profile, explicitly. There is no primary venue and no fallback venue:
+# the exchanges below are independent peers, and neither substitutes for the
+# other. Cross-venue selection, if it is ever needed, arrives later as an
+# explicit router with stated rules - never as a default hidden in this file.
+
+run:
+  timeframe: 1h
+  # Every source of randomness is seeded from here and the value is recorded in
+  # run metadata. A run whose seed is not written down cannot be reproduced.
+  seed: 20260909
+  # What this run needs the venue and account to permit. Preflight checks these
+  # against the effective capability set, and uses them to decide whether the
+  # run needs API credentials at all.
+  required_capabilities:
+    - PUBLIC_MARKET_DATA
+    - HISTORICAL_OHLCV
+
+# ---------------------------------------------------------------------------
+# Exchanges: independent peers.
+#
+# `account_capabilities` is the ACCOUNT layer of the capability model - what
+# this account's tier, verification level and API key permissions allow. It is
+# not what the exchange can do (that is declared by the adapter) and not what
+# the jurisdiction permits (that is the block below).
+# ---------------------------------------------------------------------------
+exchanges:
+  kraken:
+    enabled: true
+    jurisdiction: PT
+    account_capabilities:
+      - PUBLIC_MARKET_DATA
+      - HISTORICAL_OHLCV
+      - ORDER_BOOK
+      - ACCOUNT_DATA
+      - SPOT_TRADING
+  binance:
+    enabled: true
+    jurisdiction: PT
+    # To be confirmed by research before anything beyond market data is used.
+    account_capabilities:
+      - PUBLIC_MARKET_DATA
+      - HISTORICAL_OHLCV
+
+# ---------------------------------------------------------------------------
+# Jurisdictional eligibility: the third capability layer, as data.
+#
+# Keyed by jurisdiction, never by venue name. These rules change over time
+# without any code change; that is the whole reason they live here.
+# ---------------------------------------------------------------------------
+jurisdictions:
+  PT:
+    allowed_capabilities:
+      - PUBLIC_MARKET_DATA
+      - HISTORICAL_OHLCV
+      - ORDER_BOOK
+      - FUNDING_RATE
+      - ACCOUNT_DATA
+      - SPOT_TRADING
+      - POST_ONLY_ORDERS
+      - OCO_ORDERS
+      - WEBSOCKET_STREAMS
+      # MARGIN_TRADING and FUTURES_TRADING are deliberately absent. Retail
+      # derivatives access in the EEA is restricted and venue-dependent;
+      # until it is confirmed per venue and per account, the jurisdiction
+      # layer denies it and the effective capability set excludes it.
+
+# ---------------------------------------------------------------------------
+# Point-in-time universe admission thresholds.
+#
+# Every threshold here is computable from information available at the decision
+# date. None of them refers to a realised return, to a ranking of today's
+# largest assets, or to anything else that needs hindsight.
+# ---------------------------------------------------------------------------
+universe:
+  quote_currencies:
+    - EUR
+    - USD
+    - USDT
+  min_listing_age_days: 180
+  min_median_quote_volume: "250000"
+  median_volume_window_days: 30
+  max_spread_bps: "25"
+  # The account size that the min_notional and lot_size feasibility test runs
+  # against. An instrument whose minimum order is too large to size sensibly
+  # against this equity is not tradable for us, whatever its liquidity.
+  account_equity_quote: "1750"
+  max_positions: 12
+  excluded_asset_classes:
+    - stablecoin
+    - wrapped
+    - leveraged_token
+    - staked_derivative
+
+logging:
+  level: INFO
+  format: json

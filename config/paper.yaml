@@ -1,0 +1,15 @@
+# PAPER profile. A simulated portfolio driven by live public market data.
+#
+# Credentials are NOT required here. As long as the required capabilities are
+# all public, preflight skips the credential check and says so. Adding
+# ACCOUNT_DATA or any trading capability below changes that: the run would then
+# be using real account access, and preflight would demand keys and check that
+# they cannot withdraw.
+
+run:
+  mode: paper
+  venue: kraken
+  required_capabilities:
+    - PUBLIC_MARKET_DATA
+    - HISTORICAL_OHLCV
+    - ORDER_BOOK

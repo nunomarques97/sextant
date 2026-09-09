@@ -1,0 +1,13 @@
+# BACKTEST profile. The default: an unset SEXTANT_PROFILE resolves here.
+#
+# Requires no credentials and must run with no .env file present at all.
+# Historical data only. No order of any kind is produced.
+
+run:
+  mode: backtest
+  # This run's venue, named explicitly. Backtesting the same strategy against
+  # the other venue means changing this value, not adding a fallback.
+  venue: kraken
+  required_capabilities:
+    - PUBLIC_MARKET_DATA
+    - HISTORICAL_OHLCV

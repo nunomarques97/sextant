@@ -1,0 +1,25 @@
+# LIVE profile. Selecting it is not enough to run it.
+#
+# Starting in LIVE requires ALL THREE of:
+#   1. mode: live here;
+#   2. SEXTANT_ALLOW_LIVE=1 in the process environment (it cannot be set from
+#      any YAML file, deliberately);
+#   3. a passing preflight, which includes complete credentials and an API key
+#      proven not to carry withdrawal permission.
+#
+# Missing any one of them is a hard startup failure.
+#
+# Beyond those mechanical gates, LIVE must not be enabled until every criterion
+# in docs/LIVE-GATES.md has been demonstrated, reviewed, and signed off in
+# writing by the Sponsor. The gates are the contract; this file is only the
+# switch.
+
+run:
+  mode: live
+  venue: kraken
+  required_capabilities:
+    - PUBLIC_MARKET_DATA
+    - HISTORICAL_OHLCV
+    - ORDER_BOOK
+    - ACCOUNT_DATA
+    - SPOT_TRADING
