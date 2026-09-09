@@ -548,3 +548,88 @@ def test_the_ledger_reconciles_on_a_real_run() -> None:
     instruments = build_instruments()
     summary = run(build_engine(build_repository(instruments), instruments))
     assert summary.ledger.reconciles()
+
+
+# -- positions carry, and only the difference is traded -----------------------
+
+
+def test_a_buy_and_hold_construct_trades_exactly_twice_across_the_whole_plan() -> None:
+    """One entry and one exit. Not one of each a month, and not one per fold.
+
+    This is the property an earlier version of the engine did not have: it
+    closed and reopened every position at every rebalance, which charged a
+    monthly-rebalanced benchmark twenty-four round trips it would never pay.
+    Overstating a benchmark's costs flatters every strategy measured against it,
+    which is the direction this project exists to refuse.
+    """
+    from sextant.engine.backtest.baselines import SingleAssetBuyAndHold
+
+    instruments = build_instruments()
+    summary = build_engine(build_repository(instruments), instruments).run(
+        plan(),
+        ParameterFreeStrategy(SingleAssetBuyAndHold(key=InstrumentKey(VENUE, "AAAEUR"))),
+        "hold",
+    )
+    trades = [trade for outcome in summary.ledger.rebalances for trade in outcome.trades]
+    assert len(trades) == 2
+    assert trades[0].is_buy
+    assert not trades[-1].is_buy
+    assert summary.ledger.reconciles()
+
+
+def test_a_fold_boundary_does_not_make_the_account_sell_and_buy_back() -> None:
+    """A fold is a reporting boundary, not an instruction to liquidate."""
+    from sextant.engine.backtest.baselines import SingleAssetBuyAndHold
+
+    instruments = build_instruments()
+    strategy = ParameterFreeStrategy(SingleAssetBuyAndHold(key=InstrumentKey(VENUE, "AAAEUR")))
+    two_folds = build_engine(build_repository(instruments), instruments).run(
+        plan(total_months=6, in_sample_months=2, folds=2), strategy, "two"
+    )
+    four_folds = build_engine(build_repository(instruments), instruments).run(
+        plan(total_months=6, in_sample_months=2, folds=4), strategy, "four"
+    )
+    assert _trade_count(two_folds) == _trade_count(four_folds) == 2
+    assert two_folds.ledger.net_pnl == four_folds.ledger.net_pnl
+
+
+def test_holding_still_costs_less_than_churning() -> None:
+    """The cost model charges turnover, so a construct that churns pays more."""
+    from sextant.engine.backtest.baselines import SingleAssetBuyAndHold
+
+    instruments = build_instruments()
+    holding = build_engine(build_repository(instruments), instruments).run(
+        plan(),
+        ParameterFreeStrategy(SingleAssetBuyAndHold(key=InstrumentKey(VENUE, "AAAEUR"))),
+        "hold",
+    )
+    churning = build_engine(build_repository(instruments), instruments).run(
+        plan(), ParameterFreeStrategy(RandomSelection.for_seed(seed=3, positions=2)), "churn"
+    )
+    assert holding.ledger.turnover.amount < churning.ledger.turnover.amount
+    assert holding.ledger.costs.fees.amount < churning.ledger.costs.fees.amount
+
+
+def test_an_unchanged_allocation_still_trades_only_the_drift() -> None:
+    """Equal weight over a stable universe rebalances, but only by the drift.
+
+    Turnover well below the book's value at every rebalance is what separates
+    "rebalancing" from "reconstituting".
+    """
+    instruments = build_instruments()
+    summary = run(build_engine(build_repository(instruments), instruments))
+    for outcome in summary.ledger.rebalances[1:-1]:
+        assert outcome.turnover.amount < outcome.equity_before.amount / Decimal(2)
+
+
+def test_the_account_never_commits_more_cash_than_it_has() -> None:
+    """A fully invested allocation must not leave the account short by its fees."""
+    instruments = build_instruments()
+    summary = run(build_engine(build_repository(instruments), instruments))
+    for outcome in summary.ledger.rebalances:
+        assert outcome.cash.amount >= Decimal("-0.000000001")
+
+
+def _trade_count(summary: RunSummary) -> int:
+    """How many orders a run actually placed."""
+    return sum(len(outcome.trades) for outcome in summary.ledger.rebalances)

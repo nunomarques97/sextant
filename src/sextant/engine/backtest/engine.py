@@ -69,10 +69,11 @@ from sextant.engine.backtest.allocation import (
 )
 from sextant.engine.backtest.ledger import (
     CostLines,
+    Holding,
     Ledger,
     LedgerBuilder,
-    PositionOutcome,
     RebalanceOutcome,
+    Trade,
     merge,
     money,
 )
@@ -123,6 +124,102 @@ class SeriesEndOracle(Protocol):
     def series_end_at(self, key: InstrumentKey, at: Timestamp) -> SeriesEnd:
         """Whether a series that has stopped by ``at`` stopped because of a delisting."""
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class _Held:
+    """One position in the book: what it is worth, and what it was last marked at.
+
+    **Value is the tracked state, not a coin count.** A position's value evolves
+    by the price relative and the currency relative together, which is exactly
+    what ``quantity * price * rate`` does without ever recomputing it from a
+    quantity. Tracking value directly is what makes the accounting identity
+    exact: every trade adds a quantised amount to a quantised value, so nothing
+    rounds on its way through a division and back again. The coin count is still
+    reported - it is ``value / (price * rate)`` - but it is derived for the audit
+    record rather than carried as state.
+    """
+
+    value: Notional
+    price: Price
+    rate: Decimal
+
+    @property
+    def quantity(self) -> Quantity:
+        """How much of the base asset this position represents."""
+        if self.price.amount == 0 or self.rate == 0:
+            return Quantity(Decimal(0))
+        return Quantity(self.value.amount / self.rate / self.price.amount)
+
+
+@dataclass(frozen=True, slots=True)
+class _Step:
+    """What one pass of trading produced: a new book, new cash, and the trades."""
+
+    book: Mapping[InstrumentKey, _Held]
+    cash: Notional
+    trades: tuple[Trade, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _FoldOutcome:
+    """One fold's ledger, and the account state the next fold inherits."""
+
+    ledger: Ledger
+    decisions: tuple[DecisionRecord, ...]
+    universe_sizes: Mapping[str, int]
+    book: Mapping[InstrumentKey, _Held]
+    cash: Notional
+
+
+@dataclass(frozen=True, slots=True)
+class _Intent:
+    """One trade the allocation wants, before the cash constraint is applied."""
+
+    key: InstrumentKey
+    price: Price
+    rate: Decimal
+    current: Decimal
+    delta: Decimal
+    cost_rate: Decimal
+    foreign: bool
+
+
+def _buy_scale(intents: Sequence[_Intent], cash: Notional) -> Decimal:
+    """How much of the intended buying the account can actually pay for.
+
+    Sells settle first and their charges come out of the proceeds; what remains
+    has to cover the buys *and* the charges on the buys. Every cost line in this
+    engine is proportional to notional, so the constraint is linear and the
+    factor is exact::
+
+        available = cash + sells - charges_on_sells
+        needed = buys + charges_on_buys
+        scale = min(1, available / needed)
+
+    which is ``1 / (1 + c)`` for a fully invested allocation from cash. Returns
+    one when there is nothing to buy, or when the account can pay in full.
+    """
+    buys = Decimal(0)
+    buy_charges = Decimal(0)
+    proceeds = Decimal(0)
+    sell_charges = Decimal(0)
+    for intent in intents:
+        if intent.delta > 0:
+            buys += intent.delta
+            buy_charges += intent.delta * intent.cost_rate
+        else:
+            proceeds += -intent.delta
+            sell_charges += -intent.delta * intent.cost_rate
+    needed = buys + buy_charges
+    if buys <= 0 or needed <= 0:
+        return Decimal(1)
+    available = cash.amount + proceeds - sell_charges
+    if available >= needed:
+        return Decimal(1)
+    if available <= 0:
+        return Decimal(0)
+    return available / needed
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,7 +368,8 @@ class BacktestEngine:
         fits: list[FitRecord] = []
         decisions: list[DecisionRecord] = []
         sizes: dict[str, int] = {}
-        equity = self.initial_equity
+        book: Mapping[InstrumentKey, _Held] = {}
+        cash = self.initial_equity
         allocator_name = strategy.name
         parameter_set_id = "unfitted"
         cross_sectional = False
@@ -292,16 +390,18 @@ class BacktestEngine:
             parameter_set_id = allocator.parameter_set_id
             cross_sectional = allocator.is_cross_sectional
 
-            ledger, fold_decisions, fold_sizes = self._evaluate(
+            outcome = self._evaluate(
                 window=fold.out_of_sample,
                 allocator=allocator,
-                equity=equity,
+                book=book,
+                cash=cash,
                 run_id=run_id,
+                liquidate=fold.index == plan.folds[-1].index,
             )
-            fold_ledgers.append(ledger)
-            decisions.extend(fold_decisions)
-            sizes.update(fold_sizes)
-            equity = ledger.terminal_equity
+            fold_ledgers.append(outcome.ledger)
+            decisions.extend(outcome.decisions)
+            sizes.update(outcome.universe_sizes)
+            book, cash = outcome.book, outcome.cash
 
         return RunSummary(
             ledger=merge(fold_ledgers),
@@ -339,192 +439,283 @@ class BacktestEngine:
         *,
         window: Window,
         allocator: Allocator,
-        equity: Notional,
+        book: Mapping[InstrumentKey, _Held],
+        cash: Notional,
         run_id: str,
-    ) -> tuple[Ledger, tuple[DecisionRecord, ...], Mapping[str, int]]:
-        """Walk one out-of-sample window, rebalancing monthly."""
+        liquidate: bool,
+    ) -> _FoldOutcome:
+        """Walk one out-of-sample window, rebalancing monthly.
+
+        Positions carry across rebalances **and across folds**. A fold boundary
+        is a reporting boundary, not an instruction to the account to sell
+        everything and buy it back: liquidating at each boundary would charge a
+        three-fold walk-forward two round trips it would never pay, and would do
+        it to the benchmarks as well as to the strategies. Only the last fold
+        sells out, so the closing equity is cash and every construct pays exactly
+        one exit.
+        """
         instants = [*monthly_instants(window), window.end]
+        opening = self._reprice(book, self._view(instants[0]))
         builder = LedgerBuilder(
             account_currency=self.account_currency,
-            initial_equity=equity,
+            initial_equity=money(cash.amount + _total(opening)),
         )
         builder.open(instants[0])
         decisions: list[DecisionRecord] = []
         sizes: dict[str, int] = {}
+        last = len(instants) - 2
 
-        for opened_at, closed_at in pairwise(instants):
+        for index, (opened_at, closed_at) in enumerate(pairwise(instants)):
             self._advance_clock(opened_at)
-            open_view = self._view(opened_at)
+            view = self._view(opened_at)
+            book = self._reprice(book, view)
+            equity_before = money(cash.amount + _total(book))
+
             candidates = self._candidates(opened_at)
             sizes[opened_at.isoformat()] = len(candidates)
-            allocation = allocator.allocate(candidates, opened_at, open_view)
+            allocation = allocator.allocate(candidates, opened_at, view)
+
+            step = self._trade_to(book, allocation, equity_before, cash, opened_at, view)
+            book, cash = step.book, step.cash
+            invested_after = money(_total(book))
+            holdings = self._holdings(book, opened_at)
 
             self._advance_clock(closed_at)
             close_view = self._view(closed_at)
-            outcome = self._hold(
-                allocation=allocation,
-                equity=builder.equity,
+            book = self._reprice(book, close_view)
+            gain = money(_total(book) - invested_after.amount)
+
+            financing = self._financing(book, opened_at, closed_at)
+            cash = money(cash.amount - financing.total.amount)
+            trades = step.trades
+
+            if index == last and liquidate:
+                closing = self._trade_to(
+                    book,
+                    Allocation(weights=(), at=closed_at, candidates_considered=0),
+                    money(cash.amount + _total(book)),
+                    cash,
+                    closed_at,
+                    close_view,
+                )
+                book, cash = closing.book, closing.cash
+                trades = (*trades, *closing.trades)
+
+            outcome = RebalanceOutcome(
                 opened_at=opened_at,
                 closed_at=closed_at,
-                open_view=open_view,
-                close_view=close_view,
+                equity_before=equity_before,
+                equity_after=money(cash.amount + _total(book)),
+                trades=trades,
+                holdings=holdings,
+                market_gain=gain,
+                financing=financing,
+                cash=cash,
                 candidates_considered=len(candidates),
+                turnover=money(sum((abs(item.notional.amount) for item in trades), Decimal(0))),
+                note=allocation.note,
             )
             builder.record(outcome)
             if self.record_decisions:
-                decisions.extend(self._decisions(run_id, allocator, allocation, outcome, opened_at))
+                decisions.extend(self._decisions(run_id, allocator, outcome))
 
-        return builder.build(), tuple(decisions), sizes
+        return _FoldOutcome(
+            ledger=builder.build(),
+            decisions=tuple(decisions),
+            universe_sizes=sizes,
+            book=book,
+            cash=cash,
+        )
 
-    def _hold(
+    # -- the book ------------------------------------------------------------
+
+    def _reprice(
+        self, book: Mapping[InstrumentKey, _Held], view: PointInTimeView
+    ) -> dict[InstrumentKey, _Held]:
+        """Mark every position at the latest price and rate knowable to ``view``.
+
+        A position moves by the price relative and the currency relative
+        together, which is what makes an unhedged foreign holding behave the way
+        one actually behaves. A position whose instrument has no bar inside the
+        lookback keeps the price it was last marked at: a stale mark is honest
+        where an invented price is not, and the instrument is on its way out of
+        the universe regardless.
+        """
+        repriced: dict[InstrumentKey, _Held] = {}
+        for key, held in book.items():
+            instrument = self.instruments[key]
+            quoted = view.last_close(instrument)
+            price = quoted if quoted is not None and quoted.amount > 0 else held.price
+            rate = self._rate_for(instrument.symbol, view.as_of)
+            ratio = (price.amount / held.price.amount) * (rate / held.rate)
+            repriced[key] = _Held(value=money(held.value.amount * ratio), price=price, rate=rate)
+        return repriced
+
+    def _holdings(self, book: Mapping[InstrumentKey, _Held], at: Timestamp) -> tuple[Holding, ...]:
+        """The book as marked-to-market holdings, in a stable order."""
+        return tuple(
+            Holding(
+                key=key,
+                quantity=book[key].quantity,
+                price=book[key].price,
+                rate=book[key].rate,
+                value=book[key].value,
+                series_end=self.series_end.series_end_at(key, at),
+            )
+            for key in sorted(book)
+        )
+
+    def _trade_to(
         self,
-        *,
+        book: Mapping[InstrumentKey, _Held],
         allocation: Allocation,
         equity: Notional,
-        opened_at: Timestamp,
-        closed_at: Timestamp,
-        open_view: PointInTimeView,
-        close_view: PointInTimeView,
-        candidates_considered: int,
-    ) -> RebalanceOutcome:
-        """Open every position in ``allocation``, hold it, and close it."""
-        positions: list[PositionOutcome] = []
-        deployed = Decimal(0)
-        for key, weight in allocation.weights:
+        cash: Notional,
+        at: Timestamp,
+        view: PointInTimeView,
+    ) -> _Step:
+        """Trade the difference between what is held and what is wanted.
+
+        Three things happen here and they happen in this order.
+
+        **Delisted positions are written down and sold outright.** A position
+        whose instrument a source says is gone cannot be held, and it cannot be
+        sold at its last observed close either, because that close predates the
+        news the haircut stands in for. The write-down is charged on its own
+        line and never folded into a fee.
+
+        **The buys are scaled to the cash that actually exists.** An allocation
+        asking for all of equity would otherwise leave the account short by the
+        size of its own fees. The scaling factor is solved rather than
+        estimated - every cost line here is proportional to notional, so the
+        cash constraint is linear - and it comes out at exactly ``1/(1 + c)``
+        for a fully invested allocation, which is what a real account can pay
+        for. A future non-proportional cost breaks this loudly rather than
+        quietly.
+
+        **Nothing is traded for an instrument whose price is not knowable.** Its
+        position is carried at its stale mark, which is the only honest thing to
+        do with a holding nobody can price.
+        """
+        written_down: dict[InstrumentKey, Notional] = {}
+        values: dict[InstrumentKey, Decimal] = {}
+        for holding in self._holdings(book, at):
+            if holding.series_end.takes_haircut:
+                charge = money(holding.value.amount * self.haircut.fraction)
+                written_down[holding.key] = charge
+                values[holding.key] = holding.value.amount - charge.amount
+            else:
+                values[holding.key] = holding.value.amount
+
+        haircut_total = sum((item.amount for item in written_down.values()), Decimal(0))
+        investable = money(equity.amount - haircut_total)
+        targets = {
+            key: money(investable.amount * weight).amount for key, weight in allocation.weights
+        }
+
+        intents: list[_Intent] = []
+        for key in sorted(set(values) | set(targets)):
             instrument = self.instruments[key]
-            entry_price = open_view.last_close(instrument)
-            if entry_price is None or entry_price.amount <= 0:
+            held = book.get(key)
+            price = held.price if held is not None else view.last_close(instrument)
+            if price is None or price.amount <= 0:
                 continue
-            position = self._position(
-                instrument=instrument,
-                target=money(equity.amount * weight),
-                entry_price=entry_price,
-                opened_at=opened_at,
-                closed_at=closed_at,
-                close_view=close_view,
+            foreign = self.routing.is_foreign(instrument.symbol)
+            rate = held.rate if held is not None else self._rate_for(instrument.symbol, at)
+            current = values.get(key, Decimal(0))
+            wanted = Decimal(0) if key in written_down else targets.get(key, Decimal(0))
+            intents.append(
+                _Intent(
+                    key=key,
+                    price=price,
+                    rate=rate,
+                    current=current,
+                    delta=wanted - current,
+                    cost_rate=self._cost_rate(key, at, foreign=foreign),
+                    foreign=foreign,
+                )
             )
-            positions.append(position)
-            deployed += position.capital_deployed.amount
 
-        realised = sum((item.realised.amount for item in positions), Decimal(0))
-        uninvested = money(equity.amount - deployed)
-        return RebalanceOutcome(
-            opened_at=opened_at,
-            closed_at=closed_at,
-            equity_before=equity,
-            equity_after=money(realised + uninvested.amount),
-            positions=tuple(positions),
-            uninvested=uninvested,
-            candidates_considered=candidates_considered,
-            note=allocation.note,
-        )
+        scale = _buy_scale(intents, cash)
+        trades: list[Trade] = []
+        updated: dict[InstrumentKey, _Held] = {}
+        cash_amount = cash.amount
 
-    def _position(
+        for intent in intents:
+            delta = money(intent.delta * scale if intent.delta > 0 else intent.delta)
+            write_down = written_down.get(intent.key)
+            if delta.amount == 0 and write_down is None:
+                if intent.current != 0:
+                    updated[intent.key] = _Held(
+                        value=money(intent.current), price=intent.price, rate=intent.rate
+                    )
+                continue
+
+            costs = self._trade_costs(intent.key, delta, at, foreign=intent.foreign)
+            if write_down is not None:
+                costs = costs + CostLines(delisting=write_down)
+            trades.append(
+                Trade(
+                    key=intent.key,
+                    at=at,
+                    notional=delta,
+                    quantity=Quantity(delta.amount / intent.rate / intent.price.amount),
+                    price=intent.price,
+                    rate=intent.rate,
+                    costs=costs,
+                )
+            )
+            cash_amount -= delta.amount + costs.total.amount - costs.delisting.amount
+            remaining = money(intent.current + delta.amount)
+            if remaining.amount != 0:
+                updated[intent.key] = _Held(value=remaining, price=intent.price, rate=intent.rate)
+
+        return _Step(book=updated, cash=money(cash_amount), trades=tuple(trades))
+
+    def _cost_rate(self, key: InstrumentKey, at: Timestamp, *, foreign: bool) -> Decimal:
+        """Total trading charge as a rate on notional, for the cash constraint."""
+        return self._trade_costs(key, Notional(Decimal(1)), at, foreign=foreign).total.amount
+
+    def _financing(
         self,
-        *,
-        instrument: Instrument,
-        target: Notional,
-        entry_price: Price,
+        book: Mapping[InstrumentKey, _Held],
         opened_at: Timestamp,
         closed_at: Timestamp,
-        close_view: PointInTimeView,
-    ) -> PositionOutcome:
-        """One position, from entry to exit, with every charge on its own line.
+    ) -> CostLines:
+        """Financing on the book over the holding period.
 
-        ``target`` is what the allocation asked for. What is actually deployed is
-        the sum of what went into the asset and what the entry charges took, and
-        that sum is computed rather than assumed: dividing by ``1 + c`` rounds at
-        the last digit of the working precision, and if ``capital_deployed`` were
-        the un-rounded target instead, the gross-minus-costs identity would fail
-        by that rounding. The residual - a few units in the twenty-sixth decimal
-        place - lands in uninvested cash, where it belongs and where it is
-        visible.
+        Charged per day held rather than per trade, which is the whole point of
+        the distinction. Zero for spot, which is every position in this project
+        so far, and reported as its own line regardless: a cost that is
+        structurally absent and one nobody measured look identical in a report
+        that omits the row.
         """
-        foreign = self.routing.is_foreign(instrument.symbol)
-        entry_rate = self.fx.rate_at(opened_at) if foreign else Decimal(1)
-        exit_rate = self.fx.rate_at(closed_at) if foreign else Decimal(1)
+        if self.cost_model.funding_bps_per_day == 0:
+            return CostLines()
+        days = (closed_at.value - opened_at.value).days
+        total = Decimal(0)
+        for held in book.values():
+            total += self.cost_model.funding_over(held.value, days).amount
+        return CostLines(funding=money(total))
 
-        entry_rate_bps = self._entry_cost_rate(instrument.key, opened_at, foreign=foreign)
-        committed = money(target.amount / (Decimal(1) + entry_rate_bps))
-        entry_costs = self._trade_costs(instrument.key, committed, opened_at, foreign=foreign)
-        capital_deployed = money(committed.amount + entry_costs.total.amount)
-
-        quantity = Quantity(committed.amount / entry_rate / entry_price.amount)
-        exit_price, series_end = self._exit(
-            instrument, entry_price, opened_at, closed_at, close_view
-        )
-        gross_proceeds = money(quantity.amount * exit_price.amount * exit_rate)
-
-        haircut_cost = (
-            money(gross_proceeds.amount * self.haircut.fraction)
-            if series_end.takes_haircut
-            else Notional(Decimal(0))
-        )
-        days_held = (closed_at.value - opened_at.value).days
-        exit_costs = self._trade_costs(
-            instrument.key, gross_proceeds, closed_at, foreign=foreign
-        ) + CostLines(
-            funding=money(self.cost_model.funding_over(committed, days_held).amount),
-            delisting=haircut_cost,
-        )
-        return PositionOutcome(
-            key=instrument.key,
-            opened_at=opened_at,
-            closed_at=closed_at,
-            capital_deployed=capital_deployed,
-            committed=committed,
-            quantity=quantity,
-            entry_price=entry_price,
-            exit_price=exit_price,
-            entry_rate=entry_rate,
-            exit_rate=exit_rate,
-            gross_proceeds=gross_proceeds,
-            entry_costs=entry_costs,
-            exit_costs=exit_costs,
-            series_end=series_end,
-        )
-
-    def _exit(
-        self,
-        instrument: Instrument,
-        entry_price: Price,
-        opened_at: Timestamp,
-        closed_at: Timestamp,
-        close_view: PointInTimeView,
-    ) -> tuple[Price, SeriesEnd]:
-        """The exit price, and why the series stopped if it did.
-
-        A series still running produces its own last close and no haircut. A
-        series that produced nothing at all inside the holding period is marked
-        out at whatever its last observed close was, and the haircut applies
-        only where the oracle says the instrument was delisted rather than that
-        the archive simply stopped.
-        """
-        last = close_view.last_bar(instrument)
-        if last is None:
-            return entry_price, self.series_end.series_end_at(instrument.key, closed_at)
-        if last.close_time <= opened_at:
-            return last.close, self.series_end.series_end_at(instrument.key, closed_at)
-        return last.close, SeriesEnd.STILL_LISTED
+    def _rate_for(self, symbol: str, at: Timestamp) -> Decimal:
+        """Account-currency units per unit of this instrument's quote currency."""
+        if not self.routing.is_foreign(symbol):
+            return Decimal(1)
+        return self.fx.rate_at(at)
 
     # -- costs ---------------------------------------------------------------
-
-    def _entry_cost_rate(self, key: InstrumentKey, at: Timestamp, *, foreign: bool) -> Decimal:
-        """Total entry charge as a rate on the committed notional.
-
-        Computed as a rate rather than an amount so that the financing identity
-        in :mod:`sextant.engine.backtest.ledger` can be solved exactly. Every
-        line here is proportional to notional, which is what makes that possible
-        and is stated so that a future non-proportional cost breaks loudly.
-        """
-        probe = Notional(Decimal(1))
-        costs = self._trade_costs(key, probe, at, foreign=foreign)
-        return costs.total.amount
 
     def _trade_costs(
         self, key: InstrumentKey, notional: Notional, at: Timestamp, *, foreign: bool
     ) -> CostLines:
-        """Fees, spread, slippage, funding and any currency conversion."""
+        """Fees, spread, slippage and any currency conversion on one trade.
+
+        Charged on the absolute notional traded. A rebalance that leaves a
+        position where it is trades nothing and is charged nothing, which is the
+        difference between a passive benchmark that costs four percent a year
+        and one that costs twenty-six.
+        """
         trade = self.cost_model.cost_of(key, notional, at)
         conversion = self.fx.conversion_cost(notional) if foreign else Notional(Decimal(0))
         return CostLines(
@@ -588,49 +779,56 @@ class BacktestEngine:
         self,
         run_id: str,
         allocator: Allocator,
-        allocation: Allocation,
         outcome: RebalanceOutcome,
-        at: Timestamp,
     ) -> tuple[DecisionRecord, ...]:
-        """One audit record per position taken."""
-        weights = dict(allocation.weights)
+        """One audit record per trade actually placed.
+
+        Per trade rather than per position, because a rebalance that holds still
+        placed no order and there is nothing to audit. The records that exist
+        are the ones a live run would have sent to the venue.
+        """
         return tuple(
             DecisionRecord(
-                timestamp=at,
+                timestamp=trade.at,
                 run_id=run_id,
-                symbol=position.key.symbol,
-                venue=position.key.venue,
+                symbol=trade.key.symbol,
+                venue=trade.key.venue,
                 regime=None,
                 strategy=allocator.name,
                 signal=(
-                    f"weight={weights.get(position.key, Decimal(0))} "
+                    f"{'buy' if trade.is_buy else 'sell'} "
                     f"cross_sectional={allocator.is_cross_sectional}"
                 ),
                 llm_decision=None,
                 confidence=None,
-                entry=position.entry_price,
+                entry=trade.price,
                 stop=None,
                 target=None,
-                size=position.quantity,
+                size=trade.quantity,
                 expected_edge_bps=None,
-                expected_costs_bps=_bps_of(position.costs.total, position.capital_deployed),
+                expected_costs_bps=_bps_of(trade.costs.total, trade.notional),
                 net_expected_edge_bps=None,
                 risk_verdict=RiskVerdict.APPROVE,
                 risk_reason=(
                     "no risk engine is wired in SEXTANT-004; every baseline allocation "
                     "is executed as produced"
                 ),
-                outcome=str(position.net_pnl.amount),
+                outcome=None,
             )
-            for position in outcome.positions
+            for trade in outcome.trades
         )
+
+
+def _total(book: Mapping[InstrumentKey, _Held]) -> Decimal:
+    """What the whole book is worth, in account currency."""
+    return sum((held.value.amount for held in book.values()), Decimal(0))
 
 
 def _bps_of(amount: Notional, base: Notional) -> Decimal | None:
     """``amount`` as basis points of ``base``, or None when the base is zero."""
     if base.amount == 0:
         return None
-    return amount.amount / base.amount * Decimal(10_000)
+    return amount.amount / abs(base.amount) * Decimal(10_000)
 
 
 def usable_window(first_month: Timestamp, months: int) -> Window:
@@ -641,8 +839,3 @@ def usable_window(first_month: Timestamp, months: int) -> Window:
 def rebalance_count(window: Window) -> int:
     """How many holding periods a monthly rebalance produces over ``window``."""
     return len(monthly_instants(window))
-
-
-def as_sequence(keys: Sequence[InstrumentKey]) -> tuple[InstrumentKey, ...]:
-    """Freeze a key sequence in the order given, for deterministic iteration."""
-    return tuple(keys)

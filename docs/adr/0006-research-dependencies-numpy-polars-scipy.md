@@ -76,10 +76,21 @@ trusts. The DSR's own reference cases (ADR body below, and
 
 ### polars - loading the panel, in the adapter layer only
 
-**Why.** The null experiment needs monthly closes for roughly 1,600 symbols over
-39 months, which is 1,600 parquet files. Reading them one at a time into
-`StoredBar` objects is what `archive_measure` already does, and it takes minutes
-per pass. polars reads the directory in one scan and pivots it.
+**Why, and one claim withdrawn.** The null experiment needs daily closes and
+turnover for roughly 1,600 symbols over 39 months, which is 1,600 parquet files.
+The obvious justification is speed, and it does not survive measurement: reading
+all 1,640 series one at a time through `ParquetBarStore` takes **4.8 seconds**,
+and the polars scan of the same directory takes **4.8 seconds**. There is no
+speed argument here and this ADR does not make one.
+
+What polars does earn is the shape of the code. The loader is one scan with a
+declared schema and no per-file bookkeeping, the reshaping a cross-sectional
+research phase needs is expressible in it directly, and the values stay text all
+the way through so nothing can parse an exact decimal into a float behind our
+backs. The dependency is also mandated by the SEXTANT-004 brief and anticipated
+by Phase 0 §7. It is added on those grounds, confined to one module, and the
+performance claim that would have been the easy justification is stated here as
+false rather than left implied.
 
 **Where.** `sextant.adapters.storage` only. Not the engine, not `app`, not
 `domain`, not `ports`. The engine asks the `BarRepository` port; it never learns
@@ -97,12 +108,11 @@ our backs.
 
 **Rejected:** pandas, for the reason above. **Rejected:** doing it with duckdb,
 which is already a dependency. duckdb could do the scan, and it does the row
-counting in `ParquetBarStore.row_counts` today. It was rejected for the panel
-because the reshaping wanted here is a pivot plus a per-symbol
-last-observation-in-month, which in SQL is a window function inside a subquery
-and in polars is three lines that read like what they do. That is a
-maintainability judgement rather than a capability one, and it is worth saying
-plainly: duckdb could have done this.
+counting in `ParquetBarStore.row_counts` today. It was rejected on the same
+maintainability grounds as above, and given that the speed argument turned out
+to be empty, this is worth saying plainly: **duckdb could have done this, and so
+could the existing store.** If the Product Owner would rather carry one fewer
+dependency, dropping polars costs three lines of code and no measurable time.
 
 ## Consequences
 

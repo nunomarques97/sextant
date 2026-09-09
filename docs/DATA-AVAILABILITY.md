@@ -297,11 +297,38 @@ trading up to the quarter end and then vanished.
 | Q4 2025→Q1 2026 | 8 | 8 | 8 |
 
 **184 deaths, 165 priced, 163 with a bar within a week of the quarter boundary,
-median gap one day.** Three transitions produced no deaths at all. The two
-exceptions are both in the Q3→Q4 2025 transition; they are not explained here
-and are not smoothed over either. The gap between "died" and "priced" is the
-listed-and-untraded population: pairs shipped with zero rows, which have no last
-bar to measure.
+median gap one day.** Three transitions produced no deaths at all. The gap
+between "died" and "priced" is the listed-and-untraded population: pairs shipped
+with zero rows, which have no last bar to measure.
+
+**The two exceptions, chased and closed (SEXTANT-004).** Both are in the Q3→Q4
+2025 transition, both are `MCUSD` and `TUSDEUR`, and both have their last daily
+bar on 2025-09-22 - eight days before the boundary, one day past the threshold.
+Neither is evidence against the quarter-end rule, and the two fail the check for
+different reasons.
+
+The threshold is a proxy. "A bar within seven days" stands in for "was still
+trading", and it is only a good proxy for a pair that trades most days. The
+archive writes no row for a day with no trades, so a pair that trades twice a
+week has multi-day holes throughout its series.
+
+`TUSDEUR` is such a pair. Over its last 180 intervals its median gap is one day,
+its mean is 2.4, its ninetieth percentile is four days and its longest is
+seventy. An eight-day final gap is unremarkable for it.
+
+`MCUSD` is denser - mean gap 1.2 days, longest six - so its own cadence does not
+account for eight. What settles it is the other leg: `MCEUR`, the same base
+asset, died in the same transition and traded to 2025-09-25, five days from the
+boundary and inside the threshold. So the asset was listed at the boundary
+exactly as the rule says. What stopped early was trading in one quote leg of a
+pair whose final bars carry one to five trades a day. `TUSDUSD` corroborates the
+same pattern for the other case: it traded to 2025-09-30, gap zero.
+
+**The rule holds at 165 of 165 priced deaths.** What holds at 163 of 165 is the
+seven-day proxy, and where it fails it fails on the thinnest names - which are
+also the two pairs with the sparsest trading cadence among the 48 priced deaths
+in that transition. Reproduce with `sextant.app.quarter_end_audit.run`;
+asserted in `tests/integration/test_quarter_end_exceptions.py`.
 
 A second, independent check. The archive's final quarter lists 1,467 pairs;
 `AssetPairs` on 2026-09-09 lists 1,449, and **1,344 appear in both** - 91.6% of
@@ -672,10 +699,13 @@ ones the archive does not contain.
 
 Stated so that none of it is mistaken for a finding.
 
-1. **Whether the two Q3 2025 exceptions to the quarter-end rule matter.** Of
-   165 priced deaths across thirteen quarters, 163 have a bar within a week of
-   the quarter boundary. Two do not, and they were not investigated. The rule
-   holds at 98.8%; what the residual is remains unexamined.
+1. ~~**Whether the two Q3 2025 exceptions to the quarter-end rule matter.**~~
+   **Closed by SEXTANT-004.** Both are thin pairs whose last bar falls eight
+   days before the boundary; one is explained by its own trading cadence and the
+   other by its sibling quote leg, which traded to within five days of the
+   boundary. Neither implicates the rule. The measurement and the evidence are
+   in §4 above; what fails at 163 of 165 is the seven-day proxy, not the
+   quarter-end rule itself.
 2. **Whether EUR alone is a viable research universe.** Measured, not resolved.
    4 of 40 months clear 25 instruments and 24 sit in the 15-to-25 low-power
    band. Whether a cross-sectional strategy works on a universe of that size is
@@ -750,12 +780,13 @@ whether `WAVESEUR` and `ANTEUR` appear - was the right step and produced the
 right answer.
 
 **What is still open.** Not the acquisition: all thirteen quarters are held and
-checksummed, and the venue's suitability is measured rather than asserted. What
-is open is narrower and listed in §7 - two unexplained exceptions to the
-quarter-end rule, the executable universe for pairs the venue no longer
-describes, and whether an EUR-only universe of 15 to 25 names is enough for a
-cross-sectional strategy. The last of those is a question for a backtester and
-not for a dataset.
+checksummed, and the venue's suitability is measured rather than asserted. The
+two exceptions to the quarter-end rule were chased in SEXTANT-004 and closed;
+neither implicates the rule. What is open is narrower and listed in §7 - the
+executable universe for pairs the venue no longer describes, and whether an
+EUR-only universe of 15 to 25 names is enough for a cross-sectional strategy.
+The last of those is a question for a backtester, which now exists: see
+`docs/NULL-BASELINE.md`.
 
 ---
 

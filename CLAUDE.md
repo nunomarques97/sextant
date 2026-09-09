@@ -5,8 +5,10 @@ Kraken as independent peers. Paper trading is mandatory; live is gated.
 
 ## Stack & essentials
 
-Python 3.12+, uv, pydantic v2 + pydantic-settings + pyyaml. Nothing else at
-runtime: a new dependency needs an ADR in the phase that introduces it.
+Python 3.12+, uv, pydantic v2 + pydantic-settings + pyyaml, httpx, pyarrow and
+duckdb, plus numpy, scipy and polars for the research layer. Nothing else at
+runtime: a new dependency needs an ADR in the phase that introduces it, and each
+of the last three is quarantined by an `.importlinter` contract (ADR 0006).
 
 Commands (PowerShell, from the repo root):
 - Run: `uv run sextant status` / `uv run sextant run [--profile backtest|paper|live]`
@@ -57,6 +59,24 @@ Breaking any of these is a defect, not a style choice.
    `VenueRequestRejected`, a transient one raises `VenueUnavailable`, and an
    empty answer is empty. Collapsing the three is how a survivorship-biased
    dataset gets built without anybody noticing.
+11. **A test may never write to real project data.** Every path a test can
+   write to is a parameter pointing at `tmp_path`: the bar store, the listing
+   calendar, the committed checksums, the trial registry, the generated reports
+   and the configuration directory. A function that writes to a fixed path is a
+   function a test cannot safely call, so the path is a parameter with no
+   default pointing anywhere real. This is a standing invariant rather than a
+   habit because the instance that prompted it - a test that overwrote the
+   committed archive checksums - was caught by luck, and the class is broader
+   than the instance: a test that appends to the trial registry corrupts the
+   one number the Deflated Sharpe Ratio rests on, and nothing would say so.
+12. **A cost assumption is never reported as a measurement.** Spread, slippage
+   and the maker/taker fill mix are configured values, not observations. The
+   types refuse to carry one without the prose that justifies it, every report
+   line labels them, and the fill-mix assumption is reported at three settings
+   so a conclusion that depends on it is visible.
+13. **No result is produced on data it was fitted on.** The engine has one mode,
+   walk-forward. Fitting returns parameters and never an equity curve, so there
+   is no object anywhere in the system that holds in-sample performance.
 
 ## Conventions
 
@@ -64,6 +84,9 @@ Breaking any of these is a defect, not a style choice.
   wrong, document it in the findings instead of suppressing it.
 - Point-in-time only: universe rules use information available at the decision
   date. Delisted instruments stay in the candidate set.
+- Money is `Decimal` everywhere in the domain and the accounting. The one
+  crossing into float lives in `engine/statistics/boundary.py`; no other module
+  may import both an array library and a monetary type, and a test asserts it.
 - Bars carry an explicit `is_closed` flag. Never consume an open bar.
 - Commits are small and coherent, one concern each, present-tense subject.
 
@@ -82,6 +105,10 @@ verified. Never report done without evidence.
 - Current state: `README.md` "Status"
 - Architecture/technical notes: `docs/adr/`, `.importlinter`
 - Live-trading contract: `docs/LIVE-GATES.md`
+- The calibrated null and how the rejection filter is used: `docs/NULL-BASELINE.md`
+- Every strategy and parameter set ever evaluated: `research/trial-registry.jsonl`
+  (append-only, hash-chained, committed)
+- Pre-registered benchmark configuration: `config/benchmarks.yaml`
 - Work tracking: n/a
 - Project skills/hooks: n/a
 - Tooling configured here: uv, ruff, mypy, pytest, import-linter, GitHub Actions

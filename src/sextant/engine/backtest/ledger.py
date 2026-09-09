@@ -12,25 +12,21 @@ A tolerance here would hide exactly the errors worth finding, and the types make
 exactness achievable, so exactness is what is asserted -
 ``tests/unit/test_cost_accounting.py`` generates trade sequences and checks it.
 
-How a rebalance is financed, and why the arithmetic looks the way it does
---------------------------------------------------------------------------
+Positions carry, and only the difference is traded
+---------------------------------------------------
 
-An allocation asks for weight ``w`` of equity in an instrument. The account has
-to pay the entry costs out of the same pocket, so what it actually commits to
-the asset is a little less than ``w`` of equity. Writing ``c`` for the total
-entry cost rate, the capital deployed is ``equity * w``, the amount committed to
-the asset is ``equity * w / (1 + c)``, and the entry charge is the difference.
+The account holds positions across rebalances. At each rebalance it computes
+what it wants to hold, compares that against what it already holds, and trades
+**only the difference**. Costs are charged on the notional actually traded.
 
-Solved rather than estimated, so that the weights consume exactly the equity
-they claim and cash never goes negative by the size of a fee. The quantity
-bought is ``committed`` converted into the instrument's quote currency and
-divided by its price - so the position is smaller than a cost-free backtest
-would give it, which is the first place costs bite.
-
-``gross_pnl`` is then the market move on the quantity actually held, and every
-cost is a separate subtraction from it. That is what makes the identity exact:
-gross and net describe the same position, differing only by charges that were
-each recorded on their own line.
+This is not an optimisation. An engine that closed and reopened every position
+every month would charge a passive holder two full round trips a year for
+holding still, and a monthly-rebalanced buy-and-hold benchmark twenty-four round
+trips it would never pay. Both are benchmarks that future strategies are
+measured against, so overstating their costs flatters every strategy that comes
+after - which is the direction this project exists to refuse. ``turnover`` is
+carried on every holding period so a reader can see how much churn a construct
+actually produced.
 
 **Uninvested cash earns nothing.** An allocation that puts 60% to work leaves
 40% in an account paying zero. That is a real drag and a deliberate one: an
@@ -136,97 +132,118 @@ def sum_costs(lines: Sequence[CostLines]) -> CostLines:
 
 
 @dataclass(frozen=True, slots=True)
-class PositionOutcome:
-    """One position held from one rebalance to the next, fully accounted.
+class Trade:
+    """One change of position, priced and charged.
 
-    ``entry_rate`` and ``exit_rate`` are account-currency units per unit of the
-    instrument's quote currency. Both are exactly ``1`` for a domestic
-    instrument and under the counterfactual FX policy, which is what lets the
-    same arithmetic serve all three policies without branching.
+    ``notional`` is signed in account currency: positive buys, negative sells.
+    Costs are charged on its absolute size, because that is what actually
+    crosses the market. A rebalance that leaves a position untouched produces no
+    trade and therefore no cost, which is the whole reason this type exists -
+    an engine that closed and reopened every position every month would charge a
+    passive holder a full round trip a month for holding still, and would
+    thereby make every strategy compared against it look better than it is.
     """
 
     key: InstrumentKey
-    opened_at: Timestamp
-    closed_at: Timestamp
-    capital_deployed: Notional
-    committed: Notional
+    at: Timestamp
+    notional: Notional
     quantity: Quantity
-    entry_price: Price
-    exit_price: Price
-    entry_rate: Decimal
-    exit_rate: Decimal
-    gross_proceeds: Notional
-    """What the position realises in account currency before any charge."""
-    entry_costs: CostLines
-    exit_costs: CostLines
-    """Kept apart from the entry costs because they are settled at different
-    moments and out of different pockets. The entry charge is already inside
-    ``capital_deployed``; the exit charge comes out of the proceeds. Merging them
-    into one figure is what breaks the gross-minus-costs identity, and it broke
-    it once before this split existed."""
-    series_end: SeriesEnd
+    price: Price
+    rate: Decimal
+    """Account-currency units per unit of the instrument's quote currency.
+    Exactly one for a domestic instrument and under the counterfactual FX
+    policy, which is what lets the same arithmetic serve every policy."""
+    costs: CostLines
 
     @property
-    def costs(self) -> CostLines:
-        """Everything this position was charged, entry and exit together."""
-        return self.entry_costs + self.exit_costs
-
-    @property
-    def realised(self) -> Notional:
-        """What the account actually gets back when the position is closed."""
-        return Notional(self.gross_proceeds.amount - self.exit_costs.total.amount)
-
-    @property
-    def gross_pnl(self) -> Notional:
-        """The market move on the quantity actually held."""
-        return Notional(self.gross_proceeds.amount - self.committed.amount)
-
-    @property
-    def net_pnl(self) -> Notional:
-        """What the account gained, after everything."""
-        return Notional(self.realised.amount - self.capital_deployed.amount)
+    def is_buy(self) -> bool:
+        """Whether this trade increased the position."""
+        return self.notional.amount > 0
 
     def as_json(self) -> dict[str, object]:
         """Serialisable form, for the decision stream."""
         return {
             "instrument": str(self.key),
-            "opened_at": self.opened_at.isoformat(),
-            "closed_at": self.closed_at.isoformat(),
-            "capital_deployed": str(self.capital_deployed.amount),
+            "at": self.at.isoformat(),
+            "notional": str(self.notional.amount),
             "quantity": str(self.quantity.amount),
-            "entry_price": str(self.entry_price.amount),
-            "exit_price": str(self.exit_price.amount),
-            "entry_rate": str(self.entry_rate),
-            "exit_rate": str(self.exit_rate),
-            "gross_pnl": str(self.gross_pnl.amount),
-            "net_pnl": str(self.net_pnl.amount),
-            "series_end": self.series_end.value,
+            "price": str(self.price.amount),
+            "rate": str(self.rate),
             "costs": self.costs.as_json(),
         }
 
 
 @dataclass(frozen=True, slots=True)
+class Holding:
+    """One position as it stands at an instant, marked to market."""
+
+    key: InstrumentKey
+    quantity: Quantity
+    price: Price
+    rate: Decimal
+    value: Notional
+    series_end: SeriesEnd
+
+    def as_json(self) -> dict[str, object]:
+        """Serialisable form."""
+        return {
+            "instrument": str(self.key),
+            "quantity": str(self.quantity.amount),
+            "price": str(self.price.amount),
+            "value": str(self.value.amount),
+            "series_end": self.series_end.value,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class RebalanceOutcome:
-    """One holding period, from the rebalance that opened it to the one that closed it."""
+    """One holding period: the trades that opened it and the market move over it.
+
+    The accounting identity lives here, and it is worth writing out because it
+    is what makes the exactness assertion meaningful.
+
+    At the rebalance instant the account holds cash ``c`` and positions worth
+    ``v_i``. Trading changes each ``v_i`` by ``delta_i`` and takes ``cost_i`` out
+    of cash, so equity immediately after trading is ``E - sum(cost_i)``: the
+    trades themselves move value between cash and positions without creating or
+    destroying any, and only the charges reduce equity. Over the following month
+    the positions move to ``v_i'`` and the market gain is
+    ``sum(v_i' - v_i_after_trade)``.
+
+    So ``equity_after = equity_before - costs + market_gain`` exactly, which is
+    the identity ``net = gross - costs`` with ``gross`` being the market gain on
+    what was actually held.
+    """
 
     opened_at: Timestamp
     closed_at: Timestamp
     equity_before: Notional
     equity_after: Notional
-    positions: tuple[PositionOutcome, ...]
-    uninvested: Notional
+    trades: tuple[Trade, ...]
+    holdings: tuple[Holding, ...]
+    """What was held over the period, after the trades at ``opened_at``."""
+    market_gain: Notional
+    financing: CostLines
+    """Charged on the book over the holding period rather than on a trade, so a
+    funding figure can never scale with the number of trades."""
+    cash: Notional
+    """Uninvested cash carried over the period. Earns nothing: an assumed
+    deposit rate is another unmeasured assumption and this project has enough."""
     candidates_considered: int
+    turnover: Notional
+    """Absolute notional traded at ``opened_at``. The number that says whether a
+    construct is churning or holding."""
     note: str = ""
 
     @property
     def costs(self) -> CostLines:
         """Every cost charged across this holding period."""
-        return sum_costs([position.costs for position in self.positions])
+        return sum_costs([trade.costs for trade in self.trades]) + self.financing
 
     @property
     def gross_pnl(self) -> Notional:
-        """Market move across every position held."""
-        return Notional(sum((item.gross_pnl.amount for item in self.positions), Decimal(0)))
+        """Market move on what was actually held."""
+        return self.market_gain
 
     @property
     def net_pnl(self) -> Notional:
@@ -240,9 +257,11 @@ class RebalanceOutcome:
             "closed_at": self.closed_at.isoformat(),
             "equity_before": str(self.equity_before.amount),
             "equity_after": str(self.equity_after.amount),
-            "positions_held": len(self.positions),
+            "positions_held": len(self.holdings),
+            "trades": len(self.trades),
+            "turnover": str(self.turnover.amount),
             "candidates_considered": self.candidates_considered,
-            "uninvested": str(self.uninvested.amount),
+            "cash": str(self.cash.amount),
             "gross_pnl": str(self.gross_pnl.amount),
             "net_pnl": str(self.net_pnl.amount),
             "costs": self.costs.as_json(),
@@ -285,8 +304,17 @@ class Ledger:
 
     @property
     def gross_pnl(self) -> Notional:
-        """Market move across the whole run, on the quantities actually held."""
+        """Market move across the whole run, on what was actually held."""
         return Notional(sum((item.gross_pnl.amount for item in self.rebalances), Decimal(0)))
+
+    @property
+    def turnover(self) -> Notional:
+        """Total absolute notional traded across the run.
+
+        Reported because it is what separates a construct that holds from one
+        that churns, and because every cost line here is proportional to it.
+        """
+        return Notional(sum((item.turnover.amount for item in self.rebalances), Decimal(0)))
 
     @property
     def net_pnl(self) -> Notional:
@@ -337,6 +365,7 @@ class Ledger:
             "net_pnl": str(self.net_pnl.amount),
             "terminal_return": str(self.terminal_return),
             "max_drawdown": str(self.max_drawdown),
+            "turnover": str(self.turnover.amount),
             "rebalances": len(self.rebalances),
             "reconciles": self.reconciles(),
         }

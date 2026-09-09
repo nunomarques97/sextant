@@ -9,6 +9,37 @@ A multi-strategy, multi-venue quantitative crypto trading system.
 
 ## Status
 
+**SEXTANT-004 - the walk-forward backtesting engine, and what no edge looks
+like.** There is now an engine, a real cost model and a calibrated null. Walk-
+forward is its only mode: fitting returns parameters and never an equity curve,
+so no object in the system holds in-sample performance. The engine ranks the
+point-in-time executable universe at every rebalance and allocates across it,
+driven by the `Clock` and `BarRepository` ports, with every euro of accounting in
+`Decimal` and the identity `gross - fees - spread - slippage - funding - FX -
+delisting = net` asserted exactly rather than to a tolerance.
+
+**There is still no strategy.** What was run is three benchmark constructs:
+equal-weight passive over the whole executable universe, random selection of
+eight names, and single-asset buy and hold. Their results are the null every
+future strategy is measured against.
+
+- What chance produces, net of costs, with the rejection filter stated in the
+  only terms it may be read in:
+  [`docs/NULL-BASELINE.md`](docs/NULL-BASELINE.md)
+- The gate itself, and the paper phase's obligation to measure the real
+  maker/taker fill ratio: [`docs/LIVE-GATES.md`](docs/LIVE-GATES.md)
+- Every strategy and parameter set ever evaluated against this dataset, append-
+  only and hash-chained: [`research/trial-registry.jsonl`](research/trial-registry.jsonl)
+- The benchmark configuration, committed before any of it ran:
+  [`config/benchmarks.yaml`](config/benchmarks.yaml)
+- Why numpy, scipy and polars, where each is confined, and one performance claim
+  withdrawn after measurement:
+  [`docs/adr/0006-research-dependencies-numpy-polars-scipy.md`](docs/adr/0006-research-dependencies-numpy-polars-scipy.md)
+
+Commands: `uv run sextant benchmark null` runs the whole grid and writes the
+report. `uv run sextant archive quarter-end-audit` reproduces the SEXTANT-004
+investigation into the two Q3-to-Q4 2025 exceptions, which are now closed.
+
 **SEXTANT-003 - Kraken historical ingestion and a point-in-time listing
 calendar.** Kraken's quarterly OHLCVT archives are read into a parquet bar
 store, and the diff between consecutive quarters is a listing calendar sourced

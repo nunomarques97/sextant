@@ -66,7 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     archive.add_argument(
         "stage",
-        choices=("scan", "calendar", "ingest", "measure"),
+        choices=("scan", "calendar", "ingest", "measure", "quarter-end-audit"),
         help="Which stage to run. Each is separately runnable and idempotent.",
     )
     benchmark = subparsers.add_parser(
@@ -192,6 +192,11 @@ def _command_archive(stage: str) -> int:
         return EXIT_OK
     if stage == "ingest":
         ingest(manifest, ParquetBarStore(STORE_ROOT), clock=SystemClock())
+        return EXIT_OK
+    if stage == "quarter-end-audit":
+        from sextant.app.quarter_end_audit import run as audit_quarter_end
+
+        audit_quarter_end(STORE_ROOT)
         return EXIT_OK
     archive_measure.measure_all(load_calendar(), ParquetBarStore(STORE_ROOT), manifest)
     return EXIT_OK
