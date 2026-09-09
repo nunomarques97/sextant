@@ -20,9 +20,9 @@ take minutes and a report should never require re-running them.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -42,15 +42,28 @@ from sextant.adapters.exchanges.kraken.client import KrakenClient
 from sextant.adapters.exchanges.kraken.client import (
     default_transport as kraken_transport,
 )
+from sextant.app.spike_report import (
+    VenueDataset,
+    measure,
+    month_starts,
+    observed_window,
+    reconstruct_calendar,
+    render_markdown,
+    target_position_note,
+)
 from sextant.domain.availability import VenueUnavailable
 from sextant.domain.capability import Capability
-from sextant.domain.instrument import Instrument, InstrumentKey
+from sextant.domain.instrument import Instrument
 from sextant.domain.money import Notional, Price, Quantity
 from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timeframe, Timestamp
 from sextant.domain.venue import Venue
+from sextant.engine.universe.rules import AccountParameters
 
 DATA_ROOT = Path("data") / "spike"
+
+NEWLINE = chr(10)
+"""Explicit, so generated markdown is LF on every host."""
 
 #: Quote currencies we fetch history for. The three policies in PO decision D3
 #: are subsets of this set, so one fetch serves all three measurements.
@@ -448,34 +461,44 @@ def _snapshot_spreads(
 # ----------------------------------------------------------------------------
 
 
-def month_starts(first: Timestamp, last: Timestamp) -> tuple[Timestamp, ...]:
-    """Monthly refresh instants, on the first UTC day of each month."""
-    months: list[Timestamp] = []
-    year, month = first.value.year, first.value.month
-    while True:
-        instant = Timestamp(datetime(year, month, 1, tzinfo=UTC))
-        if instant > last:
-            break
-        if instant >= first:
-            months.append(instant)
-        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
-    return tuple(months)
+@dataclass(frozen=True, slots=True)
+class VenueResearchProfile:
+    """Per-venue research parameters, as data rather than as a branch.
+
+    Looked up by name, never compared against one. Adding a venue is one entry
+    here; it is never an ``if`` anywhere.
+    """
+
+    venue: Venue
+    live_statuses: frozenset[str]
+    known_missing: tuple[tuple[str, str], ...]
+    """Pairs the venue's instrument endpoint no longer describes at all, each
+    with the instant its own announcement says trading stopped. Only pairs named
+    verbatim in an announcement appear here: inferring a pair name from an asset
+    name would be exactly the fabrication this task forbids."""
 
 
-def instrument_key(venue: Venue, symbol: str) -> InstrumentKey:
-    """The key a fetched series belongs to."""
-    return InstrumentKey(venue, symbol)
-
-
-def load_series(bars_dir: Path) -> Mapping[str, tuple[tuple[int, str, str], ...]]:
-    """Every fetched daily series, keyed by symbol."""
-    series: dict[str, tuple[tuple[int, str, str], ...]] = {}
-    for path in sorted(bars_dir.glob("*.json")):
-        with path.open(encoding="utf-8") as handle:
-            payload = json.load(handle)
-        rows = tuple((int(row[0]), str(row[1]), str(row[2])) for row in payload["rows"])
-        series[str(payload["symbol"])] = rows
-    return series
+RESEARCH_PROFILES: Mapping[str, VenueResearchProfile] = {
+    "binance": VenueResearchProfile(
+        venue=Venue("binance"),
+        live_statuses=frozenset({"TRADING"}),
+        # Nothing is missing: the venue keeps delisted symbols in exchangeInfo
+        # with status BREAK and keeps serving their klines.
+        known_missing=(),
+    ),
+    "kraken": VenueResearchProfile(
+        venue=Venue("kraken"),
+        live_statuses=frozenset(
+            {"online", "post_only", "cancel_only", "limit_only", "reduce_only"}
+        ),
+        known_missing=(
+            ("WAVESEUR", "2024-07-08T12:00:00+00:00"),
+            ("WAVESUSD", "2024-07-08T12:00:00+00:00"),
+            ("ANTEUR", "2024-09-25T14:00:00+00:00"),
+            ("ANTUSD", "2024-09-25T14:00:00+00:00"),
+        ),
+    ),
+}
 
 
 def quote_policies() -> Mapping[str, frozenset[str]]:
@@ -487,26 +510,69 @@ def quote_policies() -> Mapping[str, frozenset[str]]:
     }
 
 
-def excluded_bases() -> frozenset[str]:
-    """The curated asset-class exclusions."""
-    return EXCLUDED_BASES
-
-
-def default_account() -> tuple[Notional, int]:
+def default_account() -> AccountParameters:
     """PO decision D2: 1,500 EUR of equity, at most 8 concurrent positions."""
-    return Notional(Decimal(1500)), 8
+    return AccountParameters(equity_quote=Notional(Decimal(1500)), max_positions=8)
 
 
-def iso_month(instant: Timestamp) -> str:
-    """``YYYY-MM`` label for a refresh instant."""
-    return f"{instant.value.year:04d}-{instant.value.month:02d}"
+def measure_all(root: Path = DATA_ROOT) -> None:
+    """Compute the R4 tables for every venue and every quote policy.
 
+    Reads only from disk. No network, so the tables can be regenerated and
+    diffed without asking either venue anything.
+    """
+    account = default_account()
+    sections: list[str] = [
+        "<!-- generated by `uv run sextant spike measure`; do not hand-edit -->",
+        f"Account applied to the executable universe: {target_position_note(account)}.",
+    ]
+    summary: dict[str, object] = {}
 
-def days_between(earlier: Timestamp, later: Timestamp) -> int:
-    """Whole days from ``earlier`` to ``later``."""
-    return (later.value - earlier.value) // timedelta(days=1)
+    for name in sorted(RESEARCH_PROFILES):
+        profile = RESEARCH_PROFILES[name]
+        venue_root = root / name
+        if not venue_root.exists():
+            print(f"[{name}] no fetched data at {venue_root}; skipping")
+            continue
+        dataset = VenueDataset.load(profile.venue, venue_root)
+        calendar = reconstruct_calendar(
+            dataset,
+            live_statuses=profile.live_statuses,
+            known_missing=tuple(
+                (symbol, Timestamp.parse(instant)) for symbol, instant in profile.known_missing
+            ),
+        )
+        calendar.write_json(venue_root / "listing_calendar.json")
+        window = observed_window(dataset)
+        if window is None:
+            print(f"[{name}] no bars fetched; skipping")
+            continue
+        months = month_starts(*window)
+        print(
+            f"[{name}] {len(dataset.series)} series, "
+            f"{window[0].isoformat()[:10]} to {window[1].isoformat()[:10]}, "
+            f"{len(months)} monthly refreshes"
+        )
 
+        venue_summary: dict[str, object] = {
+            "observed_from": window[0].isoformat(),
+            "observed_to": window[1].isoformat(),
+            "series": len(dataset.series),
+            "candidates": len(dataset.metadata),
+            "provenance": {
+                key.value: value for key, value in calendar.provenance_counts().items() if value
+            },
+        }
+        for policy_name, quotes in sorted(quote_policies().items()):
+            rows = measure(dataset, calendar, quotes, EXCLUDED_BASES, account, months)
+            sections.append(render_markdown(profile.venue, policy_name, rows))
+            venue_summary[policy_name] = [row.as_json() for row in rows]
+            peak = max((row.research.size for row in rows), default=0)
+            print(f"[{name}] {policy_name}: peak research universe {peak}")
+        summary[name] = venue_summary
 
-def unique_sorted(values: Iterable[str]) -> tuple[str, ...]:
-    """Deterministic ordering helper used throughout the report stage."""
-    return tuple(sorted(set(values)))
+    write_json(root / "universe_tables.json", summary)
+    (root / "universe_tables.md").write_text(
+        NEWLINE.join(sections), encoding="utf-8", newline=NEWLINE
+    )
+    print(f"[measure] wrote {root / 'universe_tables.md'}")

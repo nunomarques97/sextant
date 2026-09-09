@@ -49,6 +49,15 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("status", help="Report the resolved configuration and preflight.")
     subparsers.add_parser("run", help="Perform the full startup sequence.")
+    spike = subparsers.add_parser(
+        "spike",
+        help="SEXTANT-002 research spike: fetch public market data and measure the universe.",
+    )
+    spike.add_argument(
+        "stage",
+        choices=("collect-binance", "collect-kraken", "measure"),
+        help="Which stage to run. The collect stages reach the network; measure does not.",
+    )
     return parser
 
 
@@ -105,12 +114,32 @@ def _command_run(profile: str | None, config_dir: Path | None) -> int:
     return EXIT_OK
 
 
+def _command_spike(stage: str) -> int:
+    """Run one research-spike stage.
+
+    Kept behind its own subcommand rather than folded into ``run``: this reads
+    public market data for a report, it is not a trading run, and conflating the
+    two would put a network fetch on the startup path.
+    """
+    from sextant.app.spike import collect_binance, collect_kraken, measure_all
+
+    if stage == "collect-binance":
+        collect_binance()
+    elif stage == "collect-kraken":
+        collect_kraken()
+    else:
+        measure_all()
+    return EXIT_OK
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entrypoint. Returns a process exit code rather than calling sys.exit."""
     args = _build_parser().parse_args(argv)
     try:
         if args.command == "status":
             return _command_status(args.profile, args.config_dir)
+        if args.command == "spike":
+            return _command_spike(args.stage)
         return _command_run(args.profile, args.config_dir)
     except PreflightFailed as exc:
         print(f"startup refused: {exc}", file=sys.stderr)
