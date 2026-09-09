@@ -26,6 +26,7 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from sextant.domain.instrument import Instrument, InstrumentKey
+from sextant.domain.listing import MembershipState
 from sextant.domain.money import Notional
 from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timestamp
@@ -318,3 +319,53 @@ class ExcludedAssetClassRule(_Rule):
         if instrument.quote in self.excluded_quotes:
             return RuleOutcome.REJECT
         return RuleOutcome.ADMIT
+
+
+# -- Rule 8 ------------------------------------------------------------------
+
+
+@runtime_checkable
+class MembershipOracle(Protocol):
+    """Something that can say whether a symbol was listed at an instant.
+
+    Structural on purpose. The thing that answers this is a calendar built from
+    a venue's published archive, which lives in ``adapters`` and must stay
+    invisible from here. The engine states the question; it never learns whose
+    archive answered it.
+    """
+
+    def membership_at(self, symbol: str, at: Timestamp) -> MembershipState:
+        """Whether ``symbol`` was tradable at ``at``, allowing for ignorance."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class SourcedMembershipRule(_Rule):
+    """Membership must be established by a source, not by the shape of a series.
+
+    This is the rule that carries invariant 9 into the universe. Where the
+    source's own evidence brackets a listing or a delisting rather than dating
+    it, an instant falling inside that bracket is *not evaluable*: never
+    admitted, never rejected.
+
+    The temptation this exists to resist is real. An instrument whose membership
+    is unknown at a date looks exactly like one that was absent, and treating
+    the two the same is cheap, silent and wrong in a direction that always
+    flatters the result.
+    """
+
+    oracle: MembershipOracle
+
+    @property
+    def name(self) -> str:
+        """Identifier recorded in run metadata."""
+        return "sourced_membership"
+
+    def evaluate(self, instrument: Instrument, at: Timestamp) -> RuleOutcome:
+        """Admit only on a positive membership verdict from the source."""
+        state = self.oracle.membership_at(instrument.symbol, at)
+        if state is MembershipState.LISTED:
+            return RuleOutcome.ADMIT
+        if state is MembershipState.NOT_LISTED:
+            return RuleOutcome.REJECT
+        return RuleOutcome.NOT_EVALUABLE

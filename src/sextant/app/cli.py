@@ -16,6 +16,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from sextant.adapters.clocks import SystemClock
 from sextant.app.config import load_settings, resolve_profile
 from sextant.app.credentials import credentials_for, load_dotenv
 from sextant.app.preflight import PreflightFailed, PreflightReport, run_preflight
@@ -57,6 +58,21 @@ def _build_parser() -> argparse.ArgumentParser:
         "stage",
         choices=("collect-binance", "collect-kraken", "measure"),
         help="Which stage to run. The collect stages reach the network; measure does not.",
+    )
+    archive = subparsers.add_parser(
+        "archive",
+        help="SEXTANT-003: build the point-in-time calendar and bar store from the "
+        "downloaded quarterly OHLCVT archives. Reaches no network.",
+    )
+    archive.add_argument(
+        "stage",
+        choices=("scan", "calendar", "ingest", "measure"),
+        help="Which stage to run. Each is separately runnable and idempotent.",
+    )
+    subparsers.add_parser(
+        "snapshot-universe",
+        help="Record today's venue membership so future delistings need no "
+        "reconstruction. Idempotent per UTC day.",
     )
     return parser
 
@@ -132,6 +148,47 @@ def _command_spike(stage: str) -> int:
     return EXIT_OK
 
 
+def _command_archive(stage: str) -> int:
+    """Run one archive stage.
+
+    Imported lazily for the same reason as the spike: these stages pull in the
+    parquet store and the venue's archive reader, and ``sextant status`` has no
+    business paying for either.
+    """
+    from sextant.adapters.storage.bars import ParquetBarStore
+    from sextant.app import archive_measure
+    from sextant.app.archive_ingest import (
+        STORE_ROOT,
+        build_calendar,
+        ingest,
+        load_calendar,
+        load_manifest,
+        scan,
+    )
+
+    if stage == "scan":
+        scan()
+        return EXIT_OK
+    manifest = load_manifest()
+    if stage == "calendar":
+        build_calendar(manifest)
+        return EXIT_OK
+    if stage == "ingest":
+        ingest(manifest, ParquetBarStore(STORE_ROOT), clock=SystemClock())
+        return EXIT_OK
+    archive_measure.measure_all(load_calendar(), ParquetBarStore(STORE_ROOT), manifest)
+    return EXIT_OK
+
+
+def _command_snapshot_universe() -> int:
+    """Record today's venue membership. The permanent fix for R6."""
+    from sextant.app.archive_ingest import STORE_ROOT
+    from sextant.app.universe_snapshot import run
+
+    run(STORE_ROOT, SystemClock())
+    return EXIT_OK
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entrypoint. Returns a process exit code rather than calling sys.exit."""
     args = _build_parser().parse_args(argv)
@@ -140,6 +197,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _command_status(args.profile, args.config_dir)
         if args.command == "spike":
             return _command_spike(args.stage)
+        if args.command == "archive":
+            return _command_archive(args.stage)
+        if args.command == "snapshot-universe":
+            return _command_snapshot_universe()
         return _command_run(args.profile, args.config_dir)
     except PreflightFailed as exc:
         print(f"startup refused: {exc}", file=sys.stderr)

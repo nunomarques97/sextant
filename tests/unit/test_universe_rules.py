@@ -9,12 +9,15 @@ are two different objects rather than one with a different label.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from sextant.domain.instrument import Instrument, InstrumentKey
+from sextant.domain.listing import MembershipState
 from sextant.domain.money import Notional, Price, Quantity
 from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timestamp
@@ -30,6 +33,7 @@ from sextant.engine.universe.rules import (
     MinNotionalFeasibilityRule,
     QuoteCurrencyRule,
     RuleOutcome,
+    SourcedMembershipRule,
 )
 from sextant.engine.universe.statistics import DailyObservation, InstrumentHistory
 
@@ -324,3 +328,48 @@ def test_universe_computation_is_byte_identical_across_runs() -> None:
 )
 def test_the_power_bands_match_the_phase_0_thresholds(size: int, band: str) -> None:
     assert power_band(size) == band
+
+
+# -- Rule 8: membership sourced from an archive, not from the shape of a series
+
+
+@dataclass(frozen=True, slots=True)
+class StubOracle:
+    """A membership source with hand-set answers, standing in for a calendar."""
+
+    answers: Mapping[str, MembershipState]
+
+    def membership_at(self, symbol: str, at: Timestamp) -> MembershipState:
+        """Whatever the test said, defaulting to ignorance."""
+        return self.answers.get(symbol, MembershipState.UNDETERMINED)
+
+
+def test_sourced_membership_admits_rejects_and_declines_to_answer() -> None:
+    """The three-valued answer has to survive into the rule intact.
+
+    An instrument whose membership is unknown at a date looks exactly like one
+    that was absent. Treating them the same is cheap, silent, and wrong in the
+    direction that always flatters a result.
+    """
+    rule = SourcedMembershipRule(
+        oracle=StubOracle(
+            {
+                "XBTEUR": MembershipState.LISTED,
+                "ANTEUR": MembershipState.NOT_LISTED,
+                "RNDREUR": MembershipState.UNDETERMINED,
+            }
+        )
+    )
+    at = DECISION
+
+    assert rule.name == "sourced_membership"
+    assert rule.evaluate(instrument("XBTEUR"), at) is RuleOutcome.ADMIT
+    assert rule.evaluate(instrument("ANTEUR"), at) is RuleOutcome.REJECT
+    assert rule.evaluate(instrument("RNDREUR"), at) is RuleOutcome.NOT_EVALUABLE
+
+
+def test_an_unknown_membership_is_never_admitted() -> None:
+    """Absence of evidence is not admission, here as everywhere else."""
+    rule = SourcedMembershipRule(oracle=StubOracle({}))
+
+    assert not rule.admits(instrument("NEVERSEEN"), DECISION)

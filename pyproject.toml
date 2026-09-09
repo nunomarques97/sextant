@@ -73,6 +73,11 @@ ignore = [
 "tests/**" = ["S101", "S105", "S106"]
 "src/sextant/app/cli.py" = ["T20"]   # the CLI is allowed to write to stdout
 "src/sextant/app/spike.py" = ["T20"]  # the research spike reports progress on stdout
+# The archive stages are long-running batch jobs run by hand. Progress on stdout
+# is the whole interface; a logger nobody has configured is not.
+"src/sextant/app/archive_ingest.py" = ["T20"]
+"src/sextant/app/archive_measure.py" = ["T20"]
+"src/sextant/app/universe_snapshot.py" = ["T20"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -98,6 +103,17 @@ disallow_any_generics = true
 no_implicit_reexport = true
 show_error_codes = true
 files = ["src", "tests"]
+
+# pyarrow ships no py.typed marker, so mypy cannot see its signatures. The
+# alternative to this override is a `# type: ignore` on every import, and
+# blanket ignores in `src` are banned by convention and by
+# tests/unit/test_source_hygiene.py. Stated here once, where it is visible,
+# rather than four times where it is not. duckdb does ship types and needs no
+# entry. Values crossing this boundary are narrowed explicitly at the call
+# site - int(), str(), bool() - so nothing untyped escapes adapters.storage.
+[[tool.mypy.overrides]]
+module = ["pyarrow.*"]
+ignore_missing_imports = true
 
 # ------------------------------------------------------------------------------
 # pytest

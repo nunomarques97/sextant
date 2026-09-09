@@ -25,6 +25,11 @@ EXPECTED_CONTRACTS = {
     "exchange-sdks-are-quarantined",
     "http-client-unreachable-from-the-core",
     "http-client-not-spoken-by-the-wiring-layer",
+    # SEXTANT-003 added the storage engines. Same two-contract shape as httpx and
+    # for the same reason: the core cannot reach them by any path, and the wiring
+    # layer may hold a store without speaking parquet itself.
+    "storage-engines-unreachable-from-the-core",
+    "storage-engines-not-spoken-by-the-wiring-layer",
     "venues-are-independent-peers",
 }
 
