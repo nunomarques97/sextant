@@ -326,3 +326,23 @@ def test_a_missing_fx_series_stops_the_run_rather_than_defaulting_to_parity(
     (store_root / "bars" / f"venue={VENUE.name}" / "timeframe=1d" / "EURUSD.parquet").unlink()
     with pytest.raises(ValueError, match="currency leg cannot be priced"):
         _run(tmp_path, store_root, config)
+
+
+def test_the_run_writes_a_decision_stream_sample(
+    tmp_path: Path, store_root: Path, config: benchmark_config.BenchmarkConfig
+) -> None:
+    """R2 requires the audit stream as an artefact, not only as a capability.
+
+    The first full run produced no such file: the flag deciding which cell to
+    record compared a ``FillMix`` by identity against a property that rebuilds
+    its tuple on every access, so it was never true and nothing was ever kept.
+    The engine emitted the records correctly; nothing asserted they were
+    written. This asserts it.
+    """
+    _run(tmp_path, store_root, config)
+    written = (tmp_path / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+
+    assert written, "the decision stream sample is empty"
+    first = json.loads(written[0])
+    for field in ("timestamp", "run_id", "symbol", "venue", "signal", "size", "entry"):
+        assert field in first

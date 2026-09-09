@@ -815,7 +815,11 @@ def run_all(
             for mix in settings.fill_mixes:
                 cell = f"{plan_name}/{variant.name}/{mix.label}"
                 engine = engines[(variant.name, mix.label)]
-                keep_decisions = plan_name == plan_names[0] and mix is settings.fill_mixes[0]
+                # ``fill_mixes`` rebuilds its tuple on every access, so identity
+                # against ``fill_mixes[0]`` is never true. Compare the label.
+                keep_decisions = (
+                    plan_name == plan_names[0] and mix.label == settings.fill_mixes[0].label
+                )
                 for construct in (EQUAL_WEIGHT, SINGLE_ASSET):
                     result, summary = run_construct(
                         engine,
