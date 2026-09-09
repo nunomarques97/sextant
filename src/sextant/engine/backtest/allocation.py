@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Protocol, runtime_checkable
 
 from sextant.domain.errors import DomainError
@@ -34,6 +34,15 @@ from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.time import Timestamp
 from sextant.engine.backtest.market import PointInTimeView
 from sextant.engine.backtest.window import Window
+
+#: Weights are held to eighteen decimal places and always rounded *down*.
+#:
+#: One divided by forty-nine, carried at the working precision and added
+#: forty-nine times, comes to 1.000000000000000000000000001 - which is more than
+#: the account has, and the allocation is rightly refused. Rounding the share
+#: down at a fixed scale makes the sum provably at most one for any universe
+#: size, and leaves a rounding tail of at most 1e-18 of equity uninvested.
+WEIGHT_SCALE = Decimal("1E-18")
 
 
 class InvalidAllocation(DomainError):
@@ -102,14 +111,16 @@ class Allocation:
     ) -> Allocation:
         """Spread equity evenly across ``keys``, in the order given.
 
-        The remainder from the division is left uninvested rather than pushed
-        into the last position. One position carrying a rounding tail would make
-        the last-named instrument systematically larger, which over thirty
-        rebalances is a bias with a direction.
+        The share is rounded **down** to :data:`WEIGHT_SCALE`, so the weights sum
+        to at most one for any universe size, and the remainder is left
+        uninvested rather than pushed into the last position. One position
+        carrying the rounding tail would make the last-named instrument
+        systematically larger, which over thirty rebalances is a bias with a
+        direction.
         """
         if not keys:
             return cls(weights=(), at=at, candidates_considered=candidates_considered, note=note)
-        share = Decimal(1) / Decimal(len(keys))
+        share = (Decimal(1) / Decimal(len(keys))).quantize(WEIGHT_SCALE, rounding=ROUND_DOWN)
         return cls(
             weights=tuple((key, share) for key in keys),
             at=at,

@@ -206,6 +206,60 @@ class BacktestEngine:
 
     # -- the public entry point ----------------------------------------------
 
+    def with_clock(self, clock: Clock) -> BacktestEngine:
+        """The same engine and the same caches, driven by a different clock.
+
+        A run is one simulation and a simulation starts at its own beginning, so
+        a second run needs a clock that has not already reached the end of the
+        first - a simulated clock refuses to move backwards, and rightly. This
+        is how the null experiment runs ten thousand simulations over one
+        engine: the data caches are shared, because they are read-through views
+        of the port and cannot differ between runs, while the clock is fresh
+        each time.
+        """
+        return BacktestEngine(
+            repository=self.repository,
+            clock=clock,
+            timeframe=self.timeframe,
+            instruments=self.instruments,
+            universe=self.universe,
+            cost_model=self.cost_model,
+            fx=self.fx,
+            routing=self.routing,
+            haircut=self.haircut,
+            series_end=self.series_end,
+            initial_equity=self.initial_equity,
+            account_currency=self.account_currency,
+            lookback_days=self.lookback_days,
+            record_decisions=self.record_decisions,
+            _advance=self._advance,
+            _views=self._views,
+            _candidates_cache=self._candidates_cache,
+        )
+
+    def recording(self, *, record_decisions: bool) -> BacktestEngine:
+        """The same engine with the decision stream switched on or off."""
+        engine = self.with_clock(self.clock)
+        return BacktestEngine(
+            repository=engine.repository,
+            clock=engine.clock,
+            timeframe=engine.timeframe,
+            instruments=engine.instruments,
+            universe=engine.universe,
+            cost_model=engine.cost_model,
+            fx=engine.fx,
+            routing=engine.routing,
+            haircut=engine.haircut,
+            series_end=engine.series_end,
+            initial_equity=engine.initial_equity,
+            account_currency=engine.account_currency,
+            lookback_days=engine.lookback_days,
+            record_decisions=record_decisions,
+            _advance=engine._advance,
+            _views=engine._views,
+            _candidates_cache=engine._candidates_cache,
+        )
+
     def run(self, plan: WalkForwardPlan, strategy: Strategy, run_id: str) -> RunSummary:
         """Fit and evaluate ``strategy`` across every fold of ``plan``.
 

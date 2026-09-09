@@ -132,6 +132,43 @@ def distribution_summary(
     )
 
 
+def generator_for(seed: int) -> np.random.Generator:
+    """An explicitly constructed generator, seeded.
+
+    Never the legacy global ``numpy.random`` state: any library imported
+    anywhere in the process can disturb that, and when reproducibility fails
+    that way it fails silently. Constructed here so that callers which are not
+    allowed to import numpy - the wiring layer, which holds monetary types - can
+    still obtain one.
+    """
+    return np.random.Generator(np.random.PCG64(seed))
+
+
+def quantiles(values: Sequence[float] | npt.NDArray[np.float64]) -> dict[str, float]:
+    """The shape of a distribution, not only its mean.
+
+    A null distribution described by its mean is a null distribution nobody can
+    use: the gate is in the tail, and the tail is what these report.
+    """
+    sample = np.asarray(values, dtype=np.float64)
+    if sample.size == 0:
+        raise EmptyDistribution("Cannot describe an empty distribution.")
+    low, mean, deviation, high = distribution_summary(sample)
+    return {
+        "minimum": low,
+        "p05": float(np.percentile(sample, 5.0)),
+        "p25": float(np.percentile(sample, 25.0)),
+        "p50": float(np.percentile(sample, 50.0)),
+        "p75": float(np.percentile(sample, 75.0)),
+        "p90": float(np.percentile(sample, 90.0)),
+        "p95": float(np.percentile(sample, 95.0)),
+        "p99": float(np.percentile(sample, 99.0)),
+        "maximum": high,
+        "mean": mean,
+        "standard_deviation": deviation,
+    }
+
+
 def variance_of(values: Sequence[float] | npt.NDArray[np.float64]) -> float:
     """Sample variance, the input the Deflated Sharpe Ratio wants for ``V``."""
     sample = np.asarray(values, dtype=np.float64)

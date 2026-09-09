@@ -69,6 +69,23 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("scan", "calendar", "ingest", "measure"),
         help="Which stage to run. Each is separately runnable and idempotent.",
     )
+    benchmark = subparsers.add_parser(
+        "benchmark",
+        help="SEXTANT-004: calibrate the null. Runs the passive, random and "
+        "single-asset constructs through the walk-forward engine. Reaches no network.",
+    )
+    benchmark.add_argument(
+        "stage",
+        choices=("null",),
+        help="Which experiment to run.",
+    )
+    benchmark.add_argument(
+        "--seeds",
+        type=int,
+        default=None,
+        help="Override the pre-registered seed count. For a smoke run only: a "
+        "published result uses the registered count.",
+    )
     subparsers.add_parser(
         "snapshot-universe",
         help="Record today's venue membership so future delistings need no "
@@ -180,6 +197,26 @@ def _command_archive(stage: str) -> int:
     return EXIT_OK
 
 
+def _command_benchmark(stage: str, seeds: int | None) -> int:
+    """Run the SEXTANT-004 null calibration.
+
+    Behind its own subcommand rather than folded into ``run``: this produces a
+    report, it is not a trading run, and it takes hours at the registered seed
+    count.
+    """
+    from sextant.app.null_baseline import run_all
+
+    if stage != "null":  # pragma: no cover - argparse restricts the choices
+        raise SextantError(f"unknown benchmark stage {stage!r}")
+    report = run_all(seed_count=seeds)
+    print(
+        f"  {len(report.constructs)} construct results, "
+        f"{len(report.nulls)} null distributions, "
+        f"{report.trial_count_including_nulls} trials recorded"
+    )
+    return EXIT_OK
+
+
 def _command_snapshot_universe() -> int:
     """Record today's venue membership. The permanent fix for R6."""
     from sextant.app.archive_ingest import STORE_ROOT
@@ -199,6 +236,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _command_spike(args.stage)
         if args.command == "archive":
             return _command_archive(args.stage)
+        if args.command == "benchmark":
+            return _command_benchmark(args.stage, args.seeds)
         if args.command == "snapshot-universe":
             return _command_snapshot_universe()
         return _command_run(args.profile, args.config_dir)
