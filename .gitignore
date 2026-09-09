@@ -1,0 +1,62 @@
+# ---- Python artefacts ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+.Python
+pip-wheel-metadata/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ---- Secrets ----
+# Every .env variant is ignored; the committed example is the sole exception.
+.env
+.env.*
+!.env.example
+
+# ---- Tool caches ----
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# ---- Data, logs and local stores ----
+data/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.log
+
+# ---- IDE / editor ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.claude/settings.local.json
+
+# ---- OS ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
