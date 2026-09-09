@@ -88,6 +88,42 @@ forbidden_modules =
     httpx
 allow_indirect_imports = True
 
+# The storage engines get the same two-contract treatment as httpx, and for the
+# same reason. `app` is the layer that wires a concrete store to a port, so it
+# reaches pyarrow and duckdb transitively through whichever store it builds. The
+# acceptance criterion is about the core, and it is stated as two facts:
+#
+#   1. domain, ports and engine cannot reach either engine at all, by any path.
+#      This is what keeps a strategy runnable with no store and no file system.
+#   2. app may hold a store that speaks parquet; it may not speak parquet.
+#
+# See docs/adr/0005-bar-storage-parquet-and-duckdb.md.
+
+[importlinter:contract:storage-engines-unreachable-from-the-core]
+name = domain, ports and engine cannot reach the storage engines by any path
+type = forbidden
+source_modules =
+    sextant.domain
+    sextant.ports
+    sextant.engine
+    sextant.adapters.exchanges
+    sextant.adapters.llm
+    sextant.adapters.clocks
+forbidden_modules =
+    pyarrow
+    duckdb
+allow_indirect_imports = False
+
+[importlinter:contract:storage-engines-not-spoken-by-the-wiring-layer]
+name = app wires stores that speak parquet, and never speaks parquet itself
+type = forbidden
+source_modules =
+    sextant.app
+forbidden_modules =
+    pyarrow
+    duckdb
+allow_indirect_imports = True
+
 [importlinter:contract:venues-are-independent-peers]
 name = binance and kraken are peers, not a chain
 type = independence

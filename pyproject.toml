@@ -13,6 +13,8 @@ dependencies = [
     "pydantic-settings>=2.5", # environment-variable layer and typed settings assembly
     "pyyaml>=6.0.2",          # parsing the layered YAML configuration
     "httpx>=0.27",            # public market data over HTTP; quarantined to adapters.exchanges
+    "pyarrow>=17.0",          # parquet bar store; quarantined to adapters.storage
+    "duckdb>=1.1",            # queries across the parquet store; quarantined to adapters.storage
 ]
 
 [project.scripts]
