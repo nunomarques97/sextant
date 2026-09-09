@@ -761,7 +761,12 @@ def measure_run_cost(
     registered seed count needs to step DOWN. It can never raise one.
     """
     engine = build_engine(world, cost_cells()[0], "USDT")
-    run_allocator(engine, RandomSelection.for_seed(0, MAX_POSITIONS), plan, "calibration-warm")
+    # The warm-up holds the WHOLE universe, not ten names of it. A random draw
+    # touches a tenth of the cross-section, so warming with one would leave most
+    # of the views unbuilt and the measurement would still be timing the cache
+    # rather than the run - projecting a budget an order of magnitude too large
+    # and stepping the seed count needlessly down its ladder.
+    run_allocator(engine, EqualWeightPassive(), plan, "calibration-warm")
     started = time.monotonic()
     for seed in range(samples):
         run_allocator(
