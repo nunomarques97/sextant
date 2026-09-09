@@ -140,6 +140,36 @@ def returns_as_series(
     )
 
 
+def returns_panel(rows: Sequence[Sequence[Decimal | None]]) -> npt.NDArray[np.float64]:
+    """Convert a Decimal ``(periods, names)`` return panel into floats.
+
+    The third and last crossing, for the breadth statistic: a correlation matrix
+    across the names a strategy held needs a rectangular float array, and the
+    returns arrive as Decimals because that is what a price is. It lives here
+    with the other two rather than in the caller, because the whole value of
+    this module is that the list of crossings is short and visible in one file.
+
+    Rows must all be the same length. A missing value is carried as ``None`` and
+    crosses as ``NaN``, never as a zero: a name that did not trade on a day did
+    not return zero that day, and a zero would be counted as a real observation
+    by everything downstream. A ragged row is refused outright, because it means
+    the caller has lost track of which column is which name.
+    """
+    if not rows:
+        return np.zeros((0, 0), dtype=np.float64)
+    width = len(rows[0])
+    for row in rows:
+        if len(row) != width:
+            raise DegenerateCurve(
+                f"A return panel row has {len(row)} values where the first has {width}. "
+                "Padding it would invent a return for a day the name did not trade."
+            )
+    return np.asarray(
+        [[float("nan") if value is None else float(value) for value in row] for row in rows],
+        dtype=np.float64,
+    )
+
+
 def statistic_as_decimal(value: float) -> Decimal:
     """Bring a dimensionless float statistic back for reporting.
 

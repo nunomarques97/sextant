@@ -588,16 +588,17 @@ def write_checksums(
 
     per_symbol: dict[str, list[str]] = {}
     for key, digest in sorted(report.digests.items()):
-        symbol = key.split("/")[-2] if "/" in key else key
-        symbol = key.split("/")[4] if len(key.split("/")) > 4 else symbol
+        parts = key.split("/")
+        # data/spot/monthly/klines/<SYMBOL>/<interval>/<file>.zip
+        symbol = parts[4] if len(parts) > 4 else parts[-1]
         per_symbol.setdefault(symbol, []).append(digest)
 
     rolled = {
-        symbol: hashlib.sha256("".join(digests).encode("ascii")).hexdigest()
+        symbol: hashlib.sha256("".join(digests).encode("utf-8")).hexdigest()
         for symbol, digests in sorted(per_symbol.items())
     }
     dataset = hashlib.sha256(
-        "".join(f"{symbol}:{digest}" for symbol, digest in sorted(rolled.items())).encode("ascii")
+        "".join(f"{symbol}:{digest}" for symbol, digest in sorted(rolled.items())).encode("utf-8")
     ).hexdigest()
 
     path.parent.mkdir(parents=True, exist_ok=True)

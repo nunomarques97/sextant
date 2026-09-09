@@ -1,0 +1,525 @@
+"""Rendering the SEXTANT-005 result file as the report a sceptic would read.
+
+Everything here comes from ``research/spike-005.json`` and nothing is
+recomputed. That is deliberate: a renderer that can do arithmetic is a renderer
+that can quietly disagree with the run it is describing, and the two would then
+have to be reconciled by hand every time either changed.
+
+Three rules the tables obey, from part 1 and from invariants 8 and 12.
+
+**Every figure is in EUR.** No table mixes currencies.
+
+**No net figure appears without its cost breakdown.** The cost lines are their
+own columns, and an assumption is labelled where it appears rather than in a
+footnote nobody reaches.
+
+**Three numbers, never one.** Every variant's row carries the combined result,
+the selection effect and the timing effect side by side, because a win caused
+only by being less exposed to a falling market is not a win.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from decimal import Decimal
+from pathlib import Path
+
+from sextant.app.spike_005 import RESULTS_PATH
+
+REPORT_PATH = Path("docs") / "SPIKE-005-RESULTS.md"
+
+NEWLINE = chr(10)
+
+HEADLINE_CELL = "binance_vip0"
+
+
+def render(results_path: Path = RESULTS_PATH, report_path: Path = REPORT_PATH) -> Path:
+    """Read the result file and write the report beside it."""
+    with results_path.open(encoding="utf-8") as handle:
+        payload = _mapping(json.load(handle))
+    sections = [
+        _preamble(payload),
+        _window_section(payload),
+        _regime_section(payload),
+        _benchmark_section(payload),
+        _headline_section(payload),
+        _decomposition_section(payload),
+        _regime_results_section(payload),
+        _independence_section(payload),
+        _sensitivity_section(payload),
+        _criteria_section(payload),
+    ]
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(NEWLINE.join(sections), encoding="utf-8", newline=NEWLINE)
+    print(f"[spike] wrote {report_path}")
+    return report_path
+
+
+# ---------------------------------------------------------------------------
+# Typed access to the payload, without Any and without cast
+# ---------------------------------------------------------------------------
+
+
+def _mapping(value: object) -> Mapping[str, object]:
+    if not isinstance(value, dict):
+        raise TypeError(f"expected a block, found {type(value).__name__}")
+    return {str(key): item for key, item in value.items()}
+
+
+def _sequence(value: object) -> Sequence[object]:
+    if not isinstance(value, list):
+        raise TypeError(f"expected a list, found {type(value).__name__}")
+    return value
+
+
+def _text(value: object) -> str:
+    return "" if value is None else str(value)
+
+
+def _number(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    try:
+        return float(str(value))
+    except ValueError:
+        return None
+
+
+def _percent(value: object) -> str:
+    """A ratio as a percentage, or an explicit dash when it is absent."""
+    number = _number(value)
+    return "-" if number is None else f"{number * 100:.2f}%"
+
+
+def _fixed(value: object, places: int = 3) -> str:
+    number = _number(value)
+    return "-" if number is None else f"{number:.{places}f}"
+
+
+def _money(value: object) -> str:
+    number = _number(value)
+    return "-" if number is None else f"{number:,.2f}"
+
+
+def _mark(value: object) -> str:
+    """A criterion's answer: met, not met, or an honest blank."""
+    if value is None:
+        return "n/a"
+    return "yes" if value else "no"
+
+
+def _variants(payload: Mapping[str, object]) -> list[Mapping[str, object]]:
+    return [_mapping(item) for item in _sequence(payload["variants"])]
+
+
+def _deterministic(payload: Mapping[str, object]) -> list[Mapping[str, object]]:
+    return [_mapping(item) for item in _sequence(payload["deterministic"])]
+
+
+def _headline(payload: Mapping[str, object], policy: str = "USDT") -> list[Mapping[str, object]]:
+    """The variant rows in the headline cost cell, for one quote policy."""
+    rows = [
+        row
+        for row in _variants(payload)
+        if _text(row["cell_id"]) == HEADLINE_CELL and _text(row["quote_policy"]) == policy
+    ]
+    return sorted(rows, key=lambda row: _text(row["variant"]))
+
+
+# ---------------------------------------------------------------------------
+# Sections
+# ---------------------------------------------------------------------------
+
+
+def _preamble(payload: Mapping[str, object]) -> str:
+    trials = _mapping(payload["trials"])
+    seeds = _mapping(payload["seeds"])
+    notes = [_text(item) for item in _sequence(payload["notes"])]
+    lines = [
+        "# SEXTANT-005 results: does crypto momentum have an edge?",
+        "",
+        "<!-- generated by `sextant spike-005 report`; do not hand-edit -->",
+        "",
+        f"Pre-registration `{_text(payload['registered_version'])}`, "
+        f"engine `{_text(payload['engine_version'])}`, "
+        f"code `{_text(payload['code_version'])}`.",
+        "",
+        "**Every figure below is in EUR.** That includes the single-asset benchmark and every",
+        "percentile of every null distribution. No table mixes currencies.",
+        "",
+        "**The fee schedule is contractual; the spread, the slippage and the fill mix are",
+        "assumptions.** Each is labelled where it appears. They are configured, deliberately",
+        "pessimistic values, carried unchanged from SEXTANT-004 so that they cannot have been",
+        "retuned to suit a new dataset. Nothing here presents one as a measurement.",
+        "",
+        "**Binance is the research venue of this spike and nothing else.** No figure here is",
+        "evidence that any strategy is executable on Kraken, or that this account may trade on",
+        "Binance at all. That question is separate and remains open.",
+        "",
+        "| | |",
+        "|---|---|",
+        f"| trials, including null constructs | {_text(trials['including_nulls'])} |",
+        f"| trials, strategies only | {_text(trials['excluding_nulls'])} |",
+        f"| fully-invested null seeds per cell | {_text(seeds['fully_invested'])} |",
+        f"| exposure-matched null seeds per cell | {_text(seeds['exposure_matched'])} "
+        f"(registered {_text(seeds['registered_exposure_matched'])}) |",
+        f"| measured seconds per null run | {_fixed(seeds['measured_seconds_per_null_run'])} |",
+        f"| total wall clock | {_fixed(payload['seconds'], 0)} s |",
+        "",
+    ]
+    if notes:
+        lines.append("**Notes recorded during the run.**")
+        lines.append("")
+        lines.extend(f"- {note}" for note in notes)
+        lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _window_section(payload: Mapping[str, object]) -> str:
+    window = _mapping(payload["window"])
+    out_of_sample = _mapping(window["out_of_sample"])
+    universe = _mapping(payload["universe"])
+    sizes = {
+        policy: [int(_number(value) or 0) for value in _sequence(universe[policy])]
+        for policy in ("USDT", "EUR")
+    }
+    lines = [
+        "## The window and the universe",
+        "",
+        f"Usable window {_text(window['first_usable_month'])} to "
+        f"{_text(window['last_usable_month_end'])}, "
+        f"{_text(window['usable_months'])} months. The walk-forward plan holds the first "
+        "twelve months back for fitting and scores the rest out of sample, in "
+        f"{len(_sequence(_mapping(window['folds'])['folds']))} non-overlapping folds covering "
+        f"{_text(out_of_sample['start'])[:10]} to {_text(out_of_sample['end'])[:10]} - "
+        f"{_text(window['scored_months'])} scored months.",
+        "",
+        "| quote policy | rebalances | minimum | median | maximum |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for policy, values in sizes.items():
+        ordered = sorted(values)
+        lines.append(
+            f"| {policy} | {len(values)} | {min(values)} | "
+            f"{ordered[len(ordered) // 2]} | {max(values)} |"
+        )
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _regime_section(payload: Mapping[str, object]) -> str:
+    counts = _mapping(payload["regime_month_counts"])
+    scored = _mapping(payload["regime_month_counts_scored"])
+    lines = [
+        "## Regimes",
+        "",
+        "Cut by the cascade fixed in part 1 section 7, from information available at each",
+        "rebalance instant and never revised afterwards. A regime carrying fewer than six",
+        "**scored** months is reported and nothing is concluded from it: the fitting months",
+        "are shown for completeness but no result rests on them.",
+        "",
+        "| regime | months, whole window | months, scored | conclusive |",
+        "|---|---:|---:|---|",
+    ]
+    for regime in ("bull", "bear", "crash", "recovery", "not_evaluable"):
+        count = int(_number(counts.get(regime, 0)) or 0)
+        in_scope = int(_number(scored.get(regime, 0)) or 0)
+        if count == 0:
+            continue
+        conclusive = "-" if regime == "not_evaluable" else ("yes" if in_scope >= 6 else "no")
+        lines.append(f"| {regime} | {count} | {in_scope} | {conclusive} |")
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _benchmark_section(payload: Mapping[str, object]) -> str:
+    lines = [
+        "## The six benchmarks, in EUR",
+        "",
+        "EUR cash is exact rather than simulated: a balance that is never traded returns zero",
+        "and pays nothing, and running it through the engine would be theatre. Everything else",
+        "went through the same walk-forward engine, over the same window, at the same costs.",
+        "",
+        "| construct | policy | cell | fill mix | gross | fees | spread | slippage | "
+        "FX conv. | delisting | net | net return | max DD | Sharpe |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| EUR cash | - | - | - | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00% "
+        "| 0.00% | - |",
+    ]
+    for row in _deterministic(payload):
+        if _text(row["kind"]) != "benchmark":
+            continue
+        costs = _mapping(row["costs"])
+        lines.append(
+            f"| {_text(row['construct'])} | {_text(row['quote_policy'])} "
+            f"| {_text(row['cell_id'])} | {_text(row['fill_mix'])} "
+            f"| {_money(row['gross_pnl'])} | {_money(costs['fees'])} "
+            f"| {_money(costs['spread'])} | {_money(costs['slippage'])} "
+            f"| {_money(costs['fx_conversion'])} | {_money(costs['delisting'])} "
+            f"| {_money(row['net_pnl'])} | {_percent(row['terminal_return'])} "
+            f"| {_percent(row['max_drawdown'])} | {_fixed(row['sharpe_annualised'])} |"
+        )
+    lines.append("")
+    lines.append(
+        "The two seeded nulls are per variant and per cell, and appear beside each variant "
+        "in the tables below rather than here: a null matched to one variant's exposure path "
+        "is not a benchmark anyone else can be measured against."
+    )
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _headline_section(payload: Mapping[str, object]) -> str:
+    lines = [
+        "## Every variant, out of sample, at the research venue's own schedule",
+        "",
+        "Net of fees, spread, slippage, the currency leg and the delisting haircut. The null",
+        "column is the 95th percentile of that variant's **own** exposure-matched selection",
+        "null: the same exposure path, the same number of names, drawn at random. Criterion 1",
+        "is that the variant's Sharpe exceeds it.",
+        "",
+    ]
+    for policy in ("USDT", "EUR"):
+        rows = _headline(payload, policy)
+        if not rows:
+            continue
+        lines.append(f"### Quote policy {policy}")
+        lines.append("")
+        lines.append(
+            "| variant | net return | max DD | Sharpe | null p95 | beats null | DSR | "
+            "N_eff | costs paid |"
+        )
+        lines.append("|---|---:|---:|---:|---:|---|---:|---:|---:|")
+        for row in rows:
+            null = row["exposure_matched_null"]
+            null_map = _mapping(null) if isinstance(null, dict) else None
+            deflated = row["deflated_sharpe"]
+            deflated_map = _mapping(deflated) if isinstance(deflated, dict) else None
+            criteria = _mapping(row["criteria"])
+            costs = _mapping(row["costs"])
+            paid = sum(
+                Decimal(_text(costs[line]))
+                for line in ("fees", "spread", "slippage", "funding", "fx_conversion", "delisting")
+            )
+            lines.append(
+                f"| {_text(row['variant'])} | {_percent(row['net_return'])} "
+                f"| {_percent(row['max_drawdown'])} | {_fixed(row['sharpe_annualised'])} "
+                f"| {'-' if null_map is None else _fixed(null_map['p95'])} "
+                f"| {_mark(criteria['1_beats_exposure_matched_null'])} "
+                f"| {'-' if deflated_map is None else _fixed(deflated_map['deflated_sharpe'], 4)} "
+                f"| {_fixed(criteria['effective_observations'], 1)} "
+                f"| {_money(paid)} |"
+            )
+        lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _decomposition_section(payload: Mapping[str, object]) -> str:
+    lines = [
+        "## Selection, timing, and the two together",
+        "",
+        "Three distinct numbers per variant, never one. **Combined** is the variant itself.",
+        "**Selection** is the same names rescaled to full investment - its own picks with its",
+        "timing deleted. **Timing** is the whole executable universe held at the variant's own",
+        "invested fraction - its exposure path with its selection deleted.",
+        "",
+        "A win caused only by being less exposed to a falling market is not a win. Where the",
+        "combined result beats EUR cash and the selection effect does not, the variant timed",
+        "the market and did not select.",
+        "",
+        "| variant | combined | selection | timing | mean exposure implied | reading |",
+        "|---|---:|---:|---:|---|---|",
+    ]
+    for row in _headline(payload):
+        parts = _mapping(row["decomposition"])
+        combined = _number(parts["combined_net_return"])
+        selection = _number(parts["selection_net_return"])
+        timing = _number(parts["timing_net_return"])
+        reading = _reading(combined, selection, timing)
+        implied = "-"
+        if combined is not None and timing is not None:
+            implied = "varies" if abs(timing - combined) > 1e-9 else "fully invested"
+        lines.append(
+            f"| {_text(row['variant'])} | {_percent(combined)} | {_percent(selection)} "
+            f"| {_percent(timing)} | {implied} | {reading} |"
+        )
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _reading(combined: float | None, selection: float | None, timing: float | None) -> str:
+    """One sentence saying what the three numbers together mean."""
+    if combined is None or selection is None or timing is None:
+        return "not evaluable"
+    if combined <= 0:
+        if timing > combined:
+            return "lost money; its own selection was worse than its exposure alone"
+        return "lost money"
+    if selection <= 0:
+        return "**timed, did not select**"
+    if selection >= combined / 2:
+        return "selection carried at least half the gain"
+    return "**mostly timing**"
+
+
+def _regime_results_section(payload: Mapping[str, object]) -> str:
+    lines = [
+        "## Every variant, per regime",
+        "",
+        "A strategy that works in one regime has not been demonstrated; it has been fitted to",
+        "a market that happened. Months are attributed to the regime that was knowable when",
+        "the position opened, never to the one visible when it closed.",
+        "",
+        "| variant | bull | bear | crash | recovery | positive in |",
+        "|---|---:|---:|---:|---:|---|",
+    ]
+    for row in _headline(payload):
+        regimes = _mapping(row["regimes"])
+        criteria = _mapping(row["criteria"])
+        cells = []
+        for regime in ("bull", "bear", "crash", "recovery"):
+            entry = regimes.get(regime)
+            if entry is None:
+                cells.append("-")
+                continue
+            block = _mapping(entry)
+            cells.append(f"{_percent(block['net_return'])} ({_text(block['months'])}m)")
+        countable = _sequence(criteria["4_regimes_countable"])
+        lines.append(
+            f"| {_text(row['variant'])} | {' | '.join(cells)} "
+            f"| {_text(criteria['4_regimes_positive'])} of {len(countable)} conclusive |"
+        )
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _independence_section(payload: Mapping[str, object]) -> str:
+    lines = [
+        "## How much evidence there actually is",
+        "",
+        "A month count is not an observation count. `N_eff` corrects the monthly return series",
+        "for its own autocorrelation; `k_eff` corrects the held book for how much of the same",
+        "thing it was holding. The detectable Sharpe is the smallest annualised effect this",
+        "sample could have distinguished from zero at 95 per cent confidence - a measured",
+        "effect below it has not been measured, it has been observed to be smaller than the",
+        "noise.",
+        "",
+        "| variant | months | rho1 | N_eff | SE(Sharpe) | detectable Sharpe | "
+        "median positions | distinct names | pairs measured | mean pairwise corr | k_eff |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in _headline(payload):
+        independence = _mapping(row["independence"])
+        breadth = _mapping(row["breadth"])
+        measured = bool(breadth["is_evaluable"])
+        correlation = _fixed(breadth["mean_pairwise_correlation"]) if measured else "n/a"
+        effective = _fixed(breadth["effective_positions"], 2) if measured else "n/a"
+        lines.append(
+            f"| {_text(row['variant'])} | {_text(independence['observations'])} "
+            f"| {_fixed(independence['lag_one_autocorrelation'])} "
+            f"| {_fixed(independence['effective_observations'], 1)} "
+            f"| {_fixed(independence['sharpe_standard_error'])} "
+            f"| {_fixed(independence['detectable_annualised_sharpe'])} "
+            f"| {_fixed(breadth['median_positions'], 1)} "
+            f"| {_text(breadth['distinct_names_held'])} "
+            f"| {_text(breadth['measured_pairs'])} "
+            f"| {correlation} | {effective} |"
+        )
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _sensitivity_section(payload: Mapping[str, object]) -> str:
+    lines = [
+        "## The same variants at the other venue's schedule",
+        "",
+        "Carried so that a result which exists only because the research venue is cheap is",
+        "visible as one. This is a cost sensitivity and it is **not** evidence that anything",
+        "is executable anywhere.",
+        "",
+        "| variant | binance_vip0 | kraken 100% maker | kraken 50/50 | kraken 100% taker | "
+        "sign stable |",
+        "|---|---:|---:|---:|---:|---|",
+    ]
+    by_variant: dict[str, dict[str, float | None]] = {}
+    for row in _variants(payload):
+        if _text(row["quote_policy"]) != "USDT":
+            continue
+        key = _text(row["variant"])
+        label = f"{_text(row['cell_id'])}|{_text(row['fill_mix'])}"
+        by_variant.setdefault(key, {})[label] = _number(row["net_return"])
+    for variant in sorted(by_variant):
+        cells = by_variant[variant]
+        ordered = [
+            cells.get(f"{HEADLINE_CELL}|50/50 maker/taker (assumed)"),
+            cells.get("kraken_reality|100% maker (assumed)"),
+            cells.get("kraken_reality|50/50 maker/taker (assumed)"),
+            cells.get("kraken_reality|100% taker (assumed)"),
+        ]
+        present = [value for value in ordered if value is not None]
+        stable = (
+            "yes"
+            if present
+            and (all(value > 0 for value in present) or all(value <= 0 for value in present))
+            else "no"
+        )
+        lines.append(
+            f"| {variant} | {' | '.join(_percent(value) for value in ordered)} | {stable} |"
+        )
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _criteria_section(payload: Mapping[str, object]) -> str:
+    lines = [
+        "## The five pre-registered criteria",
+        "",
+        "Fixed in part 1 section 11 before any datum existed. Verdict (A) needs all five for",
+        "at least one variant. Verdict (B) is the answer when **no** variant clears criterion",
+        "1, which is the cheapest filter there is.",
+        "",
+        "| variant | 1 beats null | 2 DSR >= 0.95 | 3 selection not exposure | "
+        "4 regime stability | 5 sign stable | all five |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    sensitivity = _sign_stability(payload)
+    passed = 0
+    for row in _headline(payload):
+        criteria = _mapping(row["criteria"])
+        name = _text(row["variant"])
+        five = sensitivity.get(name)
+        answers = [
+            criteria["1_beats_exposure_matched_null"],
+            criteria["2_survives_deflation"],
+            criteria["3_win_is_selection"],
+            criteria["4_regime_stability"],
+            five,
+        ]
+        every = all(answer is True for answer in answers)
+        passed += int(every)
+        lines.append(
+            f"| {name} | {' | '.join(_mark(answer) for answer in answers)} "
+            f"| {'**yes**' if every else 'no'} |"
+        )
+    lines.append("")
+    lines.append(f"**{passed} of {len(_headline(payload))} variants satisfy all five criteria.**")
+    lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _sign_stability(payload: Mapping[str, object]) -> Mapping[str, bool]:
+    """Criterion 5, computed across the four cost cells of the headline policy."""
+    by_variant: dict[str, list[float]] = {}
+    for row in _variants(payload):
+        if _text(row["quote_policy"]) != "USDT":
+            continue
+        value = _number(row["net_return"])
+        if value is not None:
+            by_variant.setdefault(_text(row["variant"]), []).append(value)
+    return {
+        variant: all(value > 0 for value in values) or all(value <= 0 for value in values)
+        for variant, values in by_variant.items()
+    }

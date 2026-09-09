@@ -133,45 +133,103 @@ class Breadth:
     positions: float
     mean_pairwise_correlation: float
     effective_positions: float
+    measured_pairs: int = 0
+    names: int = 0
 
-    def as_json(self) -> dict[str, float]:
-        """Serialisable form."""
+    @property
+    def is_evaluable(self) -> bool:
+        """Whether any pair shared enough days for the figure to mean anything."""
+        return self.measured_pairs > 0
+
+    def as_json(self) -> dict[str, float | int | bool]:
+        """Serialisable form, carrying what the estimate rests on."""
         return {
             "median_positions": self.positions,
             "mean_pairwise_correlation": self.mean_pairwise_correlation,
             "effective_positions": self.effective_positions,
+            "measured_pairs": self.measured_pairs,
+            "distinct_names_held": self.names,
+            "is_evaluable": self.is_evaluable,
         }
+
+
+#: A pair of names must share at least this many days before their correlation
+#: is counted. Below it the estimate is noise, and averaging noise into a
+#: breadth figure would make a book look more diversified than it was.
+MINIMUM_OVERLAP_DAYS = 60
 
 
 def mean_pairwise_correlation(returns: npt.NDArray[np.float64]) -> float:
     """Mean off-diagonal correlation of a ``(periods, names)`` return matrix.
 
-    Names with no variation are dropped rather than counted as uncorrelated: a
-    constant column has an undefined correlation with everything, and filling it
-    with zero would inflate the measured breadth in exactly the direction that
-    flatters a diversification claim.
+    **Missing values are NaN, and each pair is correlated over its own overlap.**
+    That matters here more than it usually would: a strategy holding a hundred
+    different names across four years holds almost none of them for the whole
+    window, so a matrix restricted to days where every name has a price would be
+    empty, and a routine that quietly returned zero for it would report a
+    perfectly diversified book. Zero correlation is the most flattering answer
+    available, so it is the one this function must never give by accident.
+
+    Names with no variation over a pair's overlap are skipped for that pair: a
+    constant series has an undefined correlation, and filling it with zero would
+    inflate the measured breadth in the same flattering direction.
+
+    Returns 0.0 only when no pair anywhere shares enough days to be measured,
+    which the caller reports as *not evaluable* rather than as independence.
     """
-    if returns.ndim != 2 or returns.shape[1] < 2 or returns.shape[0] < 3:
+    if returns.ndim != 2 or returns.shape[1] < 2 or returns.shape[0] < MINIMUM_OVERLAP_DAYS:
         return 0.0
-    varying = returns[:, returns.std(axis=0) > 0.0]
-    if varying.shape[1] < 2:
-        return 0.0
-    matrix = np.asarray(np.corrcoef(varying, rowvar=False), dtype=np.float64)
-    if not np.all(np.isfinite(matrix)):
-        matrix = np.nan_to_num(matrix, nan=0.0)
-    count = int(varying.shape[1])
-    off_diagonal = (matrix.sum() - np.trace(matrix)) / (count * (count - 1))
-    return float(off_diagonal)
+    names = int(returns.shape[1])
+    present = np.isfinite(returns)
+    total = 0.0
+    pairs = 0
+    for left in range(names - 1):
+        for right in range(left + 1, names):
+            shared = present[:, left] & present[:, right]
+            if int(shared.sum()) < MINIMUM_OVERLAP_DAYS:
+                continue
+            first = returns[shared, left]
+            second = returns[shared, right]
+            if first.std() == 0.0 or second.std() == 0.0:
+                continue
+            value = float(np.corrcoef(first, second)[0, 1])
+            if not np.isfinite(value):
+                continue
+            total += value
+            pairs += 1
+    return 0.0 if pairs == 0 else total / pairs
 
 
-def breadth_of(positions: float, correlation: float) -> Breadth:
+def measurable_pairs(returns: npt.NDArray[np.float64]) -> int:
+    """How many pairs shared enough days for the correlation to rest on them."""
+    if returns.ndim != 2 or returns.shape[1] < 2:
+        return 0
+    present = np.isfinite(returns)
+    names = int(returns.shape[1])
+    return sum(
+        1
+        for left in range(names - 1)
+        for right in range(left + 1, names)
+        if int((present[:, left] & present[:, right]).sum()) >= MINIMUM_OVERLAP_DAYS
+    )
+
+
+def breadth_of(
+    positions: float,
+    correlation: float,
+    *,
+    measured_pairs: int = 0,
+    names: int = 0,
+) -> Breadth:
     """Effective breadth of ``positions`` names at mean correlation ``correlation``."""
     if positions <= 1.0:
-        return Breadth(positions, correlation, max(positions, 0.0))
+        return Breadth(positions, correlation, max(positions, 0.0), measured_pairs, names)
     denominator = 1.0 + (positions - 1.0) * correlation
     effective = positions if denominator <= 0.0 else positions / denominator
     return Breadth(
         positions=positions,
         mean_pairwise_correlation=correlation,
         effective_positions=float(min(max(effective, 1.0), positions)),
+        measured_pairs=measured_pairs,
+        names=names,
     )

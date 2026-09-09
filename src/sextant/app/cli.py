@@ -96,6 +96,23 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("index", "plan", "fetch", "scan", "ingest", "calendar", "all"),
         help="Which stage to run. Each is separately runnable and idempotent.",
     )
+    spike005 = subparsers.add_parser(
+        "spike-005",
+        help="SEXTANT-005: run the pre-registered variants, their nulls and their "
+        "regimes, then render the results. Reaches no network.",
+    )
+    spike005.add_argument(
+        "stage",
+        choices=("run", "report"),
+        help="Which stage to run. `run` executes the grid; `report` renders it.",
+    )
+    spike005.add_argument(
+        "--seeds",
+        type=int,
+        default=None,
+        help="Override the pre-registered seed count. For a smoke run only: a "
+        "published result uses the registered count.",
+    )
     subparsers.add_parser(
         "snapshot-universe",
         help="Record today's venue membership so future delistings need no "
@@ -249,6 +266,19 @@ def _command_binance(stage: str) -> int:
     return EXIT_OK
 
 
+def _command_spike_005(stage: str, seeds: int | None) -> int:
+    """SEXTANT-005. `run` executes the grid; `report` renders what it wrote."""
+    if stage == "run":
+        from sextant.app import spike_005_run
+
+        spike_005_run.execute(seed_override=seeds)
+        return EXIT_OK
+    from sextant.app import spike_005_report
+
+    spike_005_report.render()
+    return EXIT_OK
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entrypoint. Returns a process exit code rather than calling sys.exit."""
     args = _build_parser().parse_args(argv)
@@ -263,6 +293,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _command_benchmark(args.stage, args.seeds)
         if args.command == "binance":
             return _command_binance(args.stage)
+        if args.command == "spike-005":
+            return _command_spike_005(args.stage, args.seeds)
         if args.command == "snapshot-universe":
             return _command_snapshot_universe()
         return _command_run(args.profile, args.config_dir)
