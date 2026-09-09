@@ -23,6 +23,8 @@ EXPECTED_CONTRACTS = {
     "engine-is-abstract",
     "ports-are-abstract",
     "exchange-sdks-are-quarantined",
+    "http-client-unreachable-from-the-core",
+    "http-client-not-spoken-by-the-wiring-layer",
     "venues-are-independent-peers",
 }
 
@@ -77,7 +79,7 @@ def test_the_two_venue_adapters_are_declared_mutually_independent() -> None:
 def test_all_contracts_hold() -> None:
     result = run_lint_imports()
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "Contracts: 5 kept, 0 broken." in result.stdout
+    assert f"Contracts: {len(EXPECTED_CONTRACTS)} kept, 0 broken." in result.stdout
 
 
 @pytest.mark.parametrize(

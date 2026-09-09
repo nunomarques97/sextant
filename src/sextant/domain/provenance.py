@@ -8,9 +8,9 @@ between those two is where survivorship bias lives.
 
 So a listing window is never carried as a bare pair of timestamps. It carries
 the source that established it, and the source is a first-class value that
-travels with the instrument into every report. "Binance's API says so" and "we
-guessed from the earliest bar we could find" are both usable, and they are not
-the same claim.
+travels with the instrument into every report. "the venue's own API says so"
+and "we inferred it from the earliest bar we could find" are both usable, and
+they are not the same claim.
 """
 
 from __future__ import annotations

@@ -114,10 +114,15 @@ def test_datetime_now_appears_only_in_the_adapters_layer() -> None:
     assert offenders == []
 
 
-def test_no_exchange_sdk_or_http_client_is_imported_anywhere_yet() -> None:
-    """SEXTANT-001 contains no network call to any exchange."""
+def test_no_exchange_sdk_is_imported_anywhere() -> None:
+    """No venue SDK exists in this project, and none is smuggled in.
+
+    httpx is deliberately absent from this list: SEXTANT-002 introduced it as
+    the one sanctioned HTTP client. Where it may live is asserted separately,
+    below and in .importlinter.
+    """
     pattern = re.compile(
-        r"^\s*(import|from)\s+(ccxt|krakenex|binance|requests|httpx|aiohttp|urllib3)\b",
+        r"^\s*(import|from)\s+(ccxt|krakenex|pykrakenapi|binance|requests|aiohttp|urllib3)",
         re.MULTILINE,
     )
     offenders = [
@@ -126,6 +131,23 @@ def test_no_exchange_sdk_or_http_client_is_imported_anywhere_yet() -> None:
         if pattern.search(path.read_text(encoding="utf-8"))
     ]
     assert offenders == []
+
+
+def test_the_http_client_is_imported_only_inside_the_exchange_adapters() -> None:
+    """Grep-level backstop for the import-linter contract.
+
+    The contract proves unreachability through the import graph; this proves the
+    simpler, blunter fact that the text `import httpx` appears in exactly one
+    place. Two mechanisms, because this is the boundary that keeps the engine
+    runnable without a network.
+    """
+    pattern = re.compile(r"^\s*(import|from)\s+httpx\b", re.MULTILINE)
+    importers = {
+        path.relative_to(SRC).as_posix()
+        for path in python_files(SRC)
+        if pattern.search(path.read_text(encoding="utf-8"))
+    }
+    assert importers == {"adapters/exchanges/http.py"}
 
 
 def test_the_environment_example_carries_no_real_looking_secret() -> None:

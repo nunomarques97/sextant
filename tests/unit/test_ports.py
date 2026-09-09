@@ -1,8 +1,9 @@
 """Port conformance.
 
 Adapters implement ports structurally, so nothing forces them to match. These
-tests are that force. They also pin the SEXTANT-001 promise that no adapter
-does any work yet: every port method raises rather than reaching a network.
+tests are that force. They also pin what each adapter is allowed to do at this
+phase: the public read path is wired, the trading path is not, and neither will
+answer a historical question it has no source for.
 """
 
 from __future__ import annotations
@@ -21,10 +22,11 @@ from sextant.domain.capability import Capability
 from sextant.domain.instrument import Instrument
 from sextant.domain.market_data import Bar, OpenBarConsumed
 from sextant.domain.money import Price, Quantity
+from sextant.domain.provenance import PointInTimeUnavailable
 from sextant.domain.time import Timeframe, Timestamp
 from sextant.ports.clock import Clock
 from sextant.ports.cost import CostBreakdown
-from sextant.ports.exchange import ExchangeClient
+from sextant.ports.exchange import ExchangeClient, WithdrawalPermission
 from sextant.ports.repository import BarRepository
 from tests.conftest import make_instrument, ts
 
@@ -46,19 +48,36 @@ def test_each_adapter_satisfies_the_exchange_client_port(
 
 
 @pytest.mark.parametrize("client_class", CLIENT_CLASSES)
-def test_no_adapter_method_does_any_work_yet(client_class: type[BaseExchangeClient]) -> None:
+def test_the_trading_path_is_still_unwired(client_class: type[BaseExchangeClient]) -> None:
+    """SEXTANT-002 wired public market data and nothing else.
+
+    No network call is made here: every assertion below fails before a request
+    would be built.
+    """
     client = build_client(client_class)
     instrument = make_instrument("BTCEUR", venue=client.venue.name)
-    at = ts("2024-01-01T00:00:00")
 
     with pytest.raises(NotImplementedError):
-        client.health()
-    with pytest.raises(NotImplementedError):
-        client.instruments(at)
-    with pytest.raises(NotImplementedError):
-        client.get_bars([instrument], Timeframe.H1, at, at)
-    with pytest.raises(NotImplementedError):
         client.get_order_book(instrument)
+    assert client.withdrawal_permission() is WithdrawalPermission.UNKNOWN
+
+
+@pytest.mark.parametrize("client_class", CLIENT_CLASSES)
+def test_no_adapter_answers_a_point_in_time_question_without_a_source(
+    client_class: type[BaseExchangeClient],
+) -> None:
+    """The failure mode this guards against is the quiet one.
+
+    Neither venue publishes a spot listing date. An adapter that answered
+    ``instruments(at)`` anyway would return the symbols that survived to today,
+    which is a survivorship-biased universe wearing the costume of a correct
+    one. It must refuse, and name what would fix it.
+    """
+    client = build_client(client_class)
+
+    with pytest.raises(PointInTimeUnavailable) as raised:
+        client.instruments(ts("2022-01-01T00:00:00"))
+    assert raised.value.remedy
 
 
 @pytest.mark.parametrize("clock", [SystemClock(), SimulatedClock(ts("2024-01-01T00:00:00"))])
