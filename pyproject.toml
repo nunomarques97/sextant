@@ -112,3 +112,8 @@ source = ["src/sextant"]
 
 [tool.coverage.report]
 show_missing = true
+# The gate, not the target. Coverage fell from 90% to 73% across SEXTANT-002
+# without anything failing, which is how a suite stops being evidence. 85% is
+# deliberately below where the suite actually sits, so that this fires on a real
+# regression rather than on ordinary churn. Raise it when the headroom is dull.
+fail_under = 85

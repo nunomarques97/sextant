@@ -38,6 +38,9 @@ jobs:
       - name: Layering contracts
         run: uv run lint-imports
 
+      # `fail_under` in pyproject.toml makes this step fail below 85% coverage.
+      # It is stated there rather than as a flag here so that a local run and CI
+      # enforce the same number and cannot drift apart.
       - name: Tests
         run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
 
