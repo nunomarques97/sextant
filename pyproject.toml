@@ -73,7 +73,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # assert is the point of a test; the "secrets" in tests are deliberate fixtures
-"tests/**" = ["S101", "S105", "S106"]
+# assert is the point of a test; the "secrets" in tests are deliberate fixtures;
+# S311 flags `random` as unsuitable for cryptography, which is true and beside the
+# point in a seeded, reproducible generative test.
+"tests/**" = ["S101", "S105", "S106", "S311"]
 "src/sextant/app/cli.py" = ["T20"]   # the CLI is allowed to write to stdout
 "src/sextant/app/spike.py" = ["T20"]  # the research spike reports progress on stdout
 # The archive stages are long-running batch jobs run by hand. Progress on stdout

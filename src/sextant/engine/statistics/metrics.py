@@ -97,7 +97,12 @@ def summarise(series: ReturnSeries) -> PerformanceStatistics | None:
     deviation = float(np.std(values, ddof=1))
     root_periods = float(np.sqrt(series.periods_per_year))
 
-    if deviation == 0.0:
+    # An exactly constant series is detected by range rather than by its
+    # standard deviation. Summing identical floats and subtracting the mean
+    # leaves cancellation noise around 1e-18, so ``std`` is not exactly zero and
+    # dividing by it produces a Sharpe of ten to the sixteenth. The range is
+    # exact and says what is actually true: nothing varied.
+    if float(np.ptp(values)) == 0.0 or deviation == 0.0:
         per_period = 0.0
         annualised = 0.0
     else:
