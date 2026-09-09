@@ -66,7 +66,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]                # assert is the point of a test
+# assert is the point of a test; the "secrets" in tests are deliberate fixtures
+"tests/**" = ["S101", "S105", "S106"]
 "src/sextant/app/cli.py" = ["T20"]   # the CLI is allowed to write to stdout
 
 [tool.ruff.lint.flake8-tidy-imports]
@@ -101,6 +102,7 @@ files = ["src", "tests"]
 minversion = "8.0"
 testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config"
+pythonpath = ["."]
 
 [tool.coverage.run]
 branch = true
