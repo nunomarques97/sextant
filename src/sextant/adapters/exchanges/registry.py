@@ -4,8 +4,8 @@ This is the one place that knows which adapter classes exist, and it is a
 lookup table rather than a chain of comparisons. Selecting a venue is a
 dictionary read keyed by a configured string; adding a venue is one entry.
 
-There is no primary and no fallback here. The mapping is unordered by intent:
-the peers are peers.
+No venue here stands in for another and none is preferred. The mapping is
+unordered by intent: the peers are peers.
 """
 
 from __future__ import annotations

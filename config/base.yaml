@@ -2,10 +2,10 @@
 # overlays that. Unknown keys are rejected at startup rather than ignored.
 #
 # There is deliberately no `run.venue` here. A run names the venue it uses, in
-# its own profile, explicitly. There is no primary venue and no fallback venue:
-# the exchanges below are independent peers, and neither substitutes for the
-# other. Cross-venue selection, if it is ever needed, arrives later as an
-# explicit router with stated rules - never as a default hidden in this file.
+# its own profile, explicitly. The exchanges below are independent peers: none
+# is preferred and none stands in for another. Cross-venue selection, if it is
+# ever needed, arrives later as an explicit router with stated rules - never as
+# a default hidden in this file.
 
 run:
   timeframe: 1h

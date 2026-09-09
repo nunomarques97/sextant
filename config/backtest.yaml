@@ -6,7 +6,7 @@
 run:
   mode: backtest
   # This run's venue, named explicitly. Backtesting the same strategy against
-  # the other venue means changing this value, not adding a fallback.
+  # the other venue means changing this value, not adding a substitute.
   venue: kraken
   required_capabilities:
     - PUBLIC_MARKET_DATA

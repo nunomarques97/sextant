@@ -21,7 +21,7 @@ The architecture proposal for review is in
 The system is designed around four constraints that are expensive to retrofit:
 
 - **Exchange-agnostic strategies.** Binance and Kraken are first-class,
-  independent adapters. Neither is the other's fallback. No code anywhere
+  independent adapters. Neither substitutes for the other. No code anywhere
   branches on a venue's name; what an account may do on a venue is the
   intersection of three configured capability layers.
 - **Costs are first-class.** Fees, spread, slippage and funding are modelled per

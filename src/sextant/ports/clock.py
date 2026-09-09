@@ -1,11 +1,12 @@
 """The Clock port.
 
 Backtest, paper and live run the same engine code with a different clock. That
-is the whole point: if the engine could call ``datetime.now()`` directly, a
+is the whole point: if the engine could read the wall clock directly, a
 backtest and a live run would not be the same program, and agreement between
 them would prove nothing.
 
-``datetime.now()`` is forbidden outside ``sextant.adapters``.
+Reading wall-clock time is forbidden outside ``sextant.adapters``, and a test
+greps for it.
 """
 
 from __future__ import annotations

@@ -48,9 +48,9 @@ class RunSettings(BaseModel):
     """What this particular run is.
 
     ``venue`` is required and carries no default. A run names the venue it uses,
-    explicitly, once. There is no primary venue and no fallback venue: cross-venue
-    selection, if it is ever needed, arrives as an explicit router with stated
-    rules, not as a default that quietly decides for everyone.
+    explicitly, once. No venue substitutes for another and none is preferred:
+    cross-venue selection, if it is ever needed, arrives as an explicit router
+    with stated rules, not as a default that quietly decides for everyone.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)

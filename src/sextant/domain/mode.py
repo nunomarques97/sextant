@@ -2,7 +2,7 @@
 
 The ladder is BACKTEST -> PAPER -> LIVE. There is no code path in which an
 unset or unrecognised mode resolves to LIVE: the enum's default is BACKTEST and
-every fallback in the configuration layer points at it.
+every default in the configuration layer points at it.
 """
 
 from __future__ import annotations
