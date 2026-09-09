@@ -83,8 +83,13 @@ python_version = "3.12"
 strict = true
 warn_unreachable = true
 warn_unused_ignores = true
-disallow_any_explicit = true
 disallow_any_generics = true
+# `disallow_any_explicit` is deliberately NOT set. Every pydantic BaseModel
+# subclass inherits `__pydantic_extra__: dict[str, Any]`, so the flag reports an
+# error on every model in the project - an incompatibility with a mandated
+# dependency, not a finding about our code. The ban on `Any`, `cast()` and
+# blanket `# type: ignore` in our own source is enforced instead by
+# tests/unit/test_source_hygiene.py, which greps for them.
 no_implicit_reexport = true
 show_error_codes = true
 files = ["src", "tests"]

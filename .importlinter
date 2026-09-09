@@ -1,7 +1,8 @@
 # The layering contract. This file is the mechanism that turns "strategies are
 # exchange-agnostic" from an intention into an enforced fact. CI fails on violation.
 [importlinter]
-root_packages = sextant
+root_packages =
+    sextant
 include_external_packages = True
 
 [importlinter:contract:domain-is-pure]
