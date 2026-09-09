@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.9",          # typed boundaries: config, LLM I/O schemas, exchange DTOs
     "pydantic-settings>=2.5", # environment-variable layer and typed settings assembly
     "pyyaml>=6.0.2",          # parsing the layered YAML configuration
+    "httpx>=0.27",            # public market data over HTTP; quarantined to adapters.exchanges
 ]
 
 [project.scripts]
@@ -69,6 +70,7 @@ ignore = [
 # assert is the point of a test; the "secrets" in tests are deliberate fixtures
 "tests/**" = ["S101", "S105", "S106"]
 "src/sextant/app/cli.py" = ["T20"]   # the CLI is allowed to write to stdout
+"src/sextant/app/spike.py" = ["T20"]  # the research spike reports progress on stdout
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

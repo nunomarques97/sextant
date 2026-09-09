@@ -35,7 +35,7 @@ forbidden_modules =
     sextant.app
 
 [importlinter:contract:exchange-sdks-are-quarantined]
-name = exchange SDKs may only be imported inside adapters.exchanges
+name = exchange SDKs and the HTTP client may only be imported inside adapters.exchanges
 type = forbidden
 source_modules =
     sextant.domain
@@ -51,6 +51,7 @@ forbidden_modules =
     python_binance
     krakenex
     pykrakenapi
+    httpx
 allow_indirect_imports = False
 
 [importlinter:contract:venues-are-independent-peers]
