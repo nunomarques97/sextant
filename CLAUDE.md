@@ -20,8 +20,9 @@ Breaking any of these is a defect, not a style choice.
 
 1. **Layering.** `domain` imports nothing else in the system. `engine` and
    `ports` never import `adapters`. `app` is the only place adapters are wired
-   to ports. Exchange SDKs live only in `adapters/exchanges`. Binance and Kraken
-   may not import each other. Enforced by `.importlinter`.
+   to ports. Exchange SDKs and `httpx` live only in `adapters/exchanges`;
+   `domain`, `ports` and `engine` cannot reach them by any path. Binance and
+   Kraken may not import each other. Enforced by `.importlinter`.
 2. **No venue branching.** There is no `if venue == "..."` anywhere. What an
    account may do is `capabilities()`, the intersection of the venue, account
    and jurisdiction layers. Jurisdiction is configuration data, never code.
@@ -46,6 +47,16 @@ Breaking any of these is a defect, not a style choice.
    YAML, never in a log, never in a commit, never in a report.
 8. **Costs.** No strategy is ever evaluated on gross PnL. Fees, spread,
    slippage and funding go through the `CostModel` port.
+9. **History is sourced, never assumed.** Every listing window carries a
+   `Provenance`: what the venue asserted, what we reconstructed by a stated
+   method, and what nothing established. A rule that cannot verify its input
+   returns *not evaluable* - never admit, never reject. An adapter that cannot
+   answer a point-in-time question raises `PointInTimeUnavailable` naming the
+   remedy; it never answers with today's survivors.
+10. **A failure is never an empty result.** A refused request raises
+   `VenueRequestRejected`, a transient one raises `VenueUnavailable`, and an
+   empty answer is empty. Collapsing the three is how a survivorship-biased
+   dataset gets built without anybody noticing.
 
 ## Conventions
 
@@ -66,6 +77,7 @@ verified. Never report done without evidence.
 ## Where things live
 
 - Product context & decisions: `docs/PHASE-0-FINDINGS.md`, `docs/adr/`
+- What data each venue can actually supply: `docs/DATA-AVAILABILITY.md`
 - Feature specs: implementation briefs from the Product Owner (not in-repo)
 - Current state: `README.md` "Status"
 - Architecture/technical notes: `docs/adr/`, `.importlinter`
