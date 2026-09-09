@@ -1,0 +1,60 @@
+# The layering contract. This file is the mechanism that turns "strategies are
+# exchange-agnostic" from an intention into an enforced fact. CI fails on violation.
+[importlinter]
+root_packages = sextant
+include_external_packages = True
+
+[importlinter:contract:domain-is-pure]
+name = domain depends on nothing inside sextant
+type = forbidden
+source_modules =
+    sextant.domain
+forbidden_modules =
+    sextant.adapters
+    sextant.engine
+    sextant.app
+    sextant.ports
+
+[importlinter:contract:engine-is-abstract]
+name = engine never sees a concrete adapter or the wiring layer
+type = forbidden
+source_modules =
+    sextant.engine
+forbidden_modules =
+    sextant.adapters
+    sextant.app
+
+[importlinter:contract:ports-are-abstract]
+name = ports never see a concrete adapter
+type = forbidden
+source_modules =
+    sextant.ports
+forbidden_modules =
+    sextant.adapters
+    sextant.app
+
+[importlinter:contract:exchange-sdks-are-quarantined]
+name = exchange SDKs may only be imported inside adapters.exchanges
+type = forbidden
+source_modules =
+    sextant.domain
+    sextant.ports
+    sextant.engine
+    sextant.app
+    sextant.adapters.storage
+    sextant.adapters.llm
+    sextant.adapters.clocks
+forbidden_modules =
+    ccxt
+    binance
+    python_binance
+    krakenex
+    pykrakenapi
+allow_indirect_imports = False
+
+[importlinter:contract:venues-are-independent-peers]
+name = binance and kraken are peers, not a chain
+type = independence
+modules =
+    sextant.adapters.exchanges.binance
+    sextant.adapters.exchanges.kraken
