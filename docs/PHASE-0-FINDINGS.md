@@ -421,17 +421,58 @@ public data archive independently lists 3,710 symbol directories, so the two
 official sources can be cross-checked against each other. A point-in-time
 universe including delistings is reconstructible back to August 2017.
 
-*Kraken: confirmed, and worse than expected.* `AssetPairs` returns currently
-listed pairs only; a delisted pair is absent entirely and `OHLC` answers
-`EQuery:Invalid asset pair`. Seven pairs whose delisting Kraken itself
-announced were probed and all seven were refused. Separately, `OHLC` caps at
-~720 candles regardless of `since`, so even for surviving pairs the daily series
-reaches back about two years. The venue's own bulk OHLCVT dataset may contain
-the missing history, but it is a 7.3 GB Google Drive download that was quota
-blocked on every attempt, so its contents remain unverified.
+*Kraken: resolved in method, unresolved in coverage (SEXTANT-003).* The API
+findings stand exactly as measured and are not revised: `AssetPairs` returns
+currently listed pairs only, `OHLC` answers `EQuery:Invalid asset pair` for a
+delisted pair, seven of seven announced delistings were refused, and `OHLC` caps
+at ~720 candles regardless of `since`.
+
+The inference drawn from them was wrong. Kraken's downloadable quarterly OHLCVT
+archives **do** retain delisted pairs: 154 of the 762 in `Q3_2024` no longer
+appear in `AssetPairs` today. Each quarterly file holds the pairs listed at the
+end of that quarter, so the diff between consecutive quarters is a listing
+calendar sourced from file presence rather than from any price series. Every
+entry carries `VENUE_ARCHIVE`, and the count of pairs with an unverifiable
+listing date drops from 489 of 1,260 to zero.
+
+**Two of the thirteen quarterly files are held.** The Drive quota blocks the
+other eleven, folder-wide, and the two we have were fetched by hand from a
+signed-in browser. Until more are acquired the method is demonstrated and the
+venue's suitability is not: a two-quarter window is shorter than the 180-day
+listing-age rule, so every research universe measured on it is arithmetically
+zero.
 
 Standing fallback, per PO decision D7: where delisted history cannot be
-obtained, restrict the backtest window rather than accept the bias.
+obtained, restrict the backtest window rather than accept the bias. On Kraken
+the window is now the one the acquired archives cover, plus what
+`sextant snapshot-universe` records from here on.
+
+**1a. A quarterly archive loses the final partial quarter of every delisted
+instrument.** ANT traded to 2024-09-25 and its last surviving bar is
+2024-06-30: dropped from Q3, wrong quarter for Q2. Every delisted instrument's
+series therefore ends at a quarter boundary, up to three months early. The bias
+is **optimistic** - a delisting announcement usually craters the price, and the
+crater falls entirely inside the unobserved window - and it is bounded at one
+quarter per instrument. Modelled by an explicit, configurable mark-out haircut,
+default 20%, reported at 0%, 20% and 50% in every result. It cannot be
+calibrated from this dataset, because the prices it stands in for are the ones
+the dataset does not contain.
+
+**1b. Presence in an archive is not tradability.** `WAVESEUR` is present in
+Q2 2024 with zero rows at every granularity while its announcement says trading
+stopped 2024-07-08. Listed-and-untraded is a real state, distinct from absent,
+and it is carried as such from the archive reader through the calendar into the
+parquet store. Compacting it into "missing" would delete instruments from a
+historical universe; the risk is that some future consumer does exactly that,
+and the defence is a test rather than a convention.
+
+**1c. Between 2026-04-01 and the first membership snapshot, nothing sources
+Kraken membership at all.** The archive ends at the close of Q1 2026 and today
+is later. A pair that listed and delisted inside that window is absent from the
+archive and absent from `AssetPairs`, and no endpoint will still serve it.
+**There is no available remedy**; the window must be excluded from any result
+rather than qualified. `sextant snapshot-universe` closes it going forward and
+does nothing for the past.
 
 **2. Statistical power may never be sufficient.** This is the risk the whole
 multi-asset design exists to address, and it may still bite. With 30 to 50

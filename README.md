@@ -9,6 +9,34 @@ A multi-strategy, multi-venue quantitative crypto trading system.
 
 ## Status
 
+**SEXTANT-003 - Kraken historical ingestion and a point-in-time listing
+calendar.** Kraken's quarterly OHLCVT archives are read into a parquet bar
+store, and the diff between consecutive quarters is a listing calendar sourced
+from file presence rather than from any price series. A delisting is recorded as
+an interval, never as a date, so membership answers *listed*, *not listed* or
+*undetermined*. There is still no strategy, no indicator, no backtester, no cost
+model and no private endpoint.
+
+- What each venue can supply, revised: Kraken's NO-GO is superseded, with the
+  API findings kept intact beside the correction:
+  [`docs/DATA-AVAILABILITY.md`](docs/DATA-AVAILABILITY.md)
+- The universe tables over the archive window, and the delisting-haircut
+  sensitivity at 0%, 20% and 50%:
+  [`docs/kraken-archive-tables.md`](docs/kraken-archive-tables.md)
+- Why parquet and duckdb, and how they are quarantined:
+  [`docs/adr/0005-bar-storage-parquet-and-duckdb.md`](docs/adr/0005-bar-storage-parquet-and-duckdb.md)
+
+Commands: `uv run sextant archive scan | calendar | ingest | measure` builds the
+store and the tables from archives in `data/`, reaching no network.
+`uv run sextant snapshot-universe` records today's venue membership, idempotent
+per UTC day, so future delistings never need reconstructing.
+
+**Two of thirteen quarterly archives are held.** The Google Drive quota blocks
+the rest folder-wide and they must be downloaded by hand. Until then the method
+is demonstrated and the venue's suitability is not: a two-quarter window is
+shorter than the 180-day listing-age rule, so every research universe measured
+on it is zero for arithmetic reasons.
+
 **SEXTANT-002 - data-availability spike and the public market-data read
 path.** Both venue adapters now implement `health`, `instruments` and
 `get_bars` against real public endpoints, read-only. No credential is used, no
