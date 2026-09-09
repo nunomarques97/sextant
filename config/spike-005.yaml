@@ -1,0 +1,524 @@
+# Pre-registered specification for SEXTANT-005, part 1.
+#
+# Committed BEFORE any Binance datum is downloaded, in its own commit, so that
+# the git history is itself the evidence that nothing here was chosen after
+# somebody saw a return. A versioned assumption whose version was created after
+# the number it explains is not pre-registration.
+#
+# This file is the machine-readable half of docs/PRE-REGISTRATION-005.md. The
+# runner asserts the two agree with the code and refuses to start if they have
+# drifted, exactly as config/benchmarks.yaml does for SEXTANT-004.
+#
+# If any value here turns out to be wrong, the correction gets a NEW version
+# identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
+# here is ever edited in place once a result has been published against it.
+
+version: v1
+registered_on: 2026-09-09
+supersedes: null
+part: 1
+part_2_status: >
+  Not yet written. Part 2 is the dataset section and is committed separately,
+  after acquisition, with the archive's real facts in it. No strategy result is
+  produced before both parts are committed.
+
+# ---------------------------------------------------------------------------
+# The hypothesis
+# ---------------------------------------------------------------------------
+hypothesis:
+  statement: >
+    Over the evaluation window and across the regimes it contains, at least one
+    of the variants specified below earns an out-of-sample, net-of-cost return
+    in EUR that is not explained by chance selection, not explained by reduced
+    market exposure, and survives deflation by the honest count of every trial
+    run in this spike.
+  rejected_when: >
+    No variant clears criterion 1 below. That is a complete answer and is
+    recorded as verdict (B).
+  undetermined_when: >
+    One or more variants clear criterion 1 but the statistics cannot separate
+    edge from noise at the available effective sample size. Recorded as verdict
+    (C), which is never presented as a softened (A).
+
+# ---------------------------------------------------------------------------
+# The venue, the account and the research boundary
+# ---------------------------------------------------------------------------
+venue:
+  name: binance
+  role: research venue only
+  boundary: >
+    No result computed here is evidence that any strategy is executable on
+    Kraken, or that this account may trade on Binance at all. That question is
+    separate and remains open.
+
+account:
+  currency: EUR
+  equity: "1500"
+  max_positions: 10
+  min_notional_fraction: "0.25"
+  lot_rounding_fraction: "0.01"
+
+# ---------------------------------------------------------------------------
+# Universe construction and quote policy
+# ---------------------------------------------------------------------------
+universe:
+  primary_quote_policy: USDT
+  secondary_quote_policy: EUR
+  secondary_reported_when: >
+    The EUR-quoted executable universe is non-empty for at least 24 of the
+    window's months AND its median size is at least 5. Otherwise it is reported
+    as not evaluable, with the measured sizes, and no strategy is run on it.
+  rules_in_order:
+    - name: quote_currency
+      admits: instruments whose quote asset is in the policy set
+    - name: sourced_membership
+      admits: >
+        instruments whose membership at the decision instant is established by
+        the listing calendar. UNDETERMINED is not admitted and not rejected; it
+        is counted and reported.
+    - name: listing_age
+      minimum_days: 180
+    - name: median_quote_volume
+      minimum: "250000"
+      statistic: median quote turnover over the trailing 30 days
+      minimum_observations: 20
+    - name: excluded_asset_class
+      excludes: >
+        stablecoin bases, wrapped duplicates, leveraged tokens and staked
+        derivatives, by the frozen list in sextant.app.spike.EXCLUDED_BASES plus
+        the leveraged-token suffix rule below
+    - name: min_notional_feasibility
+      against: the account parameters above
+    - name: lot_size_feasibility
+      against: the account parameters above
+  leveraged_token_suffix_rule:
+    excluded_base_suffixes: ["UP", "DOWN", "BULL", "BEAR"]
+    note: >
+      Binance listed leveraged tokens whose return process is a daily-rebalanced
+      derivative of an underlying, not an asset. A momentum ranking over one is
+      not a test of momentum. The suffix rule is applied to the BASE asset only
+      and only where the remaining stem is itself a listed base asset in the
+      archive, so that a genuine asset whose ticker happens to end in those
+      letters is not silently deleted.
+  membership_source:
+    method: monthly file presence in the venue's public archive
+    rule: >
+      A symbol whose monthly kline file exists for month M was listed during M.
+      A symbol present in month M and absent in M+1 stopped trading strictly
+      after the end of M and at or before the end of M+1, recorded as the
+      interval (M.ends_at, M+1.ends_at] and never narrowed to a date. Listing is
+      the same rule with presence reversed. Present, absent, then present again
+      is two spells rather than one. A symbol present in the earliest held month
+      is unbounded before it; present in the latest, unbounded after it. No
+      instant is inferred from the shape of a price series.
+    provenance: venue_archive
+
+# ---------------------------------------------------------------------------
+# The window and the walk-forward structure
+# ---------------------------------------------------------------------------
+#
+# The window is fixed here as a RULE, not as a pair of dates, because the dates
+# are facts about a dataset that does not exist yet. The rule consults listing
+# metadata and FX availability only. No return is read to resolve it, and the
+# resolution is recorded in part 2 before any strategy runs.
+window:
+  first_usable_month_rule: >
+    The earliest month start T such that (a) a venue-sourced EUR conversion rate
+    exists for every day from T onward, (b) T is at least 360 days after the
+    first day on which the archive holds any bar for the FX pair, so that the
+    longest lookback is satisfiable, and (c) the point-in-time executable
+    universe under the rules above is non-empty at T and at every subsequent
+    rebalance.
+  last_usable_month_end_rule: >
+    The end of the last month M such that the archive holds a complete monthly
+    file set for M and for M+1. M+1 is required because a symbol absent from the
+    final published month cannot be distinguished from a symbol whose final file
+    has not been published yet, and treating the archive's edge as a delisting
+    would turn a fact about the download into a fact about the venue.
+  minimum_months_to_proceed: 36
+  minimum_months_note: >
+    Below 36 usable months this spike reports verdict (C) on sample size alone
+    and runs no strategy. Twenty-four months gave a Sharpe standard error of
+    0.709 on Kraken, at which nothing could be demonstrated at any realistic
+    effect size, and repeating that would be a waste of the budget.
+  rebalance_instant: first instant of each calendar month, 00:00:00 UTC
+  plans:
+    walk_forward:
+      in_sample_months: 12
+      fold_count: 4
+      note: >
+        Four non-overlapping out-of-sample windows, each fitted on everything
+        before its own window and scored on nothing else. Fold length is derived
+        from the resolved window: (usable_months - in_sample_months) / 4,
+        floored, with any remainder added to the final fold.
+    full_window:
+      in_sample_months: 12
+      fold_count: 1
+      note: >
+        Reported alongside. Still walk-forward; there is no code path that
+        scores a strategy on its fitting data.
+  primary_plan: walk_forward
+
+# ---------------------------------------------------------------------------
+# The variants
+# ---------------------------------------------------------------------------
+#
+# Sixteen variants in two shapes. Every choice a reimplementer would otherwise
+# have to make is fixed here. Anything not in this list is a post-hoc trial: it
+# counts in full in the registry, requires a new pre-registration version
+# committed before it is considered, and is reported separately with its reason.
+variants:
+  shared:
+    signal_instant: >
+      The rebalance instant R, the first instant of the month. The signal is
+      computed from daily bars whose close_time is at or before R. In practice
+      that is the daily close of the last day of the previous month.
+    entry_price: >
+      The last daily close that had finished forming at or before R, for the
+      instrument being entered.
+    exit_price: >
+      The same rule at the next rebalance instant. A holding period's return is
+      therefore the move between two closes that were both observable when the
+      respective decisions were made.
+    tie_handling: >
+      Ranks are assigned on the signal in descending order. Ties are broken by
+      venue-native symbol ascending, byte-wise. Deterministic and stated, so two
+      implementations agree.
+    insufficient_data: >
+      An instrument without a closed daily bar on both ends of its lookback
+      window, and without at least 90 per cent of the daily bars in between, has
+      no signal. It is neither ranked nor held. It is counted and reported as
+      not-evaluable, never silently dropped.
+    delisted_instrument_handling: >
+      A held instrument whose listing calendar says NOT_LISTED at the next
+      rebalance is marked out at its last observed daily close less a haircut of
+      20 per cent of the position's value, charged to the delisting cost line.
+      UNDETERMINED membership takes no haircut and is reported separately: a
+      large undetermined population means the haircut sensitivity below it is
+      understated rather than reassuring.
+    staying_in_a_position: >
+      Positions are carried across rebalances and across fold boundaries. Only
+      the difference between the held book and the target book is traded, and
+      only that difference pays cost. An instrument that stays in the target set
+      pays nothing to remain there.
+    weighting: equal weight across the selected names
+  cross_sectional:
+    shape: cross-sectional
+    signal_formula: >
+      s(i, R) = P(i, R) / P(i, R - L days) - 1, where P is the last daily close
+      at or before the instant, both endpoints taken from the same instrument's
+      own series.
+    selection_rule: >
+      Rank the whole point-in-time executable universe by s descending. Hold the
+      top N. If fewer than N instruments have an evaluable signal, hold all of
+      them and leave the remainder in cash.
+    cash_and_exposure_rule: >
+      Fully invested whenever at least N instruments have an evaluable signal.
+      Residual cash earns 0 per cent.
+    rebalance_frequency: monthly
+    grid:
+      lookback_days: [30, 90, 180, 360]
+      positions: [5, 10]
+    count: 8
+  time_series:
+    shape: time-series long/flat
+    signal_formulas:
+      return_sign: >
+        s(i, R) = P(i, R) / P(i, R - L days) - 1. The instrument is held when
+        s > 0 and is flat otherwise.
+      above_sma: >
+        s(i, R) = P(i, R) / SMA(i, R, L) - 1, where SMA is the arithmetic mean
+        of the last L closed daily closes at or before R. The instrument is held
+        when s > 0 and is flat otherwise.
+    selection_rule: >
+      Every instrument in the point-in-time executable universe is tested on its
+      own trend. Of those passing, hold the N with the largest s, equally
+      weighted, where N is the account's max_positions. If fewer than N pass,
+      hold all of them.
+    cash_and_exposure_rule: >
+      Invested fraction is (number held) / N. The remainder is EUR cash earning
+      0 per cent. This is the family whose exposure varies, and it is the
+      reason the selection/timing decomposition below is mandatory.
+    rebalance_frequency: monthly
+    grid:
+      lookback_days: [30, 90, 180, 360]
+      rule: [return_sign, above_sma]
+    count: 8
+
+# ---------------------------------------------------------------------------
+# Costs
+# ---------------------------------------------------------------------------
+#
+# These duplicate what the venue adapter holds in code. The duplication is
+# deliberate and checked: the runner asserts the two agree and refuses to run if
+# they have drifted.
+costs:
+  regimes:
+    primary:
+      id: binance_vip0
+      kind: published schedule
+      maker_bps: "10"
+      taker_bps: "10"
+      note: >
+        Binance spot VIP 0, 0.1000 per cent maker and taker, without the BNB
+        fee discount and without any volume tier. Maker and taker are equal at
+        this tier, so the fill mix has no effect on fees under this regime and
+        one cell is reported rather than three. Using the research venue's own
+        published schedule is not weakening a cost assumption; the previous
+        venue's schedule is carried alongside as regime `kraken_reality`
+        precisely so no result can hide behind the cheaper one.
+    execution_reality:
+      id: kraken_reality
+      kind: published schedule of the OTHER venue, carried as a sensitivity
+      maker_bps: "40"
+      taker_bps: "80"
+      fill_mixes: ["1", "0.5", "0"]
+      note: >
+        The schedule SEXTANT-004 used. Reported for every variant so that a
+        result which exists only because Binance is cheap is visible as such.
+        This is a sensitivity column and never evidence about executability.
+  liquidity_bands:
+    statistic: median quote turnover over 30 days, at least 20 observations
+    deep_floor: "5000000"
+    mid_floor: "1000000"
+  spread_bps:
+    kind: assumption
+    deep: "10"
+    mid: "25"
+    thin: "60"
+    unknown: "60"
+    basis: >
+      Unchanged from SEXTANT-004. No historical quote data is recoverable for
+      either venue, so these are configured, deliberately pessimistic half-spread
+      charges rather than measurements, and they are charged on every trade
+      including those assumed to be maker fills. Carrying the identical numbers
+      across venues is deliberate: it removes any question of the spread
+      assumption having been retuned to suit a new dataset.
+  slippage_bps:
+    kind: assumption
+    deep: "5"
+    mid: "10"
+    thin: "25"
+    unknown: "25"
+    basis: >
+      Unchanged from SEXTANT-004, on the same bands and at roughly half the
+      spread size. The archive carries daily bars and slippage is an intraday
+      quantity, so nothing in this dataset can calibrate it.
+  funding_bps_per_day: "0"
+  delisting_haircut_fraction: "0.20"
+
+fx:
+  foreign_currency: USDT
+  pair_symbol: EURUSDT
+  quotation: USDT per EUR
+  account_per_foreign: reciprocal of the pair's daily close, dated by bar close
+  conversion_bps: "10"
+  conversion_kind: >
+    ASSUMPTION as to the applicable schedule. Charged once into the foreign
+    currency and once back out, at the same VIP 0 rate as the spot schedule.
+  policy: applied
+  counterfactual_reported: ignored
+  note: >
+    EURUSDT is EUR priced in USDT on the venue itself, so the conversion is
+    EUR to USDT directly and no USDT-equals-USD assumption is needed anywhere.
+    The pair is the venue's own, which is why the rate carries venue_archive
+    provenance rather than being reconstructed.
+
+# ---------------------------------------------------------------------------
+# Regime segmentation, computable point-in-time
+# ---------------------------------------------------------------------------
+regimes:
+  reference_instrument: BTCUSDT, converted to EUR by the FX rule above
+  evaluated_at: each rebalance instant R, from bars closed at or before R
+  inputs:
+    r30: P(R) / P(R - 30 days) - 1
+    r90: P(R) / P(R - 90 days) - 1
+    drawdown: 1 - P(R) / max(P over the trailing 365 days ending at R)
+  cascade:
+    - if: r30 <= -0.25
+      label: crash
+    - elif: drawdown >= 0.30
+      label: bear
+    - elif: drawdown >= 0.10 and r90 > 0
+      label: recovery
+    - elif: r90 > 0
+      label: bull
+    - else: bear
+  properties: >
+    Total and deterministic: every month receives exactly one label from
+    information available at the instant it is assigned. A month's label is
+    never revised by anything that happens afterwards.
+  reporting: >
+    Every headline result is reported per regime as well as overall, with the
+    month count and the effective independent observation count in each. A
+    regime carrying fewer than 6 months is reported with its result and an
+    explicit statement that nothing can be concluded from it.
+
+# ---------------------------------------------------------------------------
+# Benchmarks and nulls
+# ---------------------------------------------------------------------------
+#
+# All six, always, for every strategy, always in EUR. Nulls are strategy-specific
+# and are themselves trials; they are counted in the registry.
+benchmarks:
+  - id: eur_cash
+    definition: zero return, zero cost, the thing that beat everything on Kraken
+  - id: btc_buy_and_hold
+    definition: BTCUSDT held from the first rebalance to the last, in EUR,
+      rebalanced monthly so it pays the same cost regime as everything else
+  - id: equal_weight_passive
+    definition: the entire point-in-time executable universe, equally weighted
+  - id: random_selection_fully_invested
+    definition: >
+      N names drawn uniformly without replacement at every rebalance, always
+      fully invested. The outer sanity check.
+  - id: exposure_matched_selection_null
+    definition: >
+      Per strategy variant. At every rebalance it draws uniformly without
+      replacement exactly as many names as the variant held at that rebalance,
+      leaving the same fraction in cash. It therefore has the variant's exposure
+      path and none of its selection. Beating it is the selection claim.
+  - id: timing_null
+    definition: >
+      Per strategy variant. At every rebalance it holds the equal-weight passive
+      universe scaled to the variant's realised invested fraction, with the
+      remainder in cash. It therefore has the variant's timing and none of its
+      selection. Beating THIS is not a selection claim; the gap between the two
+      is what the decomposition reports.
+null_experiment:
+  sampling: uniform without replacement within each rebalance
+  seed_start: 1
+  seed_counts:
+    exposure_matched_per_cell: 500
+    fully_invested_per_cell: 2000
+  seed_fallback_ladder: [500, 250, 100]
+  seed_fallback_rule: >
+    If measured wall clock projects the run beyond the compute budget, the
+    exposure-matched seed count steps DOWN the ladder and the reduction is
+    reported with the projection that caused it. It is never stepped up, and
+    the fully-invested count is never reduced below 500. A smaller seed count
+    only widens the confidence interval on the threshold; it cannot flatter a
+    result.
+  cells_nulls_are_run_in:
+    - binance_vip0
+    - kraken_reality at the 50/50 fill mix
+  generator: python stdlib random.Random, one instance per run
+  percentiles: [50, 90, 95, 99]
+  bootstrap:
+    resamples: 10000
+    confidence: "0.95"
+    generator_seed: 987654321
+    generator: numpy.random.Generator over PCG64, explicitly constructed
+    interpolation: linear
+
+# ---------------------------------------------------------------------------
+# The selection / timing / combined decomposition
+# ---------------------------------------------------------------------------
+decomposition:
+  combined: the variant's own net return series
+  timing_effect: >
+    The timing null's net return series: the variant's realised invested
+    fraction applied to the equal-weight passive universe.
+  selection_effect: >
+    The variant's own selected names at every rebalance, scaled to full
+    investment. Same selection, no timing.
+  reported_as: three distinct numbers per variant per cell, never one
+  rule: >
+    A win caused only by being less exposed to a falling market is not a win and
+    must not be reported as one. Where the combined result beats EUR cash and
+    the selection effect does not, the report says the variant timed the market
+    and did not select.
+
+# ---------------------------------------------------------------------------
+# Statistics
+# ---------------------------------------------------------------------------
+statistics:
+  evaluation: walk-forward, out-of-sample only
+  sharpe: annualised from monthly net returns, EUR
+  deflated_sharpe:
+    formula: bailey-lopez-de-prado-2014-ssrn-2460551
+    trial_count_source: research/trial-registry.jsonl, including null constructs
+    note: >
+      Including the nulls raises K and therefore lowers every DSR. That is the
+      conservative direction and it is the one the brief requires. The
+      strategy-only count is reported beside it so the effect of the choice is
+      visible.
+  bootstrap_ci: on every headline, 10000 resamples, 95 per cent two-sided
+  effective_observations:
+    time_series: >
+      N_eff = N * (1 - rho1) / (1 + rho1), where rho1 is the lag-1
+      autocorrelation of the variant's monthly net returns, clipped to [1, N].
+    cross_section: >
+      k_eff = k / (1 + (k - 1) * rho_bar), where k is the median number of
+      positions held and rho_bar is the mean pairwise correlation of the daily
+      EUR returns of the held names over the out-of-sample window.
+    reported: >
+      Both, always, beside the raw month count. The Kraken cross-section
+      correlated 0.804 with BTC, so a month count is not an observation count
+      and reporting it as one is how a 24-month window came to look adequate.
+  shortfall_rule: >
+    Where the statistics cannot distinguish edge from noise, the report says so
+    and quantifies how far short they fall: the effect size that WOULD have been
+    detectable at the available N_eff, and the N_eff that would have been needed
+    for the observed effect.
+
+# ---------------------------------------------------------------------------
+# Success criteria, numerically
+# ---------------------------------------------------------------------------
+#
+# All five must hold for at least one variant for verdict (A). These are fixed
+# now, before any datum exists, and are not revisited after a number is seen.
+success_criteria:
+  - id: 1
+    name: beats its own exposure-matched null
+    test: >
+      Out-of-sample annualised net Sharpe in EUR, in the binance_vip0 cell,
+      strictly greater than the 95th percentile of that variant's own
+      exposure-matched selection null in the same cell.
+    failing_all_variants_means: verdict (B)
+  - id: 2
+    name: survives deflation
+    test: DSR >= 0.95 at the full registry trial count, in the same cell.
+  - id: 3
+    name: the win is selection, not exposure
+    test: >
+      The selection effect's net return exceeds EUR cash AND accounts for at
+      least 50 per cent of the combined excess over EUR cash.
+  - id: 4
+    name: regime stability
+    test: >
+      Positive out-of-sample net return in at least 3 of the 4 regimes that
+      carry at least 6 months each, and in no regime a net return worse than the
+      equal-weight passive baseline over the same months.
+  - id: 5
+    name: sign stability across cost regimes
+    test: >
+      Net return keeps its sign across binance_vip0 and all three fill mixes of
+      kraken_reality.
+verdict_rule:
+  A: at least one variant satisfies all five criteria
+  B: no variant satisfies criterion 1
+  C: >
+    at least one variant satisfies criterion 1 but not all five, OR the resolved
+    window carries fewer than 36 months, OR N_eff falls below 24 for every
+    variant that cleared criterion 1. (C) states precisely what is missing and
+    what it would take to resolve it, and is never presented as a softened (A).
+
+# ---------------------------------------------------------------------------
+# Trial count implied by this specification
+# ---------------------------------------------------------------------------
+trial_count:
+  strategy_variants: 16
+  cost_cells_per_variant: 4
+  strategy_trials: 64
+  deterministic_benchmarks: 4
+  benchmark_cells: 16
+  fully_invested_null_cells: 2
+  exposure_matched_null_cells: 32
+  timing_null_cells: 32
+  note: >
+    A seeded null distribution is ONE trial carrying many seeds, recorded with
+    its seed count, exactly as SEXTANT-004 recorded it. The registry's own count
+    is authoritative at report time and this figure is the pre-registered
+    expectation, stated now so that a divergence is visible.
+  expected_total: 146
