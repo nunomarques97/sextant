@@ -130,7 +130,9 @@ run one command**, in PowerShell:
 winget install --id=astral-sh.uv -e
 ```
 
-Until then, `uv run ...` will not work from a normal shell.
+Until then, `uv run ...` will not work from a normal shell. The command is
+repeated in `docs/REMOTE-SETUP.md` alongside the other command the Sponsor needs
+to run.
 
 **2. `disallow_any_explicit` was removed from the mypy configuration.** I first
 enabled it to enforce the "no `Any`" constraint mechanically. It reports an

@@ -122,3 +122,4 @@ docs/adr/          architecture decision records
 - [`docs/PHASE-0-FINDINGS.md`](docs/PHASE-0-FINDINGS.md) - architecture proposal, universe proposal, ranked risks
 - [`docs/LIVE-GATES.md`](docs/LIVE-GATES.md) - what must be true before live trading is considered
 - [`docs/adr/`](docs/adr/) - decisions and the alternatives that were rejected
+- [`docs/REMOTE-SETUP.md`](docs/REMOTE-SETUP.md) - the two commands still needed to push and to install uv
