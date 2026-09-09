@@ -1,0 +1,192 @@
+# Pre-registered benchmark configuration for SEXTANT-004.
+#
+# This file is committed BEFORE any baseline is run, in its own commit, so that
+# the git history is itself the evidence that nothing here was adjusted after
+# somebody saw a result. A versioned assumption whose version was created after
+# the number it explains is not pre-registration.
+#
+# If any value here turns out to be wrong, the correction gets a NEW version
+# identifier, a NEW commit, and a full rerun from scratch. Both results are
+# retained. Nothing in this file is ever edited in place once a result has been
+# published against it.
+#
+# The equal-weight passive portfolio, the random-selection portfolio and the
+# single-asset benchmark are null constructs. They are not strategies, they have
+# nothing to tune, and tuning them after seeing their output would destroy the
+# only thing they are for.
+
+version: v1
+registered_on: 2026-09-09
+supersedes: null
+
+# ---------------------------------------------------------------------------
+# The window
+# ---------------------------------------------------------------------------
+#
+# The archive covers 2023-01 to 2026-03. The first nine months are lost to cold
+# start: the listing-age rule needs 180 days measured from the end of the first
+# held quarter, and the 30-day median-turnover rule needs its own history. The
+# first month at which the executable universe is non-empty under both quote
+# policies is 2023-10. The archive's own evidence stops at the close of Q1 2026,
+# so 2026-04 onwards has no delisting record and is excluded.
+window:
+  first_usable_month: 2023-10-01
+  usable_months: 30
+  last_usable_month_end: 2026-04-01
+  excluded_tail_reason: >
+    The venue's quarterly archive ends at the close of Q1 2026. Membership after
+    2026-04-01 rests on no source: a pair that listed and delisted inside that
+    window is absent from the archive and absent from the live endpoint. Any
+    result covering it would be survivorship-biased with no available remedy.
+
+# Two plans, both walk-forward. There is no non-walk-forward mode.
+plans:
+  # The plan every strategy will be judged under, and therefore the plan the
+  # rejection threshold is calibrated on. Three non-overlapping out-of-sample
+  # windows, as docs/LIVE-GATES.md criterion 1 requires.
+  walk_forward:
+    in_sample_months: 6
+    fold_count: 3
+    out_of_sample_months_per_fold: 8
+    out_of_sample_months_total: 24
+  # The whole usable window, reported alongside. One month is still held back
+  # for fitting so that even a parameter-free construct goes through the same
+  # code path; there is no path that scores a window it was fitted on.
+  full_window:
+    in_sample_months: 1
+    fold_count: 1
+    out_of_sample_months_total: 29
+
+# ---------------------------------------------------------------------------
+# The account (PO decision D2)
+# ---------------------------------------------------------------------------
+account:
+  currency: EUR
+  equity: "1500"
+  max_positions: 8
+  min_notional_fraction: "0.25"
+  lot_rounding_fraction: "0.01"
+
+# ---------------------------------------------------------------------------
+# Quote-currency policies and the three FX treatments
+# ---------------------------------------------------------------------------
+quote_policies:
+  EUR: [EUR]
+  EUR+USD: [EUR, USD]
+
+# Every headline result is reported three ways. The gap between the second and
+# the third is the price of the breadth.
+reporting_variants:
+  - name: eur_only
+    quote_policy: EUR
+    fx_policy: account_currency_only
+    is_counterfactual: false
+  - name: eur_usd_fx_ignored
+    quote_policy: EUR+USD
+    fx_policy: ignored
+    is_counterfactual: true
+  - name: eur_usd_fx_applied
+    quote_policy: EUR+USD
+    fx_policy: applied
+    is_counterfactual: false
+
+fx:
+  pair_symbol: EURUSD
+  quotation: USD per EUR
+  account_per_foreign: reciprocal of the pair close
+  conversion_bps: "20"
+  conversion_kind: assumption
+
+# ---------------------------------------------------------------------------
+# Costs
+# ---------------------------------------------------------------------------
+#
+# These values duplicate what the venue adapter holds in code. The duplication
+# is deliberate and checked: the runner asserts the two agree and refuses to run
+# if they have drifted. Pre-registration that can silently disagree with the
+# code it pre-registers is not pre-registration.
+costs:
+  fees:
+    kind: published schedule
+    tier: tier 1
+    maker_bps: "40"
+    taker_bps: "80"
+  fill_mixes:
+    kind: ASSUMPTION - the engine assumes post-only limit orders and therefore
+      maker fees. The real maker/taker fill ratio is an obligation of the paper
+      phase, per docs/LIVE-GATES.md. Every headline result is reported at all
+      three.
+    maker_fractions: ["1", "0.5", "0"]
+  liquidity_bands:
+    statistic: median quote turnover over 30 days, at least 20 observations
+    deep_floor: "5000000"
+    mid_floor: "1000000"
+  spread_bps:
+    kind: assumption
+    deep: "10"
+    mid: "25"
+    thin: "60"
+    unknown: "60"
+  slippage_bps:
+    kind: assumption
+    deep: "5"
+    mid: "10"
+    thin: "25"
+    unknown: "25"
+  funding_bps_per_day: "0"
+  delisting_haircut_fraction: "0.20"
+
+# ---------------------------------------------------------------------------
+# The null experiment
+# ---------------------------------------------------------------------------
+null_experiment:
+  positions: 8
+  sampling: uniform without replacement within each rebalance
+  sampling_rationale: >
+    The null must mirror the constraint any real strategy operates under. You
+    cannot hold two positions in the same instrument, and eight positions means
+    eight distinct names. Sampling with replacement would let a run concentrate
+    several slots in one instrument, which no strategy this project will build
+    can do; it would make the null both easier to beat and structurally
+    different from the thing it calibrates.
+  seed_start: 1
+  seed_count: 10000
+  seed_sequence: consecutive integers from seed_start, inclusive
+  generator: python stdlib random.Random, one explicitly constructed instance
+    per run, never a global state that an imported library could disturb
+  percentiles: [50, 90, 95, 99]
+  bootstrap:
+    resamples: 10000
+    confidence: "0.95"
+    generator_seed: 987654321
+    generator: numpy.random.Generator over PCG64, explicitly constructed
+    interpolation: linear (numpy.percentile default)
+
+benchmarks:
+  equal_weight_passive:
+    holds: the entire point-in-time executable universe, equally weighted
+  single_asset:
+    symbol: XBTEUR
+    note: rebalanced monthly like everything else, so that it pays the same cost
+      regime as the constructs it is compared with
+
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+reporting:
+  denomination: EUR
+  rule: >
+    Every headline metric is denominated in EUR, including the single-asset
+    benchmark, the EUR+USD policy and every percentile of the null. A
+    USD-denominated position is converted using exactly the FX methodology
+    above. No table, chart or summary line mixes EUR and USD, and any
+    intermediate USD figure that appears is labelled as intermediate.
+  cost_lines_required:
+    - gross_pnl
+    - fees
+    - spread
+    - slippage
+    - funding
+    - fx_conversion
+    - delisting
+    - net_pnl
