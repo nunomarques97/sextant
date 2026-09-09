@@ -583,7 +583,9 @@ def measure_all(root: Path = DATA_ROOT) -> None:
         summary[name] = venue_summary
 
     write_json(root / "universe_tables.json", summary)
-    (root / "universe_tables.md").write_text(
-        NEWLINE.join(sections), encoding="utf-8", newline=NEWLINE
-    )
-    print(f"[measure] wrote {root / 'universe_tables.md'}")
+    # The tables are evidence, so they are committed rather than left in the
+    # git-ignored data tree. The raw JSON stays out of the repository.
+    tables = Path("docs") / "universe-tables.md"
+    tables.parent.mkdir(parents=True, exist_ok=True)
+    tables.write_text(NEWLINE.join(sections), encoding="utf-8", newline=NEWLINE)
+    print(f"[measure] wrote {tables}")

@@ -314,10 +314,16 @@ Median rather than mean throughout, for volume and spread alike: both
 distributions are dominated by outliers, and a mean lets one frantic day admit
 an instrument that was untradable for the other twenty-nine.
 
-Target position size, for rules 5 and 6: with `account_equity_quote` of 1,750
-EUR and `max_positions` of 12, a target position is about 145 EUR. Rule 5
-therefore requires `min_notional <= 36 EUR`. Both numbers are configuration
-(`config/base.yaml`), not code.
+Target position size, for rules 5 and 6. **Superseded by PO decision D2:**
+`account_equity_quote` is 1,500 EUR and `max_positions` is 8, so a target
+position is 187.50 EUR, rule 5 requires `min_notional <= 46.875 EUR` and rule 6
+requires one lot step to be worth at most 1.875 EUR. Both numbers remain
+configuration (`config/base.yaml`), not code.
+
+**Also superseded, by PO decision D1:** rules 5 and 6 apply to the *executable*
+universe only. The *research* universe is rules 1, 2, 3, 4 and 7, with no
+account-size rule at all, because an instrument we cannot size a position in is
+still perfectly good evidence about whether a signal works.
 
 ### Excluded by construction
 
@@ -363,10 +369,10 @@ This is the part I am least able to promise, and I want to be explicit about
 what I know versus what I expect. **No network call was made in this task**, so
 nothing below is verified.
 
-| Venue | Expected source for delisted instruments | Confidence |
-|---|---|---|
-| Kraken | The REST `AssetPairs` endpoint returns currently-listed pairs only, and OHLC returns a short recent window, so neither is sufficient. The expected source is Kraken's published historical trade-data downloads, which have historically included pairs that no longer trade | Low. Must be verified before the data phase is planned |
-| Binance | `exchangeInfo` returns current symbols only, but the public market-data archive publishes per-symbol kline and trade files whose directories persist after a symbol stops trading | Medium. Must still be verified |
+**Superseded by measurement.** The expectations below were written before any
+network call. They were tested in SEXTANT-002 and the results are in
+`docs/DATA-AVAILABILITY.md`; the Kraken expectation proved optimistic and the
+Binance one proved conservative. See risk 1 for the current position.
 
 **Treat this as an unresolved risk, not a solved problem.** The first task of
 the data phase should be to establish, by actually fetching, whether a delisted
@@ -403,12 +409,29 @@ look wrong", defends against selection bias in the refresh itself.
 
 ## 6. Technical risks, most serious first
 
-**1. Delisted historical data may not be obtainable per venue.** If it is not,
-survivorship bias is structural and no amount of care downstream removes it.
-Every strategy result would be optimistic by an unknown amount. This is first
-because it is the only risk on this list that can invalidate everything built on
-top of it. Mitigation: verify by fetching, in the first week of the data phase,
-before any backtester is written.
+**1. Delisted historical data may not be obtainable per venue.**
+**PARTIALLY RESOLVED (SEXTANT-002).** Answered by fetching; the evidence is in
+`docs/DATA-AVAILABILITY.md`.
+
+*Binance: resolved.* `exchangeInfo` retains delisted symbols with status
+`BREAK` - 2,330 of 3,696 on the day measured - and `klines` still serves their
+full history. Seven named delisted symbols were probed and all seven returned
+their complete trading life, the earliest starting 2017-08-02. The venue's
+public data archive independently lists 3,710 symbol directories, so the two
+official sources can be cross-checked against each other. A point-in-time
+universe including delistings is reconstructible back to August 2017.
+
+*Kraken: confirmed, and worse than expected.* `AssetPairs` returns currently
+listed pairs only; a delisted pair is absent entirely and `OHLC` answers
+`EQuery:Invalid asset pair`. Seven pairs whose delisting Kraken itself
+announced were probed and all seven were refused. Separately, `OHLC` caps at
+~720 candles regardless of `since`, so even for surviving pairs the daily series
+reaches back about two years. The venue's own bulk OHLCVT dataset may contain
+the missing history, but it is a 7.3 GB Google Drive download that was quota
+blocked on every attempt, so its contents remain unverified.
+
+Standing fallback, per PO decision D7: where delisted history cannot be
+obtained, restrict the backtest window rather than accept the bias.
 
 **2. Statistical power may never be sufficient.** This is the risk the whole
 multi-asset design exists to address, and it may still bite. With 30 to 50
@@ -419,12 +442,27 @@ computed honestly, counting every strategy and parameter set tried, may simply
 never come out positive. That is a real possible outcome of this project and
 planning should accommodate it rather than assume it away.
 
-**3. Cost modelling may be optimistic in exactly the way that matters.** Fees
-are knowable. Historical spread and slippage are not, without order-book data
-that is expensive to obtain and store. A cost model calibrated from bar data
-will underestimate the cost of trading illiquid names, which is precisely where
-a cross-sectional strategy finds its apparent edge. This is the classic path by
-which a backtest passes and paper trading fails.
+**3. Cost modelling may be optimistic in exactly the way that matters.**
+**CONFIRMED (SEXTANT-002).** Neither venue publishes historical quoted spread
+for spot at any granularity, free or paid. Kraken's `Spread` endpoint with
+`since=0` returned 250 rows spanning twelve seconds. Binance's public archive
+carries `klines`, `trades` and `aggTrades` for spot, and top-of-book files only
+for futures, which are out of scope under PO decision D4.
+
+What a cost model can honestly be calibrated from is therefore: published fee
+schedules, exactly; and effective spread estimated from trade prints, on
+Binance only, where the archive holds per-symbol tick data including for
+delisted symbols. On Kraken the equivalent reconstruction is infeasible in
+practice: `Trades` pages 1,000 prints per call at one call per second, and
+XBT/EUR alone recorded 20.1 million trades in the last 720 days, or about 5.6
+hours of paging for one pair over two years.
+
+Error direction, stated so it is not forgotten: a model calibrated from bar data
+alone **understates** cost, and understates it most on thin names, which is
+exactly where a cross-sectional strategy appears to find its edge. Until an
+effective-spread estimate exists, every backtest must carry an explicit,
+deliberately pessimistic spread assumption rather than an implicit optimistic
+one.
 
 **4. Binance account capabilities for a Portuguese retail account are
 unknown.** Configured as market-data only pending research. If it turns out to

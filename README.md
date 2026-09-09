@@ -9,12 +9,22 @@ A multi-strategy, multi-venue quantitative crypto trading system.
 
 ## Status
 
-**SEXTANT-001 - repository bootstrap.** Engineering foundation only: package
-layout, an enforced layering contract, the capability model, layered
-configuration, credentials handling, preflight, structured logging and CI.
+**SEXTANT-002 - data-availability spike and the public market-data read
+path.** Both venue adapters now implement `health`, `instruments` and
+`get_bars` against real public endpoints, read-only. No credential is used, no
+private endpoint is called and no order can be placed. There is still no
+strategy, no indicator, no backtester and no storage engine.
 
-The architecture proposal for review is in
-[`docs/PHASE-0-FINDINGS.md`](docs/PHASE-0-FINDINGS.md).
+- What history each venue can actually supply, measured rather than expected:
+  [`docs/DATA-AVAILABILITY.md`](docs/DATA-AVAILABILITY.md)
+- The month-by-month universe tables behind it:
+  [`docs/universe-tables.md`](docs/universe-tables.md)
+- The architecture proposal and the running risk register:
+  [`docs/PHASE-0-FINDINGS.md`](docs/PHASE-0-FINDINGS.md)
+
+**SEXTANT-001 - repository bootstrap.** Engineering foundation: package layout,
+an enforced layering contract, the capability model, layered configuration,
+credentials handling, preflight, structured logging and CI.
 
 ## What it is
 
@@ -61,9 +71,16 @@ uv sync
 uv run sextant status          # resolved configuration and preflight, no side effects
 uv run sextant run             # full startup sequence; stops, because there is no engine
 uv run sextant --profile paper status
+
+# Research spike (SEXTANT-002). The collect stages reach public endpoints and
+# take minutes; measure is offline and regenerates docs/universe-tables.md.
+uv run sextant spike collect-binance
+uv run sextant spike collect-kraken
+uv run sextant spike measure
 ```
 
-Both commands work with no `.env` file and no credentials in the environment.
+Every command above works with no `.env` file and no credentials in the
+environment. The spike reads public market data only.
 
 ## Checks
 
