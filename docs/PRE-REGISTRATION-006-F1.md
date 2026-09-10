@@ -1,10 +1,10 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.2`. Part 1, the specification, committed before any funding number was
+**Version `v1.3`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
-Amendments 1 and 2 were both added before any variant had been run and while the acquisition
-was still downloading; no strategy result of any kind existed when either was written.
-Sections 16 and 17 state what they changed and why.**
+Amendments 1, 2 and 3 were all added before any variant had been run and while the acquisition
+was still downloading; no strategy result of any kind existed when any of them was written.
+Sections 16, 17 and 18 state what they changed and why.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -15,6 +15,11 @@ committed before any strategy result exists.
 `config/spike-006-f1.yaml` is the machine-readable half of this document. The runner asserts
 that the two agree with the code and refuses to start if they have drifted, the same guard
 `config/spike-005.yaml` carries.
+
+> **Extended by 18.** The configuration now also carries the **enforced** trial budget, and the
+> runner refuses to start unless the configuration is committed and clean. The report cites the
+> configuration's commit SHA beside the results' commit SHA so a reader can verify the ordering
+> without taking anyone's word for it.
 
 ## What was consulted before this part was written
 
@@ -97,6 +102,11 @@ it was added.
 Nulls and benchmarks are **not** charged against the variant budget, because they are not
 attempts at finding an edge. They are counted in full in the trial registry, which is what
 the Deflated Sharpe Ratio reads.
+
+> **Given a mechanism by 18.1.** The allowance above was prose, and prose does not refuse. It
+> now lives in `config/spike-006-f1.yaml` as data and is charged by the runner **before** each
+> engine run. An unregistered variant, an unregistered cost cell, and a charge past the
+> allowance each raise. Nulls remain uncharged, for the reason stated above.
 
 ### 4. The account
 
@@ -495,6 +505,12 @@ something it should not — the change gets a **new pre-registered version** wit
 everything affected is rerun, and **both results are retained**. This file is never edited in
 place after a number has been seen.
 
+> **Given a mechanism by 18.2.** "Never edited in place after a number has been seen" was an
+> assertion nothing could check. The runner now refuses to start unless the configuration is
+> committed and clean, and the report states whether the configuration's commit is an ancestor
+> of the commit that introduced the results. A result whose ordering does not verify may not be
+> reported as pre-registered.
+
 ---
 
 ## 16. Amendment 1 — decay, and the margin schedule that does not exist
@@ -805,3 +821,136 @@ no longer that today's whole tier structure is being applied to 2020; it is only
 first-bracket *rate* may have been higher then than it is now. That is a smaller unmeasured
 quantity, it biases liquidation frequency and probability of ruin in the same optimistic
 direction, and the 0.010 companion is what shows how much it could matter.
+
+---
+
+## 18. Amendment 3 — the budget is enforced, and the ordering is auditable
+
+**Added on the Sponsor's instruction, before the grid ran and while the acquisition was still
+downloading. No variant had been run and no equity curve existed. It changes no criterion, no
+variant, no cost cell and no budget number. Both parts turn something this document already
+asserted into something a machine refuses to violate and a reader can check without trusting
+anybody.**
+
+The two additions are answers to the same question asked twice: *what stops this document from
+being decorative?* Section 3 declared a budget and section 15 declared that the file is never
+edited after a number is seen. Neither statement had a mechanism. Now both do.
+
+### 18.1 The budget lives in the configuration and the runner enforces it
+
+**What was wrong with the budget as registered.** Section 3 states the allowance in prose. A
+reader could verify that the prose says thirty-two, and nothing at all would have stopped a
+thirty-third run. The number was a promise, and a budget the runner does not enforce is not a
+budget.
+
+**Where it lives now.** `config/spike-006-f1.yaml`, block `trial_budget`, as data:
+
+| key | value |
+|---|---|
+| `family` | `F1` |
+| `engine_version` | `sextant-006-f1` — how this family's trials identify themselves in the registry |
+| `maximum_trials` | **32** |
+| `variants` | the eight identifiers of section 9.2, in registered order |
+| `cost_cells` | the four labels of section 8, in registered order |
+| `nulls_are_charged` | **false** |
+
+**What enforces it.** `sextant.engine.backtest.budget` holds a `TrialBudget` and a
+`BudgetLedger`. The runner charges one trial per variant per cell **before the engine runs**,
+never after, because a check that happens once an equity curve exists is a check somebody can
+be tempted to argue with. Three refusals, and each catches a different way a search widens
+after a result has been seen:
+
+| refusal | what it catches |
+|---|---|
+| **unregistered variant** | the ninth variant, the adjusted parameter, the extra lookback. Budget remaining is not permission: the variant was never registered, so it cannot run whatever the allowance says |
+| **unregistered cost cell** | the cheap violation. The headline cell disappoints, so a cheaper cell appears and is reported instead. It costs nothing to attempt and it raises |
+| **exhausted allowance** | the family is closed. The message says so in those words: *no ninth variant, no adjusted parameter, no additional cell. If it did not clear its criteria, that is the answer.* |
+
+**Three properties of the mechanism, each chosen deliberately.**
+
+**A budget may not have slack in it.** `TrialBudget` refuses to be constructed unless
+`maximum_trials` equals `len(variants) * len(cost_cells)` exactly. Registering fewer than the
+grid and holding the rest in reserve is precisely the behaviour section 3 forbids in prose, so
+the type forbids it in code. This is also why the exhaustion refusal is, for F1, structurally
+unreachable through registered trials alone: thirty-two distinct pairs exist and thirty-two may
+be charged. Overspending therefore *requires* running something unregistered, which is refused
+by name with a clearer message than a count would give.
+
+**Charging is idempotent on the pair.** Re-running the whole grid spends the allowance once,
+not twice, exactly as the registry recognises a repeated evaluation as the same trial by
+fingerprint. A budget that broke on a rerun would be a budget that discouraged reproducing a
+published number, which is the opposite of the intent.
+
+**Post-hoc trials already in the registry reduce what is left.** The ledger can be opened
+against `research/trial-registry.jsonl`. Registered trials found there are **not** charged, so
+a rerun stays free. Trials recorded against this family whose variant the budget does not name
+**are** charged, because they were searches in this family and they inflate the multiplicity the
+Deflated Sharpe Ratio has to deflate for. A family does not get to spend its whole declared
+budget on top of whatever it already tried. This is the one path by which the allowance
+genuinely runs out, and it is the path that would matter if a future session ever bypassed the
+ledger.
+
+**Nulls, benchmarks and decomposition constructs are still not charged**, unchanged from
+section 3. Charging them would make running *more* nulls — the honest thing — consume the
+allowance for the thing that needs restraining. They are counted in full in the registry, which
+is what the DSR reads, so nothing is concealed by leaving them uncharged.
+
+**What the report states.** Budget consumption is recomputed from the committed registry rather
+than reported from the run's own counter, so the figure is one a reader can reproduce from the
+file in the repository: the declared budget, the trials charged, what remains, the uncharged
+null and benchmark count, and — if it is ever non-empty — a separately headed list of anything
+post-hoc with the reason it was added.
+
+### 18.2 The pre-registration ordering is auditable from the report itself
+
+**What the drift guard can and cannot prove.** `assert_no_drift` compares 126 registered values
+against the constants the code will use and refuses to start on any difference. That proves the
+code and this specification agree **at run time**. It cannot prove they were not edited
+*together*, after a result was seen, to make them agree — and nothing inside the process can,
+because anything inside the process is written by the same run.
+
+**Git ordering can prove it.** Four facts, and a reader can check all four:
+
+1. `config/spike-006-f1.yaml` is **tracked**;
+2. it had **no uncommitted edits** when the run started — staged or unstaged, either one means
+   the committed SHA describes different bytes from the ones the run read;
+3. the **commit that last touched it** exists, and its SHA and instant are recorded into the
+   results;
+4. that commit is an **ancestor** of the commit that introduced the results.
+
+**What refuses, and when.** `registration_provenance` runs before the world is built and before
+anything is computed. An untracked or dirty configuration raises and the run does not start.
+There is no override, no `--force` and no environment variable, because a provenance check that
+fails open records exactly the same thing as one that passes — which is invariant 10's collapse
+in the place where it matters most.
+
+**Why the results SHA is produced by a second command.** The SHA of the commit that introduces
+a results file does not exist while the file is being written. So the audit is rerun **after**
+the results are committed, and its output is what the report quotes:
+
+```
+uv run sextant spike-006-f1 ordering
+```
+
+Run before the results are committed it prints `results commit: NOT YET COMMITTED` and
+`ordering verified: no`, rather than pretending. Run when the specification's commit is *not* an
+ancestor of the results' commit — the exact shape of the failure this mechanism exists to catch,
+where the numbers land first and the specification is written or widened once they are known —
+it prints `ordering verified: NO` and exits non-zero. **A result whose ordering does not verify
+may not be reported as pre-registered.**
+
+**The report cites both commits.** The final results document and `docs/VERDICT-006.md` carry
+the specification's SHA and instant, the results' SHA and instant, and the ancestry verdict
+between them, so the claim "this was fixed before the numbers existed" is a pair of SHAs a
+reader can check out rather than a sentence somebody typed.
+
+**What this does not prove, stated so it is not oversold.** That the specification was *wise*,
+or that these eight variants were the right eight. Only that they were fixed first. Ordering is
+a necessary condition for a pre-registration to mean anything, and it is not a sufficient one.
+
+### 18.3 What this amendment does not touch
+
+Criteria 1 to 6 of section 11, the eight variants of section 9.2, the four cost cells of section
+8, the 32-trial allowance of section 3, the seed counts of section 10 and every threshold in
+sections 6, 7 and 14 are **unchanged**. Both parts of this amendment constrain how this family
+may be run and how its result may be reported. Neither changes what would count as an edge.
