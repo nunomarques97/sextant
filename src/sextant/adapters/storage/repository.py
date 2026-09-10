@@ -29,15 +29,22 @@ of contributes no bars, and a store that is broken raises from the layer below.
 from __future__ import annotations
 
 from bisect import bisect_left, bisect_right
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 
 from sextant.adapters.storage.bars import ParquetBarStore, SeriesKey, StoredBar
+from sextant.domain.errors import DomainError
 from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.market_data import Bar
 from sextant.domain.money import Notional, Price, Quantity
 from sextant.domain.time import Timeframe, Timestamp
+from sextant.domain.venue import Venue
+from sextant.ports.repository import BarRepository
+
+
+class UnroutedVenue(DomainError):
+    """A read was asked for a venue no repository is wired for."""
 
 
 @dataclass(slots=True)
@@ -156,3 +163,78 @@ def _to_stored(bar: Bar) -> StoredBar:
         trades=0,
         is_closed=bar.is_closed,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class VenueRoutedBarRepository:
+    """One repository per venue, because two archives live in two roots.
+
+    A cash-and-carry strategy holds a spot leg and a perpetual leg. They are two
+    instruments on two venues, acquired by two pipelines into two directories, and
+    the engine must read both through one port. This routes on the instrument's own
+    venue and does nothing else.
+
+    **Not venue branching.** No venue name appears here; the mapping is built by
+    the wiring layer from configuration, which is the form invariant 2 requires.
+
+    **A venue nobody wired raises.** It is a configuration failure, not a market
+    with no bars in it, and collapsing the two is how a leg silently priced at
+    nothing would reach a return. Invariant 10 applies to reads as much as to
+    network calls.
+    """
+
+    by_venue: Mapping[Venue, BarRepository]
+
+    def _for(self, instrument: Instrument) -> BarRepository:
+        """The repository holding this instrument's venue, or a refusal."""
+        found = self.by_venue.get(instrument.venue)
+        if found is None:
+            wired = ", ".join(sorted(venue.name for venue in self.by_venue))
+            raise UnroutedVenue(
+                f"No bar repository is wired for venue {instrument.venue.name!r}, asked for "
+                f"{instrument.symbol}. Wired venues: {wired}. An unwired venue is a wiring "
+                "defect, not a market with no bars in it."
+            )
+        return found
+
+    def read(
+        self,
+        instruments: Sequence[Instrument],
+        timeframe: Timeframe,
+        start: Timestamp,
+        end: Timestamp,
+        *,
+        closed_only: bool = True,
+    ) -> Sequence[Bar]:
+        """Bars for instruments on any wired venue, in no particular order.
+
+        The caller groups and sorts - :class:`PointInTimeView` already does, per
+        instrument - so concatenating two venues' answers is safe. Sorting here
+        would be work nobody uses.
+        """
+        grouped: dict[Venue, list[Instrument]] = {}
+        for instrument in instruments:
+            self._for(instrument)
+            grouped.setdefault(instrument.venue, []).append(instrument)
+        bars: list[Bar] = []
+        for venue, group in sorted(grouped.items()):
+            bars.extend(
+                self.by_venue[venue].read(group, timeframe, start, end, closed_only=closed_only)
+            )
+        return bars
+
+    def write(self, bars: Sequence[Bar]) -> int:
+        """Persist through whichever repository owns each bar's venue."""
+        grouped: dict[Venue, list[Bar]] = {}
+        for bar in bars:
+            self._for(bar.instrument)
+            grouped.setdefault(bar.instrument.venue, []).append(bar)
+        return sum(self.by_venue[venue].write(group) for venue, group in sorted(grouped.items()))
+
+    def latest_close_time(
+        self,
+        instrument: Instrument,
+        timeframe: Timeframe,
+    ) -> Timestamp | None:
+        """The close time of the most recent stored closed bar, or None."""
+        return self._for(instrument).latest_close_time(instrument, timeframe)

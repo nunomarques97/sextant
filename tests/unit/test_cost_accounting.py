@@ -34,6 +34,7 @@ from sextant.adapters.clocks import SimulatedClock
 from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.money import Notional
 from sextant.domain.time import Timeframe
+from sextant.domain.venue import Venue
 from sextant.engine.backtest.allocation import ParameterFreeStrategy
 from sextant.engine.backtest.baselines import EqualWeightPassive, RandomSelection
 from sextant.engine.backtest.engine import BacktestEngine
@@ -319,3 +320,93 @@ def summed(lines: Sequence[CostLines]) -> Decimal:
     for item in lines:
         total = total + item
     return total.total.amount
+
+
+# ---------------------------------------------------------------------------
+# Two legs on two published schedules
+# ---------------------------------------------------------------------------
+
+
+def a_schedule(maker: str, taker: str) -> FeeSchedule:
+    """A published schedule, named so a failure says which leg it priced."""
+    return FeeSchedule(
+        maker_bps=Decimal(maker),
+        taker_bps=Decimal(taker),
+        tier=f"maker {maker} / taker {taker}",
+        source="a venue's published schedule, in a test",
+    )
+
+
+def two_schedule_model(*, other: Venue) -> ItemisedCostModel:
+    """Spot fees by default, a second venue's fees for that venue's instruments."""
+    return ItemisedCostModel(
+        schedule=a_schedule("10", "10"),
+        fill_mix=HALF_AND_HALF,
+        spread=assumption("spread", Decimal(0)),
+        slippage=assumption("slippage", Decimal(0)),
+        liquidity=FixedBand(),
+        schedule_by_venue={other: a_schedule("2", "5")},
+    )
+
+
+def test_each_leg_is_charged_its_own_venue_s_published_schedule() -> None:
+    """A carry pair's two legs trade on separate schedules at the same venue.
+
+    Blending them into one average would report a fee line no venue ever charged,
+    and it would make the perpetual leg look five times more expensive than it is.
+    """
+    perpetual = Venue("a_perp")
+    model = two_schedule_model(other=perpetual)
+    notional = Notional(Decimal(1000))
+    at = ts("2020-06-01T00:00:00")
+    spot = model.cost_of(InstrumentKey(VENUE, "ABCEUR"), notional, at)
+    perp = model.cost_of(InstrumentKey(perpetual, "ABCEUR"), notional, at)
+    # 50/50 of 10/10 is 10 bps; 50/50 of 2/5 is 3.5 bps.
+    assert spot.fee_bps == Decimal(10)
+    assert perp.fee_bps == Decimal("3.5")
+    assert spot.fee.amount == Decimal(1)
+    assert perp.fee.amount == Decimal("0.35")
+
+
+def test_a_venue_absent_from_the_mapping_falls_back_to_the_single_schedule() -> None:
+    """A one-venue strategy must not have to enumerate its own venue."""
+    model = two_schedule_model(other=Venue("a_perp"))
+    at = ts("2020-06-01T00:00:00")
+    charged = model.cost_of(
+        InstrumentKey(Venue("somewhere_else"), "ABCEUR"), Notional(Decimal(1000)), at
+    )
+    assert charged.fee_bps == Decimal(10)
+
+
+def test_an_empty_mapping_prices_every_leg_exactly_as_before() -> None:
+    """The default is off, so SEXTANT-005's published numbers rest on unchanged code."""
+    single = ItemisedCostModel(
+        schedule=a_schedule("10", "10"),
+        fill_mix=HALF_AND_HALF,
+        spread=assumption("spread", Decimal(0)),
+        slippage=assumption("slippage", Decimal(0)),
+        liquidity=FixedBand(),
+    )
+    assert single.schedule_by_venue == {}
+    at = ts("2020-06-01T00:00:00")
+    for venue in (VENUE, Venue("a_perp")):
+        charged = single.cost_of(InstrumentKey(venue, "ABCEUR"), Notional(Decimal(1000)), at)
+        assert charged.fee_bps == Decimal(10)
+
+
+def test_the_second_schedule_reaches_the_run_manifest_under_its_venue() -> None:
+    """A published rate that priced a leg must be visible in the manifest."""
+    perpetual = Venue("a_perp")
+    metadata = two_schedule_model(other=perpetual).as_metadata()
+    assert metadata["a_perp_fee_maker_bps"] == "2"
+    assert metadata["a_perp_fee_taker_bps"] == "5"
+    assert metadata["fee_maker_bps"] == "10"
+
+
+def test_a_different_fill_mix_keeps_both_schedules() -> None:
+    """The three-way fill-mix report must not silently drop the second leg's fees."""
+    perpetual = Venue("a_perp")
+    model = two_schedule_model(other=perpetual).with_fill_mix(ALL_TAKER)
+    at = ts("2020-06-01T00:00:00")
+    perp = model.cost_of(InstrumentKey(perpetual, "ABCEUR"), Notional(Decimal(1000)), at)
+    assert perp.fee_bps == Decimal(5)

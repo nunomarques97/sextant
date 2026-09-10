@@ -57,7 +57,7 @@ data, and this module never learns its name.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
@@ -66,6 +66,7 @@ from sextant.domain.errors import DomainError
 from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.money import Notional, Price, Quantity
 from sextant.domain.time import Timestamp
+from sextant.domain.venue import Venue
 from sextant.engine.universe.statistics import InstrumentHistory
 from sextant.ports.cost import CostBreakdown, LiquidityRole, OrderSide
 
@@ -322,6 +323,20 @@ class ItemisedCostModel:
     spread: CostAssumption
     slippage: CostAssumption
     liquidity: LiquidityClassifier
+    schedule_by_venue: Mapping[Venue, FeeSchedule] = field(default_factory=dict)
+    """Published schedules for a strategy whose legs trade on different ones.
+
+    Empty by default, in which case ``schedule`` prices every leg and the
+    behaviour is exactly what it was before this field existed. A cash-and-carry
+    pair needs it: the same venue charges spot and perpetual futures on separate
+    published schedules, and blending them into one average would report a fee
+    line no venue ever charged.
+
+    This is not venue branching. No venue name appears here or anywhere in the
+    engine - only a mapping the wiring layer built from configuration, which is
+    exactly the form invariant 2 requires. A key absent from the mapping falls
+    back to ``schedule`` rather than raising, because a strategy on one venue must
+    not have to enumerate it."""
     funding_bps_per_day: Decimal = Decimal(0)
     """Zero for spot: there is no financing leg on an unlevered cash purchase.
 
@@ -339,7 +354,7 @@ class ItemisedCostModel:
         """
         gross = abs(notional.amount)
         band = self.liquidity.band_at(key, at)
-        fee_bps = self.fill_mix.effective_fee_bps(self.schedule)
+        fee_bps = self.fill_mix.effective_fee_bps(self.schedule_for(key))
         spread_bps = self.spread.bps(band)
         slippage_bps = self.slippage.bps(band)
         return TradeCost(
@@ -352,6 +367,10 @@ class ItemisedCostModel:
             spread_bps=spread_bps,
             slippage_bps=slippage_bps,
         )
+
+    def schedule_for(self, key: InstrumentKey) -> FeeSchedule:
+        """The published schedule this instrument's venue charges."""
+        return self.schedule_by_venue.get(key.venue, self.schedule)
 
     def funding_over(self, notional: Notional, days_held: int) -> Notional:
         """What holding ``notional`` for ``days_held`` days costs in financing.
@@ -383,7 +402,7 @@ class ItemisedCostModel:
         band = self.liquidity.band_at(instrument.key, at)
         del side, quantity, reference_price
         return CostBreakdown(
-            fee_bps=self.schedule.bps_for(role),
+            fee_bps=self.schedule_for(instrument.key).bps_for(role),
             spread_bps=self.spread.bps(band),
             slippage_bps=self.slippage.bps(band),
             funding_bps=self.funding_bps_per_day,
@@ -397,12 +416,18 @@ class ItemisedCostModel:
             spread=self.spread,
             slippage=self.slippage,
             liquidity=self.liquidity,
+            schedule_by_venue=self.schedule_by_venue,
             funding_bps_per_day=self.funding_bps_per_day,
         )
 
     def as_metadata(self) -> Mapping[str, str]:
         """Every assumption and every published rate, for the run manifest."""
+        per_venue: dict[str, str] = {}
+        for venue, schedule in sorted(self.schedule_by_venue.items()):
+            for name, value in schedule.as_metadata().items():
+                per_venue[f"{venue.name}_{name}"] = value
         return {
+            **per_venue,
             **self.schedule.as_metadata(),
             **self.fill_mix.as_metadata(),
             **self.spread.as_metadata(),
