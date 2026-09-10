@@ -49,6 +49,7 @@ Decimal throughout. No floats, no venue, no I/O.
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -66,6 +67,7 @@ from sextant.engine.backtest.allocation import (
     Allocator,
     FitRecord,
     Strategy,
+    TargetWeights,
 )
 from sextant.engine.backtest.ledger import (
     CostLines,
@@ -86,6 +88,7 @@ from sextant.engine.backtest.window import (
     monthly_instants,
 )
 from sextant.engine.execution.costs import ItemisedCostModel
+from sextant.engine.execution.funding import FundingSchedule
 from sextant.engine.execution.fx import CurrencyRouting, FxLeg
 from sextant.engine.execution.markout import DelistingHaircut, SeriesEnd
 from sextant.ports.clock import AdvanceableClock, Clock
@@ -273,6 +276,26 @@ class BacktestEngine:
     series_end: SeriesEndOracle
     initial_equity: Notional
     account_currency: str
+    funding: FundingSchedule | None = None
+    """Realised, published funding per instrument. ``None`` keeps the flat
+    ``cost_model.funding_bps_per_day`` behaviour every result before SEXTANT-006
+    was produced under, which for spot is a structural zero reported as its own
+    line. A schedule here replaces that line with what the venue actually
+    settled, signed by the side of the position."""
+    haircut_is_a_loss_on_either_side: bool = False
+    """Whether a delisting write-down costs a short as well as a long.
+
+    False is the long-only reading: the write-down is a fraction of the
+    position's signed value, so a short would *gain* from it. That is the
+    behaviour every published result rests on and it is correct for a book that
+    cannot short.
+
+    True makes the write-down a loss of ``fraction * abs(value)`` whichever way
+    the position faces. Nothing in this project charges it to a perpetual - a
+    delisted contract is settled by the venue against an index rather than dumped
+    - but a two-sided book needs the option to exist, and a family that wants a
+    long leg written down while its short leg is not must say so by pricing the
+    two legs through different oracles rather than by relying on a sign."""
     lookback_days: int = DEFAULT_LOOKBACK_DAYS
     record_decisions: bool = True
     """Off for the null sweep, where ten thousand runs would produce tens of
@@ -327,6 +350,8 @@ class BacktestEngine:
             series_end=self.series_end,
             initial_equity=self.initial_equity,
             account_currency=self.account_currency,
+            funding=self.funding,
+            haircut_is_a_loss_on_either_side=self.haircut_is_a_loss_on_either_side,
             lookback_days=self.lookback_days,
             record_decisions=self.record_decisions,
             _advance=self._advance,
@@ -350,6 +375,8 @@ class BacktestEngine:
             series_end=engine.series_end,
             initial_equity=engine.initial_equity,
             account_currency=engine.account_currency,
+            funding=engine.funding,
+            haircut_is_a_loss_on_either_side=engine.haircut_is_a_loss_on_either_side,
             lookback_days=engine.lookback_days,
             record_decisions=record_decisions,
             _advance=engine._advance,
@@ -479,13 +506,14 @@ class BacktestEngine:
             book, cash = step.book, step.cash
             invested_after = money(_total(book))
             holdings = self._holdings(book, opened_at)
+            as_traded = book
 
             self._advance_clock(closed_at)
             close_view = self._view(closed_at)
             book = self._reprice(book, close_view)
             gain = money(_total(book) - invested_after.amount)
 
-            financing = self._financing(book, opened_at, closed_at)
+            financing = self._financing(as_traded, opened_at, closed_at, close_view)
             cash = money(cash.amount - financing.total.amount)
             trades = step.trades
 
@@ -568,7 +596,7 @@ class BacktestEngine:
     def _trade_to(
         self,
         book: Mapping[InstrumentKey, _Held],
-        allocation: Allocation,
+        allocation: TargetWeights,
         equity: Notional,
         cash: Notional,
         at: Timestamp,
@@ -601,7 +629,12 @@ class BacktestEngine:
         values: dict[InstrumentKey, Decimal] = {}
         for holding in self._holdings(book, at):
             if holding.series_end.takes_haircut:
-                charge = money(holding.value.amount * self.haircut.fraction)
+                base = (
+                    abs(holding.value.amount)
+                    if self.haircut_is_a_loss_on_either_side
+                    else holding.value.amount
+                )
+                charge = money(base * self.haircut.fraction)
                 written_down[holding.key] = charge
                 values[holding.key] = holding.value.amount - charge.amount
             else:
@@ -681,21 +714,55 @@ class BacktestEngine:
         book: Mapping[InstrumentKey, _Held],
         opened_at: Timestamp,
         closed_at: Timestamp,
+        view: PointInTimeView,
     ) -> CostLines:
         """Financing on the book over the holding period.
 
         Charged per day held rather than per trade, which is the whole point of
-        the distinction. Zero for spot, which is every position in this project
-        so far, and reported as its own line regardless: a cost that is
-        structurally absent and one nobody measured look identical in a report
-        that omits the row.
+        the distinction.
+
+        **Two shapes, and which one applies is a property of the data, not a
+        setting.** Without a :class:`~sextant.engine.execution.funding.FundingSchedule`
+        this is the flat ``funding_bps_per_day`` on the book: zero for spot,
+        which is every position in this project before SEXTANT-006, and reported
+        as its own line regardless, because a cost that is structurally absent
+        and one nobody measured look identical in a report that omits the row.
+
+        With a schedule it is the sum, over every settlement the venue actually
+        published inside ``(opened_at, closed_at]``, of the position's marked
+        value at that settlement times the rate settled there. The value is
+        marked forward from the book **as it was traded at the start of the
+        period** by the price relative and the currency relative to the
+        settlement instant, which is the same arithmetic :meth:`_reprice` does
+        and has to be, or a position would accrue funding on a notional it never
+        had. The sign needs no special case: value is signed, so a short with a
+        positive rate produces a negative charge, which is a receipt.
         """
-        if self.cost_model.funding_bps_per_day == 0:
-            return CostLines()
-        days = (closed_at.value - opened_at.value).days
+        if self.funding is None:
+            if self.cost_model.funding_bps_per_day == 0:
+                return CostLines()
+            days = (closed_at.value - opened_at.value).days
+            flat = Decimal(0)
+            for held in book.values():
+                flat += self.cost_model.funding_over(held.value, days).amount
+            return CostLines(funding=money(flat))
+
         total = Decimal(0)
-        for held in book.values():
-            total += self.cost_model.funding_over(held.value, days).amount
+        for key, held in book.items():
+            settlements = self.funding.settlements(key, opened_at, closed_at)
+            if not settlements:
+                continue
+            instrument = self.instruments[key]
+            series = view.bars([instrument])[key]
+            stamps = [bar.close_time.epoch_millis for bar in series]
+            for item in settlements:
+                index = bisect_right(stamps, item.at.epoch_millis) - 1
+                price = series[index].close if index >= 0 else held.price
+                if price.amount <= 0:
+                    price = held.price
+                rate = self._rate_for(instrument.symbol, item.at)
+                marked = held.value.amount * (price.amount / held.price.amount) * (rate / held.rate)
+                total += marked * item.rate
         return CostLines(funding=money(total))
 
     def _rate_for(self, symbol: str, at: Timestamp) -> Decimal:

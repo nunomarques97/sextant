@@ -58,7 +58,12 @@ from sextant.domain.errors import DomainError
 from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.market_data import Bar
 from sextant.domain.time import Timestamp
-from sextant.engine.backtest.allocation import Allocation, Allocator, InvalidAllocation
+from sextant.engine.backtest.allocation import (
+    Allocation,
+    Allocator,
+    InvalidAllocation,
+    LongOnlyAllocator,
+)
 from sextant.engine.backtest.market import PointInTimeView
 
 #: Fraction of the daily bars inside a lookback window that must be present for
@@ -329,7 +334,7 @@ class Recording:
     could drift from the thing it is supposed to hold constant.
     """
 
-    inner: Allocator
+    inner: LongOnlyAllocator
     positions: int
     chosen: dict[Timestamp, tuple[InstrumentKey, ...]] = field(default_factory=dict)
     invested: dict[Timestamp, Decimal] = field(default_factory=dict)
@@ -383,7 +388,7 @@ class FullyInvested:
     inventing one would be the report answering a question nobody asked.
     """
 
-    inner: Allocator
+    inner: LongOnlyAllocator
 
     @property
     def name(self) -> str:
@@ -579,9 +584,18 @@ CROSS_SECTIONAL_POSITIONS: tuple[int, ...] = (5, 10)
 TIME_SERIES_POSITIONS = 10
 
 
-def registered_variants() -> tuple[Allocator, ...]:
-    """The sixteen variants, in a fixed order, exactly as pre-registered."""
-    variants: list[Allocator] = [
+def registered_variants() -> tuple[LongOnlyAllocator, ...]:
+    """The sixteen variants, in a fixed order, exactly as pre-registered.
+
+    Typed as long-only rather than as bare allocators. Every one of the sixteen
+    returns an ``Allocation`` and none of them can express a short, which is a
+    fact about SEXTANT-005 worth stating in the signature now that the engine can
+    carry a two-sided book: the constructs that wrap these - the recorder, the
+    selection-only reweighting, the timing null - read the chosen names and the
+    invested fraction off the result, and neither question has a single answer
+    for a book with two sides.
+    """
+    variants: list[LongOnlyAllocator] = [
         CrossSectionalMomentum(lookback_days=lookback, positions=positions)
         for lookback in LOOKBACKS
         for positions in CROSS_SECTIONAL_POSITIONS

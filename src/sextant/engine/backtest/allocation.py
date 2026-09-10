@@ -130,6 +130,119 @@ class Allocation:
 
 
 @runtime_checkable
+class TargetWeights(Protocol):
+    """What the engine needs from any allocation, whatever its sign rules.
+
+    Introduced by SEXTANT-006 so that a long-short book can be expressed without
+    loosening :class:`Allocation`. The two implementations enforce different
+    invariants and neither can be substituted for the other by accident: a
+    long-only strategy that developed a short would still be refused where it
+    made the request, because it returns an ``Allocation`` and ``Allocation``
+    still refuses a negative weight.
+    """
+
+    @property
+    def weights(self) -> tuple[tuple[InstrumentKey, Decimal], ...]:
+        """Target weights as fractions of equity, in the allocator's own order."""
+        ...
+
+    @property
+    def at(self) -> Timestamp:
+        """The rebalance instant these weights are for."""
+        ...
+
+    @property
+    def candidates_considered(self) -> int:
+        """How large the candidate set was. Recorded on every holding period."""
+        ...
+
+    @property
+    def note(self) -> str:
+        """Free text recorded on every decision."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class LongShortAllocation:
+    """Target weights that may be negative, with a stated gross limit.
+
+    A negative weight is a short. Two invariants replace the two that
+    :class:`Allocation` carries, and they are not weaker, they are different:
+
+    **Gross exposure is bounded, and the bound is explicit.** ``sum(abs(w))`` may
+    not exceed ``gross_limit``. That number is the leverage knob: one means the
+    book's gross notional equals the account's equity, which is what this project
+    calls 1x for a two-sided book, and the stage-3 sweep is nothing more than
+    running the same variants at a larger one. It is a required field with no
+    default, because a default would let a variant be levered by omission.
+
+    **Net exposure is reported, never constrained here.** Whether a book should
+    be market-neutral is a property of the strategy, and a strategy that intends
+    neutrality and fails to achieve it should be visible in
+    :attr:`net_exposure` rather than silently corrected by the type.
+
+    What this type deliberately does *not* express is margin. A pair that is long
+    spot and short the perpetual on the same asset ties up the spot notional plus
+    the futures leg's initial margin, which is more than the gross figure here
+    suggests; that constraint belongs to the strategy that sizes the pair, is
+    registered as a number in the family's pre-registration, and is asserted
+    where the sizing happens. Putting it here would bake one family's margin
+    assumption into a type every family shares.
+    """
+
+    weights: tuple[tuple[InstrumentKey, Decimal], ...]
+    at: Timestamp
+    candidates_considered: int
+    gross_limit: Decimal
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        if self.gross_limit <= 0:
+            raise InvalidAllocation(
+                f"gross_limit must be positive, got {self.gross_limit}. A book with no "
+                "room for exposure is not a book."
+            )
+        seen: set[InstrumentKey] = set()
+        gross = Decimal(0)
+        for key, weight in self.weights:
+            if key in seen:
+                raise InvalidAllocation(f"{key} appears twice in one allocation.")
+            seen.add(key)
+            gross += abs(weight)
+        if gross > self.gross_limit:
+            raise InvalidAllocation(
+                f"Gross exposure is {gross}, above the stated limit of {self.gross_limit}. "
+                "Leverage in this engine is a number a pre-registration states, never a "
+                "number an allocator arrives at."
+            )
+
+    @property
+    def keys(self) -> tuple[InstrumentKey, ...]:
+        """The instruments allocated to, in the allocator's order."""
+        return tuple(key for key, _ in self.weights)
+
+    @property
+    def gross_exposure(self) -> Decimal:
+        """``sum(abs(w))``: how much notional the book carries per unit of equity."""
+        return sum((abs(weight) for _, weight in self.weights), Decimal(0))
+
+    @property
+    def net_exposure(self) -> Decimal:
+        """``sum(w)``: how much directional exposure survives the two sides."""
+        return sum((weight for _, weight in self.weights), Decimal(0))
+
+    @property
+    def long_exposure(self) -> Decimal:
+        """The long side alone."""
+        return sum((weight for _, weight in self.weights if weight > 0), Decimal(0))
+
+    @property
+    def short_exposure(self) -> Decimal:
+        """The short side alone, as a positive number."""
+        return sum((-weight for _, weight in self.weights if weight < 0), Decimal(0))
+
+
+@runtime_checkable
 class Allocator(Protocol):
     """A fitted strategy: candidates in, weights out."""
 
@@ -158,8 +271,54 @@ class Allocator(Protocol):
         candidates: Sequence[Instrument],
         at: Timestamp,
         view: PointInTimeView,
+    ) -> TargetWeights:
+        """Target weights across ``candidates`` at ``at``.
+
+        Widened from ``Allocation`` to :class:`TargetWeights` by SEXTANT-006 so
+        that a long-short allocator satisfies the same protocol. Every allocator
+        written before that returns an ``Allocation``, which still refuses a
+        negative weight and still refuses to sum above one, so nothing about what
+        a long-only strategy may express has changed.
+        """
+        ...
+
+
+@runtime_checkable
+class LongOnlyAllocator(Protocol):
+    """An allocator that returns an :class:`Allocation`, and therefore cannot short.
+
+    A narrowing of :class:`Allocator`, needed because a construct that *wraps* a
+    variant - the recorder, the selection-only reweighting, the two nulls - reads
+    ``Allocation``-specific things off what it wrapped, such as which names were
+    chosen and what fraction of equity they came to. Those questions have no
+    answer for a two-sided book, where "the names held" and "the fraction
+    invested" are two numbers each. Declaring the narrower protocol is what makes
+    a wrapper that was written for one shape refuse the other at the type level
+    instead of producing a plausible wrong number.
+    """
+
+    @property
+    def name(self) -> str:
+        """Short identifier, recorded on every decision and in the manifest."""
+        ...
+
+    @property
+    def parameter_set_id(self) -> str:
+        """Identifies the exact parameters. Part of the trial registry record."""
+        ...
+
+    @property
+    def is_cross_sectional(self) -> bool:
+        """Whether this allocator's output depends on the rest of the candidate set."""
+        ...
+
+    def allocate(
+        self,
+        candidates: Sequence[Instrument],
+        at: Timestamp,
+        view: PointInTimeView,
     ) -> Allocation:
-        """Target weights across ``candidates`` at ``at``."""
+        """Target weights across ``candidates`` at ``at``, all non-negative."""
         ...
 
 
