@@ -46,6 +46,7 @@ from sextant.app.spike_006_f1_analysis import (
     spread_acquisition,
     verdict,
 )
+from sextant.app.spike_006_f1_report import _samples_section
 from sextant.app.spike_006_f1_run import (
     CarryWithoutFunding,
     Deterministic,
@@ -645,3 +646,34 @@ def test_the_acquisition_decision_is_reported_either_way() -> None:
     taken = _acquisition("0.10").as_json()
     assert taken["acquire_the_spread_sample"] is True
     assert taken["best_net_return"] == "0.10"
+
+
+def test_section_fourteen_renders_from_a_file_that_carries_neither_decision() -> None:
+    """The report recomputes both rules instead of reading the runner's blocks.
+
+    A section that read ``payload["capacity"]`` would print nothing, silently, for a
+    file written by an earlier runner - which is exactly the situation the second
+    execution creates, since it started before rule S1 existed. Reaching for a private
+    helper here is deliberate: the failure is in one section of the page, and rendering
+    the whole document would need a fixture larger than the thing under test.
+    """
+    payload_without = payload(
+        deterministic=[run(construct="v", terminal="-0.10", monthly=months(40, "-0.002"))],
+        nulls=[],
+    )
+    assert "capacity" not in payload_without
+    assert "spread_sample" not in payload_without
+    section = _samples_section(payload_without)
+    assert "## 14." in section
+    assert "Rule C3" in section
+    assert "Rule S1" in section
+    assert "Spread sample acquired: no" in section
+    assert "Depth sample required: no" in section
+
+    earning = payload(
+        deterministic=[run(construct="v", terminal="0.10", monthly=months(40, "0.002"))],
+        nulls=[],
+    )
+    both = _samples_section(earning)
+    assert "Spread sample acquired: yes" in both
+    assert "Depth sample required: yes" in both

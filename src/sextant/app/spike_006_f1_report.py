@@ -39,6 +39,12 @@ from sextant.app.spike_006_f1 import (
     headline_cell,
     round_trip_fee_bps,
 )
+from sextant.app.spike_006_f1_analysis import (
+    analyse,
+    capacity_report,
+    depth_sample_is_needed,
+    spread_acquisition,
+)
 from sextant.engine.execution.breakeven import BreakEvenUndefined, d2a_holds
 
 REPORT_PATH = Path("docs") / "SPIKE-006-F1-RESULTS.md"
@@ -755,11 +761,18 @@ def _d2_lines(payload: Mapping[str, object], outcome: Mapping[str, object]) -> s
 def _samples_section(payload: Mapping[str, object]) -> str:
     """Rules C3 and S1: which of the two order-book samples the results require.
 
-    Both rules were registered as computed conditions on this file before any figure in
-    it had been read, for the same reason: an acquisition decided after a number exists
-    is an acquisition the number decided.
+    Both rules were registered as computed conditions on this file before any figure
+    in it had been read, for the same reason: an acquisition decided after a number
+    exists is an acquisition the number decided.
+
+    Recomputed here from the result file rather than read out of it. The runner writes
+    both decisions into the JSON for a reader of the file, but a report that trusted
+    that block would print nothing at all for a file written by an earlier runner, and
+    silently. Same functions, one path, no chance of the page and the file disagreeing.
     """
-    capacity = _mapping(payload["capacity"])
+    rows = analyse(payload)
+    capacity = capacity_report(payload, rows)
+    headline = headline_cell().label
     lines = [
         "## 14. What the two sample rules decided",
         "",
@@ -769,26 +782,25 @@ def _samples_section(payload: Mapping[str, object]) -> str:
         "",
         "### Rule C3, capacity (depth)",
         "",
-        f"Shown in the headline cell, `{headline_cell().label}`. The requirement below is",
-        "computed across all four registered cells, so a variant that earned inside the",
-        "window in any of them would still call the sample for.",
+        f"Shown in the headline cell, `{headline}`. The requirement below is computed across",
+        "all four registered cells, so a variant that earned inside the window in any of them",
+        "would still call the sample for.",
         "",
         "| variant | scored months inside the depth window | mean net inside | mean net outside"
         " | outcome |",
         "|---|---:|---:|---:|---|",
     ]
-    for entry in _sequence(capacity["per_variant"]):
-        item = _mapping(entry)
-        if _text(item.get("cell_id", headline_cell().label)) != headline_cell().label:
+    for item in capacity:
+        if item.cell != headline:
             continue
         lines.append(
-            f"| `{_text(item['variant'])}` "
-            f"| {_text(item['depth_months'])} "
-            f"| {_percent(item['mean_monthly_net_return_inside'])} "
-            f"| {_percent(item['mean_monthly_net_return_outside'])} "
-            f"| {_text(item['verdict'])} |"
+            f"| `{item.variant}` "
+            f"| {item.depth_months} "
+            f"| {_percent(item.mean_inside)} "
+            f"| {_percent(item.mean_outside)} "
+            f"| {item.verdict.value} |"
         )
-    required = bool(capacity["depth_sample_required"])
+    required = depth_sample_is_needed(capacity)
     lines.extend(
         [
             "",
@@ -809,39 +821,40 @@ def _samples_section(payload: Mapping[str, object]) -> str:
             "",
         ]
     )
-    spread = payload.get("spread_sample")
-    if isinstance(spread, dict):
-        block = _mapping(spread)
-        acquire = bool(block["acquire_the_spread_sample"])
-        positive = _text(block["runs_with_a_positive_net_return"])
-        lines.extend(
-            [
-                "### Rule S1, the spread sample",
-                "",
-                "| | |",
-                "|---|---:|",
-                f"| runs considered, at research fees | {_text(block['runs_considered'])} |",
-                f"| of those, with a positive net return | {positive} |",
-                f"| best run | {_text(block['best_run'])} |",
-                f"| its net return | {_percent(block['best_net_return'])} |",
-                "",
-                f"**Spread sample acquired: {_yes(acquire)}.** "
-                + (
-                    "A variant earns at research fees, so the spread assumption is precisely "
-                    "the cost that could kill it and section 12's 36 symbol-days are acquired."
-                    if acquire
-                    else "No registered variant earns a positive net return at research fees. "
-                    "Spread is an assumed cost and measuring it can only make a variant look "
-                    "worse, so the measurement would refine a cost line on a book that does "
-                    "not earn. The 1.8 to 3.2 GB is not downloaded."
-                ),
-                "",
-                "Either way the configured spread remains labelled an assumption under",
-                "invariant 12. An unmeasured spread is never reported as a measured one, and a",
-                "decision not to measure is not a claim that the assumption was right.",
-                "",
-            ]
-        )
+    spread = spread_acquisition(rows)
+    best = (
+        "none"
+        if spread.best_variant is None
+        else f"`{spread.best_variant}` in `{spread.best_cell}`"
+    )
+    lines.extend(
+        [
+            "### Rule S1, the spread sample",
+            "",
+            "| | |",
+            "|---|---:|",
+            f"| runs considered, at research fees | {spread.considered} |",
+            f"| of those, with a positive net return | {spread.positive_count} |",
+            f"| best run | {best} |",
+            f"| its net return | {_percent(spread.best_net_return)} |",
+            "",
+            f"**Spread sample acquired: {_yes(spread.acquire)}.** "
+            + (
+                "A variant earns at research fees, so the spread assumption is precisely the "
+                "cost that could kill it and section 12's 36 symbol-days are acquired."
+                if spread.acquire
+                else "No registered variant earns a positive net return at research fees. "
+                "Spread is an assumed cost and measuring it can only make a variant look "
+                "worse, so the measurement would refine a cost line on a book that does not "
+                "earn. The 1.8 to 3.2 GB is not downloaded."
+            ),
+            "",
+            "Either way the configured spread remains labelled an assumption under invariant",
+            "12. An unmeasured spread is never reported as a measured one, and a decision not",
+            "to measure is not a claim that the assumption was right.",
+            "",
+        ]
+    )
     return NEWLINE.join(lines)
 
 
