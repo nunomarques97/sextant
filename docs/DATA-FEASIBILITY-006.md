@@ -167,7 +167,8 @@ reported, not filled.
 - **Capacity.** Daily quote volume is in every kline row, so capacity can be expressed
   against realised traded notional. True order-book depth cannot be reconstructed outside the
   `bookTicker` slice, so a depth-based capacity number is not available and will not be
-  invented.
+  invented. **This paragraph is wrong and is superseded by correction 1, section 10.** The
+  daily tree publishes `bookDepth`, which the monthly tree does not.
 - **Liquidation.** Mark-price klines are published, so the distance from a position to a
   liquidation price is computable *given a maintenance-margin ratio*. Historical margin tiers
   are **not** published; the venue's live bracket endpoint describes survivors only. The
@@ -401,3 +402,69 @@ that decides it.
 tiers, historical order-book depth outside the `bookTicker` slice, borrow availability of any
 kind, and auto-deleveraging events. Each is named where it bites, and each is carried as a
 labelled assumption or as a stated omission with its direction of bias.
+
+---
+
+## 10. Correction 1, to section 2 and section 7
+
+**Added after the document was committed and before any backtest was run. It corrects a
+statement of fact that was wrong, and the correction is appended rather than substituted so
+that what was originally claimed stays visible.**
+
+### What was wrong
+
+Section 2 stated that "true order-book depth cannot be reconstructed outside the `bookTicker`
+slice, so a depth-based capacity number is not available and will not be invented", and
+section 7 declined `bookTicker` in bulk on cost grounds. Both statements were established
+against the **monthly** trees, which were the only ones enumerated.
+
+**The daily tree carries a family the monthly tree does not: `data/futures/um/daily/bookDepth`.**
+
+### What it actually holds
+
+| | |
+|---|---|
+| shape | one object per symbol per day |
+| size | about **0.47 MB** compressed |
+| span, for BTCUSDT | **2023-01-01 to 2024-05-17**, 500 daily objects |
+| columns | `timestamp`, `percentage`, `depth`, `notional` |
+| content | cumulative resting depth, in base units and in notional, at 1, 2, 3, 4 and 5 per cent either side of mid, sampled every minute |
+
+That is a direct measurement of the quantity a capacity claim needs, and at half a megabyte a
+symbol-day it is affordable in a way the `bookTicker` tick stream, at 50 to 90 MB a symbol-day,
+is not.
+
+The daily tree also carries `metrics`, which the monthly tree does not. It was not examined
+and nothing registered in this task reads it; it is recorded here so that the next person does
+not have to rediscover that the two grains hold different families.
+
+### What follows
+
+- **Section 2's capacity paragraph is superseded** for the F1 family. Capacity is now reported
+  as a depth measurement over a rule-fixed sample **and** as a turnover inference, side by
+  side, so the two can be compared.
+- The sample is fixed by rule in `docs/PRE-REGISTRATION-006-F1.md` section 16.4, written and
+  committed before any byte of the tree was read.
+- **Section 7's decision to leave `bookTicker` in bulk stands**, unchanged. It is still 50 to
+  90 MB per symbol-day and still covers only 2023-05 to 2024-03. The spread sample of
+  pre-registration section 12 is unchanged.
+- Nothing about which families are testable changes. No variant, no cost cell and no criterion
+  is affected: `bookDepth` informs a reported bound, and every variant remains costed at the
+  configured assumptions.
+
+### What else was established at the same time, and belongs here
+
+Section 2 said the venue "does not publish historical margin tiers; the venue's live bracket
+endpoint describes survivors only". That understated it, and the stronger fact was established
+by asking:
+
+| source | result |
+|---|---|
+| `/fapi/v1/leverageBracket` | HTTP **401**, `API-key format invalid`. Not readable without a credential, for today or any date |
+| `/fapi/v1/exchangeInfo` | public, currently-trading contracts only, and carries **no** margin brackets at all |
+| the web CMS brackets endpoint | rejected a bare request, `illegal parameter` |
+| the data archive, every tree at every grain | **no brackets family exists** |
+
+**There is no point-in-time maintenance-margin schedule at any price, and no publicly readable
+schedule even for today.** The consequence for the liquidation and probability-of-ruin
+arithmetic, including which way the assumption biases it, is in pre-registration section 16.3.

@@ -1,7 +1,10 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1`. Part 1, the specification, committed before any funding number was
-computed and before a single object of the futures archive had finished downloading.**
+**Version `v1.1`. Part 1, the specification, committed before any funding number was
+computed and before a single object of the futures archive had finished downloading.
+Amendment 1 was added before any variant had been run and while the acquisition was still
+downloading; no strategy result of any kind existed when it was written. Section 16 states
+what it changed and why.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -116,6 +119,12 @@ exists; today's bracket endpoint describes survivors only, and using it would ap
 contracts' limits to dead ones. 0.005 for maintenance is the figure the venue publishes today
 for its lowest tier on majors, carried as a stated assumption for the liquidation arithmetic
 in section 13 and used for nothing else.
+
+> **Amended by 16.3.** The original text above stands as written and is left unedited. What
+> 16.3 adds is that the venue does not publish its maintenance-margin tiers *at all* without a
+> credential, that 0.005 is therefore a published figure carried as an assumption rather than
+> a datum, that applying it to 2020 is a look-ahead, and that the bias is **optimistic**. The
+> liquidation study is consequently reported at three settings, not one.
 
 ### 5. What a carry position is, exactly
 
@@ -361,7 +370,9 @@ the fourth is new and is the point of this family.
 
 ### 11. Success criteria, numerically
 
-All five must hold for at least one variant for verdict **(A)** in this family.
+All five must hold for at least one variant for verdict **(A)** in this family — **and, since
+Amendment 1, so must criterion 6.** Six requirements rather than five is a strictly higher bar
+than the one first registered, which is the only direction a criterion in this task may move.
 
 | | criterion | test |
 |---|---|---|
@@ -370,6 +381,7 @@ All five must hold for at least one variant for verdict **(A)** in this family.
 | 3 | the win is selection, not exposure | the selection effect's net return exceeds EUR cash **and** accounts for **at least 50 per cent** of the combined excess over EUR cash |
 | 4 | regime stability | positive OOS net return in **at least 3 of the regimes carrying at least 6 months each**, and in no such regime a net return worse than `equal_weight_passive` over the same months |
 | 5 | sign stability across cost regimes | net return keeps its sign across all four cells of section 8 |
+| 6 | **added by 16.2** — the edge is not confined to the early window | the most recent 24 scored months, evaluated alone, satisfy criterion 1 in the headline cell |
 
 **Criterion 1 carries a sign condition that SEXTANT-005's did not, and this is the one
 substantive change to the criteria.** SEXTANT-005 recorded, in its own verdict, that its
@@ -417,6 +429,10 @@ it were the cost model, and it will not be.
 
 This measurement is **not** a trial and consumes no variant budget. It changes no number in
 any result table.
+
+> **See also 16.4**, which registers a second measurement of the same kind: the daily
+> `bookDepth` tree, which the monthly trees do not carry, turns capacity from a turnover
+> inference into a depth measurement over a stated slice.
 
 ### 13. Leverage, and the honest limit on it for this family
 
@@ -478,3 +494,181 @@ section 5 says, an FX pair that does not cover the window, a universe rule that 
 something it should not — the change gets a **new pre-registered version** with a new commit,
 everything affected is rerun, and **both results are retained**. This file is never edited in
 place after a number has been seen.
+
+---
+
+## 16. Amendment 1 — decay, and the margin schedule that does not exist
+
+**Added on the Sponsor's instruction while the acquisition was still downloading. No variant
+had been run, no equity curve existed, and no funding number beyond the sixteen monthly means
+already disclosed at the top of this file had been computed. The amendment makes the
+specification stricter in both places it touches; nothing in it relaxes a criterion, widens a
+grid, or adds a variant, and the trial budget of section 3 is unchanged at eight variants and
+thirty-two strategy trials.**
+
+### 16.1 The decay expectation, declared before the grid runs
+
+**The Sponsor's hypothesis, stated here so the result can refute it.** Funding carry is a
+widely known trade and has had capital pointed at it since roughly 2021. An average taken
+across 2020 to 2026 may therefore be dominated by an early period that no longer exists, and
+an edge that has already been arbitraged away is a different answer from an edge that
+persists — different enough that it changes what should be built, which is why it must be
+visible before anything is.
+
+This is a real prediction with a direction, and it is registered as one.
+
+> **Declared expectation D1.** The mean monthly net return of the two most recent complete
+> scored calendar years is **lower** than that of the two earliest complete scored calendar
+> years, for the best variant in the headline cell.
+
+D1 is confirmed, refuted or left unresolved by the numbers below. It carries no weight in the
+verdict by itself: it is stated so that a decay narrative told after the fact can be checked
+against a prediction made before it.
+
+**What is reported, for every variant, in the headline cell.**
+
+A **per-calendar-year table**, alongside and not instead of the per-regime one:
+
+| column | definition |
+|---|---|
+| scored months | how many of that year's months fall inside a scored fold |
+| net return | compounded net return in EUR over that year's scored months |
+| funding contribution | funding received less funding paid over those months |
+| basis contribution | the market gain on the pairs held, which for a hedged book is the basis move |
+| costs | fees, spread, slippage and conversion, itemised as everywhere else |
+| annualised Sharpe | reported **only** where the year carries at least 6 scored months, and always beside its standard error |
+
+A year with fewer than 6 scored months is reported with its return and an explicit statement
+that nothing can be concluded from it, exactly as an under-populated regime is.
+
+**Three statistics fixed here, before any of them is computed.**
+
+1. **The trend.** An ordinary-least-squares slope of monthly net return on months elapsed
+   since the first scored month, with a 95 per cent bootstrap confidence interval at 10,000
+   resamples on the generator already seeded at 987654321. Reported as the slope, its
+   interval, and whether that interval excludes zero. A negative slope whose interval excludes
+   zero is measured decay. A negative slope whose interval spans zero is not, and will not be
+   described as though it were.
+2. **The two-year comparison of D1**, as stated above, with the difference and its bootstrap
+   interval.
+3. **The standalone recent window.** The most recent **24 scored months**, evaluated on their
+   own against criterion 1 of section 11 — positive net return, and an annualised Sharpe above
+   the 95th percentile of the same exposure-matched null draws restricted to the same months.
+
+The recent-window test **adds no engine run and no registry trial**. It re-scores series that
+already exist over a sub-window, and it percentiles the same null draws over the same months.
+It is nonetheless a second test on one result, and the multiplicity is paid for by requiring
+**both** windows to clear rather than either: see 16.2.
+
+**Twenty-four months is a small sample and that is stated in advance.** SEXTANT-004 measured a
+Sharpe standard error of 0.709 over 24 months. The recent window is therefore reported with
+the effect size it *could* have detected at its own `N_eff`, and a failure to clear criterion 1
+there is separated into two distinct findings that must never be merged:
+
+- **the recent window rejects** — the point estimate is negative, or positive and below its
+  own null's 95th percentile by more than the sample could plausibly be wrong about;
+- **the recent window cannot resolve** — the point estimate is positive and above its null, or
+  below it by less than the detectable effect size. This is (C) for the persistence question
+  specifically, and it is reported in those words.
+
+### 16.2 What this does to the verdict, which is to make it stricter
+
+Criterion 1 of section 11 is unchanged for the full window. **A sixth requirement is added,
+and it only ever removes passes:**
+
+| | criterion | test |
+|---|---|---|
+| 6 | **the edge is not confined to the early window** | the most recent 24 scored months, evaluated alone, satisfy criterion 1 in the headline cell |
+
+- A variant clearing criteria 1 to 5 **and** criterion 6 is an edge that persists.
+- A variant clearing criteria 1 to 5 and **failing** criterion 6 with a *rejecting* recent
+  window is a **decayed edge**. It is reported in those words with both windows' numbers, and
+  **it is not verdict (A)**. An edge that existed until 2023 and does not exist now cannot
+  justify building a system to trade it in 2026, and dressing it as (A) would be exactly the
+  softening the brief forbids.
+- A variant clearing criteria 1 to 5 and failing criterion 6 with an *unresolved* recent
+  window is **(C)**, stated as: the full window shows an edge, the recent window is too short
+  to say whether it survives, and here is the `N_eff` that would settle it.
+
+### 16.3 The maintenance margin is an assumption, not a datum, and it flatters
+
+**What the venue publishes, established by asking it.**
+
+| source | what it answers | verdict |
+|---|---|---|
+| `/fapi/v1/leverageBracket` | today's maintenance-margin tiers per symbol | **not public.** Returns HTTP 401, `API-key format invalid`, without a credential. Even the current schedule is not readable anonymously |
+| `/fapi/v1/exchangeInfo` | public, and describes tick, lot and notional filters | carries **no** margin brackets, and lists **only currently-trading contracts** |
+| the web CMS brackets endpoint | today's tiers | rejected a bare request with `illegal parameter` |
+| `data.binance.vision`, every tree at every grain | funding, klines, mark price, premium, depth, trades | **no brackets tree exists**, monthly or daily |
+
+**There is no point-in-time maintenance-margin schedule, anywhere, at any price.** There is not
+even a publicly readable schedule for today.
+
+**So 0.005 is a documented published figure carried as an assumption, and section 4 is amended
+to say so in those words.** It is today's lowest-tier maintenance margin for major contracts.
+It is not a measurement, it is not dated, and it did not apply in 2020.
+
+**Which way it biases the result, named.** Margin tiers were **tighter** when liquidity was
+thinner — higher maintenance margin and lower permitted leverage, both earlier in the window
+and on smaller assets. Applying today's looser tier to 2020, 2021 and 2022 therefore
+**understates** the maintenance margin that actually applied, which **overstates** the distance
+from a position to its liquidation price, which **understates** how often a liquidation would
+have happened and **understates** the probability of ruin. **The bias is optimistic. It
+flatters exactly the leveraged results the brief warns about.**
+
+It is also a **look-ahead**: today's tier is information from after every decision instant in
+the window, applied to all of them.
+
+**What is registered in response.** Liquidation risk and probability of ruin are reported at
+**three** maintenance-margin settings and never at one:
+
+| setting | what it is |
+|---|---|
+| 0.005 | today's published lowest tier for majors. The optimistic end, and labelled as such |
+| 0.010 | twice it |
+| 0.025 | five times it, standing in for the tighter tiers that applied earlier in the window and to thinner assets |
+
+**A conclusion about leverage counts only if it holds at 0.025.** That converts an
+unmeasurable into a stated sensitivity in the direction that cannot flatter, which is what
+invariant 12 already requires of spread and slippage.
+
+**The initial margin fraction of 0.20 is a different kind of number and no look-ahead arises
+from it.** It is not a venue limit read from an endpoint; it is this project's own choice of
+how much buffer to post, far inside anything the venue has ever permitted on a major. A
+self-imposed constraint applied historically constrains, and does not flatter.
+
+**The margin-buffer sweep replaces the spot-leg leverage sweep as the parameterisation, not as
+a fallback**, per the Sponsor's decision. Section 13 stands: the spot leg cannot be levered
+over an unpublished margin-lending rate and will not be.
+
+### 16.4 Capacity, which the archive turns out to support better than section 2 assumed
+
+`docs/DATA-FEASIBILITY-006.md` recorded that order-book depth could not be reconstructed
+outside the `bookTicker` slice, and that capacity would therefore rest on traded turnover
+alone. That was established against the monthly trees. **The daily tree publishes
+`bookDepth`, which the monthly tree does not**, and it is small: one file per symbol per day,
+about 0.47 MB, sampling cumulative resting depth in notional at 1 to 5 per cent either side of
+mid, every minute, from **2023-01-01 to 2024-05-17**.
+
+That is a direct measurement of the quantity a capacity statement needs, and it is affordable.
+**The sample is fixed here, before any byte of it is read:**
+
+- **Days.** The first trading day of each calendar month in the available range: 2023-01-01
+  through 2024-05-01, seventeen days.
+- **Symbols.** The perpetual legs of the **twenty** carry-universe members with the largest
+  trailing 30-day median quote turnover at **2022-12-31**, ties broken by symbol ascending.
+- **Statistic.** Per symbol-day, the median across the day's minutes of cumulative resting
+  notional within 1 per cent of mid, and the same within 5 per cent; plus both restricted to
+  00:00-00:05 UTC, the five minutes around the rebalance instant.
+
+**What it can and cannot say.** It measures resting depth on the **perpetual** leg only, on
+seventeen days, in a seventeen-month stretch of a longer window. It says nothing about the
+spot leg, nothing about the other years, and nothing about what would actually have filled.
+Capacity is therefore reported as a **bound with its basis stated**: the capital at which one
+rebalance's largest single order would consume a stated fraction of measured 1-per-cent depth,
+at the sampled instants. Turnover-based capacity is reported beside it, unchanged, so the two
+can be compared.
+
+Like the spread sample of section 12, this is a **measurement, not a trial**. It consumes no
+variant budget, and it changes no number in any result table: every variant remains costed at
+the configured assumptions of section 8.
