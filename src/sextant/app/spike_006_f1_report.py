@@ -65,6 +65,7 @@ def render(results_path: Path = RESULTS_PATH, report_path: Path = REPORT_PATH) -
         _deflation_section(payload),
         _break_even_section(payload),
         _criteria_section(payload),
+        _samples_section(payload),
         _verdict_section(payload),
     ]
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -419,6 +420,28 @@ def _cadence_section(payload: Mapping[str, object]) -> str:
             "dropped and never re-bought, and the freed capital sits idle rather than",
             "concentrating the rest. Section 28.6.",
             "",
+            "### Cadence and turnover are not monotonically related",
+            "",
+            "Amendment 6 was argued for on the assumption that a slower cadence trades less.",
+            "**That assumption is wrong as stated, and the correction is recorded here rather",
+            "than dropped.** On a controlled fixture whose liquidity ranking rotates, the",
+            "quarterly variant turned over *more* than its monthly twin, not less: 9132.49",
+            "against 9074.48 of notional traded.",
+            "",
+            "The mechanism is drift. Skipping two decision instants does not remove the trades",
+            "those instants would have made, it defers them. The held weights drift from the",
+            "target for three months instead of one, and the single correction at the end of",
+            "the quarter can exceed the two corrections that were skipped. Whether it does",
+            "depends on how fast the ranking moves relative to the cadence, which is a",
+            "property of the market rather than of the schedule.",
+            "",
+            "This makes the quarterly cell worth **more** than the amendment claimed, not less.",
+            "A monotonic relationship could have been reasoned about from the fee schedule",
+            "alone, and the variant would have been an expensive way to confirm arithmetic.",
+            "A non-monotonic one cannot be: where the fee-optimal cadence sits is a",
+            "measurement, and this is the cell that measures it. The regression test asserts",
+            "that cadence changes turnover and deliberately does not assert a direction.",
+            "",
         ]
     )
     return NEWLINE.join(lines)
@@ -729,6 +752,104 @@ def _d2_lines(payload: Mapping[str, object], outcome: Mapping[str, object]) -> s
     )
 
 
+def _samples_section(payload: Mapping[str, object]) -> str:
+    """Rules C3 and S1: which of the two order-book samples the results require.
+
+    Both rules were registered as computed conditions on this file before any figure in
+    it had been read, for the same reason: an acquisition decided after a number exists
+    is an acquisition the number decided.
+    """
+    capacity = _mapping(payload["capacity"])
+    lines = [
+        "## 14. What the two sample rules decided",
+        "",
+        "Neither order-book sample is a trial and neither can change a variant's result.",
+        "Both are acquisitions, and both were made conditional on this file **before it",
+        "existed**: rule C3 for depth, in section 17, and rule S1 for spread, in section 30.",
+        "",
+        "### Rule C3, capacity (depth)",
+        "",
+        f"Shown in the headline cell, `{headline_cell().label}`. The requirement below is",
+        "computed across all four registered cells, so a variant that earned inside the",
+        "window in any of them would still call the sample for.",
+        "",
+        "| variant | scored months inside the depth window | mean net inside | mean net outside"
+        " | outcome |",
+        "|---|---:|---:|---:|---|",
+    ]
+    for entry in _sequence(capacity["per_variant"]):
+        item = _mapping(entry)
+        if _text(item.get("cell_id", headline_cell().label)) != headline_cell().label:
+            continue
+        lines.append(
+            f"| `{_text(item['variant'])}` "
+            f"| {_text(item['depth_months'])} "
+            f"| {_percent(item['mean_monthly_net_return_inside'])} "
+            f"| {_percent(item['mean_monthly_net_return_outside'])} "
+            f"| {_text(item['verdict'])} |"
+        )
+    required = bool(capacity["depth_sample_required"])
+    lines.extend(
+        [
+            "",
+            f"**Depth sample required: {_yes(required)}.** "
+            + (
+                "At least one variant lands on a measured outcome, so section 12's "
+                "twenty-symbol, seventeen-day bookDepth sample is acquired."
+                if required
+                else "No variant lands on a measured outcome, so capacity is reported as "
+                "UNESTABLISHED and the bookDepth sample is not acquired. Acquiring data in "
+                "order to print that word would be acquiring data the registered rule does "
+                "not read."
+            ),
+            "",
+            "UNESTABLISHED does not mean this family has no capacity. It means this dataset",
+            "cannot say what it is, which is the same class of statement as invariant 9's",
+            "*not evaluable*, and it is not softened.",
+            "",
+        ]
+    )
+    spread = payload.get("spread_sample")
+    if isinstance(spread, dict):
+        block = _mapping(spread)
+        acquire = bool(block["acquire_the_spread_sample"])
+        positive = _text(block["runs_with_a_positive_net_return"])
+        lines.extend(
+            [
+                "### Rule S1, the spread sample",
+                "",
+                "| | |",
+                "|---|---:|",
+                f"| runs considered, at research fees | {_text(block['runs_considered'])} |",
+                f"| of those, with a positive net return | {positive} |",
+                f"| best run | {_text(block['best_run'])} |",
+                f"| its net return | {_percent(block['best_net_return'])} |",
+                "",
+                f"**Spread sample acquired: {_yes(acquire)}.** "
+                + (
+                    "A variant earns at research fees, so the spread assumption is precisely "
+                    "the cost that could kill it and section 12's 36 symbol-days are acquired."
+                    if acquire
+                    else "No registered variant earns a positive net return at research fees. "
+                    "Spread is an assumed cost and measuring it can only make a variant look "
+                    "worse, so the measurement would refine a cost line on a book that does "
+                    "not earn. The 1.8 to 3.2 GB is not downloaded."
+                ),
+                "",
+                "Either way the configured spread remains labelled an assumption under",
+                "invariant 12. An unmeasured spread is never reported as a measured one, and a",
+                "decision not to measure is not a claim that the assumption was right.",
+                "",
+            ]
+        )
+    return NEWLINE.join(lines)
+
+
+def _yes(value: bool) -> str:
+    """A boolean as the word a reader reads, so no section spells it differently."""
+    return "yes" if value else "no"
+
+
 def _verdict_word(value: bool | None) -> str:
     if value is None:
         return "unresolved"
@@ -783,7 +904,7 @@ def _verdict_section(payload: Mapping[str, object]) -> str:
     alls = _sequence(verdict["variants_clearing_all_six"])
     return NEWLINE.join(
         [
-            "## 14. Verdict for family F1",
+            "## 15. Verdict for family F1",
             "",
             f"### ({_text(verdict['letter'])})",
             "",

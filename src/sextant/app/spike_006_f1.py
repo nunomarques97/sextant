@@ -130,6 +130,27 @@ HAIRCUT_ON_EITHER_SIDE = True
 #: is suspended and reported as (C). Two, so three executions in total. Held here
 #: because a ceiling nobody counts against is not a ceiling.
 MAXIMUM_RE_EXECUTIONS = 2
+
+#: Section 30, amendment 8. Who may declare a run void, and who may not. Two roles
+#: rather than one sentence of prose, because the prose outlives the conversation it
+#: was written in and the whole point is that a reader cannot get this wrong. The
+#: reason is conflict of interest: the party that produced a run must not be the party
+#: that decides it did not happen.
+VOID_DECLARED_BY_ROLE = "product-owner"
+VOID_NEVER_DECLARED_BY_ROLE = "developer"
+
+#: Section 30, amendment 8. Rule S1: the section 12 spread sample is acquired only if
+#: some registered variant earns a strictly positive net return at research fees. A
+#: computed condition on the result file, exactly as rule C3 is, so the acquisition is
+#: not a judgement made after a number exists.
+SPREAD_TRIGGER_RULE = "S1"
+SPREAD_TRIGGER_THRESHOLD = Decimal(0)
+
+#: The size rule S1 implies when it fires: six symbols on six days, which is section
+#: 12's own registered sample and already the minimum. No subsampling rule is added,
+#: because a subsample of a rule-fixed sample would be a second rule with nothing to
+#: constrain it.
+SPREAD_SAMPLE_SYMBOL_DAYS = 36
 FX_SYMBOL = "EURUSDT"
 FOREIGN_CURRENCY = "USDT"
 REGIME_SYMBOL = "BTCUSDT"
@@ -506,7 +527,64 @@ def _void_run_checks(raw: Mapping[str, object]) -> list[tuple[str, object, objec
         ("void_runs.rows_are_counted_by_the_dsr", bool(block["rows_are_counted_by_the_dsr"]), True),
         ("void_runs.grants_no_trial", bool(block["grants_no_trial"]), True),
         ("void_runs.relaxes_no_threshold", bool(block["relaxes_no_threshold"]), True),
-        ("void_runs.declared_by", _text(block["declared_by"]).split(",")[0], "the Sponsor"),
+        ("void_runs.declared_by_role", _text(block["declared_by_role"]), VOID_DECLARED_BY_ROLE),
+        (
+            "void_runs.never_declared_by_role",
+            _text(block["never_declared_by_role"]),
+            VOID_NEVER_DECLARED_BY_ROLE,
+        ),
+        (
+            "void_runs.declared_by names the Product Owner",
+            "the Product Owner" in _text(block["declared_by"]),
+            True,
+        ),
+        (
+            "void_runs.declared_by excludes the Developer",
+            "NEVER the Developer" in _text(block["declared_by"]),
+            True,
+        ),
+    ]
+
+
+def _spread_trigger_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rule S1, guarded like rule C3 and for the same reason.
+
+    A condition on the result file is only a pre-registered condition if it cannot be
+    edited once the result file exists. The threshold and the sample size are both
+    compared, because a trigger with a movable threshold is a decision deferred rather
+    than a decision made.
+    """
+    block = _mapping(
+        _mapping(raw["spread_sample"], "spread_sample")["acquisition"],
+        "spread_sample.acquisition",
+    )
+    return [
+        ("spread_sample.acquisition.rule_id", _text(block["rule_id"]), SPREAD_TRIGGER_RULE),
+        (
+            "spread_sample.acquisition.threshold",
+            Decimal(_text(block["threshold"])),
+            SPREAD_TRIGGER_THRESHOLD,
+        ),
+        (
+            "spread_sample.acquisition.comparison",
+            _text(block["comparison"]),
+            "strictly greater than",
+        ),
+        ("spread_sample.acquisition.acquire_if_true", bool(block["acquire_if_true"]), True),
+        ("spread_sample.acquisition.acquire_if_false", bool(block["acquire_if_false"]), False),
+        (
+            "spread_sample.acquisition.size_if_acquired.symbol_days",
+            _text(_mapping(block["size_if_acquired"], "size_if_acquired")["symbol_days"]),
+            str(SPREAD_SAMPLE_SYMBOL_DAYS),
+        ),
+        (
+            "spread_sample.acquisition.cells_excluded",
+            tuple(
+                _text(item)
+                for item in _sequence(block["cells_excluded"], "acquisition.cells_excluded")
+            ),
+            (EXECUTION_SENSITIVITY.label,),
+        ),
     ]
 
 
@@ -833,6 +911,7 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.extend(_variant_checks(_sequence(variants["registered"], "variants.registered")))
     checks.extend(_cadence_checks(variants))
     checks.extend(_void_run_checks(raw))
+    checks.extend(_spread_trigger_checks(raw))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
     for band in ("deep", "mid", "thin", "unknown"):
         checks.append(
@@ -1182,7 +1261,12 @@ __all__ = [
     "RESAMPLES",
     "RESEARCH_FEE_OF_EQUITY_BPS",
     "RESULTS_PATH",
+    "SPREAD_SAMPLE_SYMBOL_DAYS",
+    "SPREAD_TRIGGER_RULE",
+    "SPREAD_TRIGGER_THRESHOLD",
     "THINNER_EVIDENCE_VARIANT",
+    "VOID_DECLARED_BY_ROLE",
+    "VOID_NEVER_DECLARED_BY_ROLE",
     "CellSpec",
     "DriftedFromPreRegistration",
     "OrderingAudit",

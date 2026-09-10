@@ -33,7 +33,12 @@ from sextant.app.spike_006_f1 import (
     MINIMUM_DEPTH_MONTHS,
     REGISTERED_CELLS,
     REGISTERED_VARIANTS,
+    SPREAD_SAMPLE_SYMBOL_DAYS,
+    SPREAD_TRIGGER_RULE,
+    SPREAD_TRIGGER_THRESHOLD,
     THINNER_EVIDENCE_VARIANT,
+    VOID_DECLARED_BY_ROLE,
+    VOID_NEVER_DECLARED_BY_ROLE,
     DriftedFromPreRegistration,
     assert_no_drift,
     budget,
@@ -90,7 +95,7 @@ def _alter(payload: dict[str, object], path: tuple[str | int, ...], value: objec
 def test_the_committed_specification_agrees_with_the_code() -> None:
     """If this fails, no F1 result may be produced."""
     registered = assert_no_drift()
-    assert str(registered["version"]) == "v1.8"
+    assert str(registered["version"]) == "v1.9"
     assert str(registered["family"]) == FAMILY
 
 
@@ -575,7 +580,7 @@ def test_raising_the_re_execution_ceiling_refuses_the_run(tmp_path: Path) -> Non
 
 
 def test_the_developer_cannot_declare_a_run_void(tmp_path: Path) -> None:
-    """It is the Sponsor's call, in writing, and the guard holds the name."""
+    """It is the Product Owner's call, in writing, and the guard holds the role."""
     payload = _registered()
     _alter(payload, ("void_runs", "declared_by"), "the developer, at their discretion")
     altered = _write(payload, tmp_path / "spike-006-f1.yaml")
@@ -595,3 +600,94 @@ def test_the_void_rule_grants_no_trial_and_relaxes_no_threshold(tmp_path: Path) 
 
 def test_the_ceiling_is_two_and_lives_in_one_place() -> None:
     assert MAXIMUM_RE_EXECUTIONS == 2
+
+
+# ---------------------------------------------------------------------------
+# Amendment 8: the declaring role, and rule S1 on the spread sample
+# ---------------------------------------------------------------------------
+
+
+def test_the_declaring_role_is_the_product_owner_and_never_the_developer() -> None:
+    """Section 30.1, as two constants rather than one sentence of prose.
+
+    A sentence outlives the conversation it was written in and resolves to whoever is
+    reading it. Two guarded roles cannot.
+    """
+    assert VOID_DECLARED_BY_ROLE == "product-owner"
+    assert VOID_NEVER_DECLARED_BY_ROLE == "developer"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("declared_by_role", "developer"),
+        ("never_declared_by_role", "product-owner"),
+    ],
+)
+def test_moving_the_declaring_role_to_the_developer_refuses_the_run(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    """Both directions of the one edit that would let a run be voided by its author."""
+    payload = _registered()
+    _alter(payload, ("void_runs", field), value)
+    altered = _write(payload, tmp_path / f"{field}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=field):
+        assert_no_drift(altered)
+
+
+def test_the_declaring_prose_still_names_the_role_and_still_excludes_the_developer(
+    tmp_path: Path,
+) -> None:
+    """The prose and the fields must agree; a reader reads the prose."""
+    payload = _registered()
+    _alter(payload, ("void_runs", "declared_by"), "whoever is holding the keyboard")
+    altered = _write(payload, tmp_path / "prose.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="declared_by"):
+        assert_no_drift(altered)
+
+
+def test_rule_s1_is_registered_with_a_hard_zero_threshold() -> None:
+    """Section 30.2. No margin around zero, because a margin is a chosen number."""
+    assert SPREAD_TRIGGER_RULE == "S1"
+    assert Decimal(0) == SPREAD_TRIGGER_THRESHOLD
+    assert SPREAD_SAMPLE_SYMBOL_DAYS == 36
+
+
+def test_softening_rule_s1_threshold_refuses_the_run(tmp_path: Path) -> None:
+    """A trigger with a movable threshold is a decision deferred, not a decision made."""
+    payload = _registered()
+    _alter(payload, ("spread_sample", "acquisition", "threshold"), "-0.05")
+    altered = _write(payload, tmp_path / "threshold.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="threshold"):
+        assert_no_drift(altered)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("acquire_if_true", False), ("acquire_if_false", True)],
+)
+def test_inverting_rule_s1_refuses_the_run(tmp_path: Path, field: str, value: bool) -> None:
+    """Either inversion would decouple the download from the condition that justifies it."""
+    payload = _registered()
+    _alter(payload, ("spread_sample", "acquisition", field), value)
+    altered = _write(payload, tmp_path / f"{field}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=field):
+        assert_no_drift(altered)
+
+
+def test_rule_s1_excludes_the_execution_venue_cell(tmp_path: Path) -> None:
+    """S1 is a condition at research fees, and Kraken's schedule is a different one."""
+    payload = _registered()
+    _alter(payload, ("spread_sample", "acquisition", "cells_excluded"), [])
+    altered = _write(payload, tmp_path / "cells.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="cells_excluded"):
+        assert_no_drift(altered)
+
+
+def test_growing_the_spread_sample_refuses_the_run(tmp_path: Path) -> None:
+    """The size the rule implies is the size section 12 registered, and no larger."""
+    payload = _registered()
+    _alter(payload, ("spread_sample", "acquisition", "size_if_acquired", "symbol_days"), 120)
+    altered = _write(payload, tmp_path / "size.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="symbol_days"):
+        assert_no_drift(altered)

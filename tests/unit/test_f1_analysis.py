@@ -27,17 +27,23 @@ from decimal import Decimal
 
 import pytest
 
-from sextant.app.spike_006_f1 import ACCOUNT_EQUITY, EXECUTION_FEE_OF_EQUITY_BPS
+from sextant.app.spike_006_f1 import (
+    ACCOUNT_EQUITY,
+    EXECUTION_FEE_OF_EQUITY_BPS,
+    execution_sensitivity,
+)
 from sextant.app.spike_006_f1_analysis import (
     Capacity,
     CapacityVerdict,
     CostLines,
     ResultsIncomplete,
+    SpreadAcquisition,
     analyse,
     break_even_of,
     capacity_of,
     depth_sample_is_needed,
     opening_instants,
+    spread_acquisition,
     verdict,
 )
 from sextant.app.spike_006_f1_run import (
@@ -53,6 +59,10 @@ from sextant.engine.backtest.ledger import LedgerBuilder, RebalanceOutcome
 from sextant.engine.execution.breakeven import MONTHLY_ROUND_TRIPS
 
 HEADLINE = "vip0_even"
+
+#: The execution-venue sensitivity cell, which rule S1 excludes: a different fee
+#: schedule is a different condition.
+EXECUTION_CELL = execution_sensitivity().label
 CELLS = ("vip0_maker", HEADLINE, "vip0_taker", "stress")
 
 
@@ -566,3 +576,72 @@ def test_the_depth_sample_is_needed_only_when_something_is_measurable() -> None:
     assert depth_sample_is_needed([_capacity("-0.01", "0.05")]) is False
     assert depth_sample_is_needed([_capacity("0.05", "0.01")]) is True
     assert depth_sample_is_needed([_capacity("-0.01", "0.05"), _capacity("0.05", "0.01")]) is True
+
+
+# ---------------------------------------------------------------------------
+# Rule S1: whether the spread sample is acquired at all
+# ---------------------------------------------------------------------------
+
+
+def _acquisition(*terminals: str, cells: tuple[str, ...] = (HEADLINE,)) -> SpreadAcquisition:
+    """Rule S1 over one variant per terminal return, in the given cells."""
+    runs = [
+        run(construct=f"v{index}", cell=cell, terminal=terminal)
+        for cell in cells
+        for index, terminal in enumerate(terminals)
+    ]
+    return spread_acquisition(analyse(payload(deterministic=runs, nulls=[])))
+
+
+def test_the_spread_sample_is_not_acquired_when_nothing_earns() -> None:
+    """The case rule S1 exists for: 3 GB that could not change a conclusion.
+
+    Spread can only make a variant look worse. Where no variant earns at research
+    fees, measuring it refines a cost line on a book that does not earn.
+    """
+    outcome = _acquisition("-0.20", "-0.05", "-0.01")
+    assert outcome.acquire is False
+    assert outcome.positive_count == 0
+    assert outcome.considered == 3
+
+
+def test_one_earning_variant_is_enough_to_acquire_the_spread_sample() -> None:
+    """The other case: the assumption is load-bearing for a verdict, so it is measured."""
+    outcome = _acquisition("-0.20", "0.04")
+    assert outcome.acquire is True
+    assert outcome.positive_count == 1
+    assert outcome.best_net_return == Decimal("0.04")
+
+
+def test_rule_s1_has_no_margin_around_zero() -> None:
+    """A margin would be a threshold chosen with the answer's shape already visible."""
+    assert _acquisition("0").acquire is False
+    assert _acquisition("0.0001").acquire is True
+
+
+def test_rule_s1_reads_every_registered_cell_and_not_only_the_headline() -> None:
+    """A variant that earns in the maker cell is a variant spread could kill."""
+    outcome = _acquisition("-0.10", cells=(HEADLINE,))
+    assert outcome.acquire is False
+    both = _acquisition("-0.10", cells=(HEADLINE, "vip0_maker"))
+    assert both.considered == 2
+    assert both.acquire is False
+
+
+def test_rule_s1_ignores_the_execution_venue_cell() -> None:
+    """S1 is a condition at research fees; Kraken's schedule is a different condition."""
+    outcome = _acquisition("0.30", cells=(EXECUTION_CELL,))
+    assert outcome.considered == 0
+    assert outcome.acquire is False
+
+
+def test_the_acquisition_decision_is_reported_either_way() -> None:
+    """Not acquiring is a reported decision, not a silence."""
+    refused = _acquisition("-0.10").as_json()
+    assert refused["acquire_the_spread_sample"] is False
+    assert refused["rule"] == "S1"
+    assert refused["symbol_days_if_acquired"] == 36
+    assert refused["cells_excluded"] == [EXECUTION_CELL]
+    taken = _acquisition("0.10").as_json()
+    assert taken["acquire_the_spread_sample"] is True
+    assert taken["best_net_return"] == "0.10"

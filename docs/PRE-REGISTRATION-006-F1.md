@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.8`. Part 1, the specification, committed before any funding number was
+**Version `v1.9`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
@@ -10,7 +10,11 @@ runner started. `v1.7.1` adds section 28.6, which resolves what 28.2 left implic
 between quarterly rebalances. It changes no registered choice, adds no variant and was committed
 before the runner produced a number. `v1.8` adds section 29, the rule for how a void
 execution is counted, written after the first execution was found void and before any figure of
-the second had been read. It changes no variant, cell, criterion, threshold or budget.**
+the second had been read. `v1.9` adds section 30: it fixes the *role* that may declare a run void
+as the Product Owner and never the Developer, and it makes section 12's spread sample conditional
+on rule S1, a computed condition on the result file. Both were written before any figure of the
+second execution had been read. Neither changes a variant, cell, criterion, threshold or
+budget.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -1671,10 +1675,24 @@ voiding reason and the run stands.
 
 ### 29.3 Who declares it, and when
 
-**The Sponsor declares a run void, on a written statement of which clause of 29.2 applies and
-what the specific defect was.** Not the developer, and not the runner. The declaration is
-recorded in the results document of the family it concerns and in the commit that supersedes the
-run.
+**The Product Owner declares a run void, in writing, naming the clause of 29.2 that applies and
+the specific defect. Never the Developer, and never the runner.** *(The role was written as "the
+Sponsor" in `v1.8` and corrected in `v1.9`; section 30.1 states why, and the reason is not
+seniority.)*
+
+**The reason is conflict of interest.** The party that produced a run must not be the party that
+decides it did not happen. A Developer who may void his own output can discard a result and call
+the discarding a repair, and nothing in the artefacts would distinguish the two: a defect is
+always available to be found in code one wrote oneself, and the search for one is more diligent
+when the number is unwelcome. Separating the roles removes the question rather than answering it.
+
+**The Developer's part is evidentiary and it is bounded**: name the defect, name the clause of
+29.2 it falls under, and exhibit the regression test that now covers it. Producing that evidence
+is not a declaration and does not become one by being convincing.
+
+**The declaration is refused if the reason offered mentions a return, a Sharpe, a criterion or a
+verdict letter**, per 29.2. The declaration is recorded in the results document of the family it
+concerns and in the commit that supersedes the run.
 
 **The declaration must name a defect that a test now covers.** A void run whose cause is not
 regression-tested is a void run that will happen again, and the second occurrence would be
@@ -1725,3 +1743,121 @@ The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6, th
 the null constructs, declared expectations D1 and D2, and every threshold in sections 6, 7, 8, 11
 and 14 are **unchanged**. This section governs how executions are counted and who may declare one
 void. It grants no new trial, relaxes no threshold, and cannot make a failing variant pass.
+
+
+## 30. Amendment 8 — who may void a run, and when the spread sample is worth its bytes
+
+**Added on the Product Owner's instruction, before any figure of the second execution had been
+read. Two items: a correction of authority in section 29, and one new computed condition, rule
+S1, on an acquisition. Neither changes a variant, a cell, a criterion, a threshold or the
+budget, and neither can make a failing variant pass.**
+
+### 30.1 The declaring authority, fixed so a reader cannot get it wrong
+
+Section 29.3 as written in `v1.8` said the Sponsor declares a run void and that the developer
+does not. That is close to right and ambiguous in the way that matters, because this document
+outlives the conversation it was written in and "you declare it" resolves to whoever is reading.
+
+**The role is the Product Owner.** Not the Developer, in any circumstance, and not the runner.
+Written as a role and not as a name, because a name in this position is a person who may be
+absent and a role is an accountability that is not.
+
+**The reason is conflict of interest, not seniority.** The party that produced a run must not be
+the party that decides the run did not happen. The failure mode is not dishonesty, which is why
+stating it as a rule is worth more than trusting a disposition:
+
+- A defect can always be found in code one wrote oneself. The supply is inexhaustible.
+- The diligence of the search for one is not independent of whether the result was welcome.
+- A void declaration and a repair produce **identical artefacts**: a commit, a test, a rerun.
+  Nothing downstream can tell them apart, so the control has to sit upstream, at who may declare.
+
+**So the Developer's part is evidentiary and bounded.** Name the defect, name the clause of 29.2,
+exhibit the test that now covers it. That evidence can be complete and compelling and it is still
+not a declaration. The declaration is the Product Owner's, in writing, and it is refused if its
+stated reason mentions a return, a Sharpe, a criterion or a verdict letter.
+
+This is recorded in `config/spike-006-f1.yaml` as two fields rather than one sentence,
+`declared_by_role: product-owner` and `never_declared_by_role: developer`, and the drift guard
+compares both against named constants. Prose can be read two ways. A pair of guarded fields
+cannot.
+
+### 30.2 Rule S1 — the spread sample is acquired only if something earns
+
+Section 12 registers a spread sample: 6 perpetuals, 6 days, from the `bookTicker` tree. At 50 to
+90 MB a symbol-day that is **36 symbol-days and 1.8 to 3.2 GB**.
+
+Section 12 fixed *what* would be measured, by rule, before any measurement. It did not fix
+*whether* the measurement is worth making, and that question has an answer which depends on the
+result file — which means it must be registered as a condition now, exactly as rule C3 was, or it
+becomes a judgement made after a number exists.
+
+**Rule S1. The spread sample is acquired if and only if at least one registered variant, in at
+least one registered cost cell, earns a net return over the scored out-of-sample window that is
+strictly greater than zero.**
+
+Stated exactly, because a trigger with a soft edge is a decision deferred rather than made:
+
+| | |
+|---|---|
+| quantity | net return over the scored out-of-sample window, after every cost line |
+| threshold | `0`, strictly greater than, with no margin |
+| variants considered | all nine registered variants |
+| cells considered | the four registered cells, every one at the research venue's schedule |
+| cells excluded | `kraken_execution`, a different fee schedule and so a different condition |
+| decided from | `research/spike-006-f1.json`, by `spread_acquisition` in the analysis module |
+| if true | acquire the 36 symbol-days. No subsampling: section 12's sample is already the minimum |
+| if false | do not acquire, and report that S1 was false and which figures made it false |
+
+No margin is added around zero on purpose. A margin would be a number chosen with the shape of
+the answer already visible, which is the one thing every rule in this document exists to prevent.
+
+**Why this condition and not another.** Spread is a configured assumption, and the measurement
+can only ever move a variant in one direction: worse, or unchanged. Two cases, and they are not
+symmetric.
+
+1. **Nothing earns at research fees.** Then the family's gross carry is already cancelled by its
+   basis risk and its fees, and a measured spread — however large — changes no conclusion. Three
+   gigabytes would refine a cost line on a book that does not earn. The measurement would be
+   activity, not evidence.
+2. **Something earns at research fees.** Then spread is precisely the cost that could kill it,
+   the assumption is load-bearing for the verdict, and the measurement becomes the most valuable
+   3 GB in the task.
+
+The same sequencing as rule C3, for the same reason: acquire the minimum the registered rules
+need, decide what that minimum is by a rule fixed beforehand, and never let the size of a
+download be argued from a result.
+
+**What S1 does not do.** It does not make the spread assumption a measurement in the false case,
+and it does not make it one in the true case either — invariant 12 stands, section 12's sample
+sits *beside* the assumption, and every variant remains costed at the assumption in every cell.
+A decision not to measure is not a claim that the assumption was right. It is a statement that
+the number it would produce cannot change the answer, which is a different and much weaker claim,
+and the report makes it in those words.
+
+### 30.3 Cadence and turnover, corrected
+
+Not a rule and not a change to anything registered. Amendment 6's argument for a quarterly
+variant assumed that a slower cadence trades less. **That assumption is wrong as stated**, and it
+is recorded here rather than quietly dropped, because the amendment's reasoning is part of the
+pre-registration and a reader is entitled to see which part of it did not survive.
+
+On a controlled fixture whose liquidity ranking rotates, the quarterly variant turned over *more*
+than its monthly twin: 9132.49 against 9074.48 of notional traded. The mechanism is drift.
+Skipping two decision instants defers the trades those instants would have made rather than
+removing them; the weights drift from target for three months instead of one, and the single
+correction at the quarter's end can exceed the two that were skipped. Whether it does depends on
+how fast the ranking moves relative to the cadence, which is a property of the market.
+
+**This raises the value of the quarterly cell rather than lowering it.** A monotonic relationship
+could have been derived from the fee schedule alone, and the cell would have been an expensive
+confirmation of arithmetic. A non-monotonic one cannot be derived: where the fee-optimal cadence
+sits is a measurement. The regression test asserts that cadence changes turnover and deliberately
+does not assert a direction, because a direction is what the fixture just refuted.
+
+### 30.4 What this does not touch
+
+The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6, the seed counts,
+the null constructs, declared expectations D1 and D2, rules C1 to C3, section 12's sampling rules
+themselves, and every threshold in sections 6, 7, 8, 11 and 14 are **unchanged**. 30.1 changes who
+may declare a run void. 30.2 adds one condition on one acquisition. 30.3 records a correction to
+an argument. None of them grants a trial, relaxes a threshold, or touches a computed value.

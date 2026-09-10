@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.8
+version: v1.9
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,11 +63,22 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-8
+    document_section: "30"
+    subject: >
+      Two corrections, one of authority and one of sequencing. The PRODUCT OWNER, never
+      the Developer, declares a run void: the party that produced a run must not be the
+      party that decides it did not happen. And section 12's spread sample is acquired
+      only if rule S1's computed condition on the result file holds, namely that some
+      registered variant earns a positive net return at research fees. Registered before
+      any figure of the second execution had been read. Changes no variant, cell,
+      criterion, threshold or budget.
   - id: amendment-7
     document_section: "29"
     subject: >
       How a void execution is counted. What makes a run void is a statement about the
-      machinery and never about the result; the Sponsor declares it, on a written
+      machinery and never about the result; the Product Owner declares it (amendment 8
+      fixes the role, which this entry originally left as the Sponsor), on a written
       reason naming a defect a test now covers; the rows stay in the append-only
       registry and are counted in full by the Deflated Sharpe Ratio; the deflation
       cost of the repeat is reported as a pair, and the verdict follows the full
@@ -199,7 +210,16 @@ void_runs:
     the answer was disliked, surprising, worse than expected, or worse than another
     run's. No property of the RETURNS can make a run void. A reason mentioning a
     Sharpe, a net return, a criterion or a verdict letter is not a voiding reason.
-  declared_by: the Sponsor, in writing, naming the clause and the specific defect
+  declared_by_role: product-owner
+  never_declared_by_role: developer
+  declared_by: >
+    the Product Owner, in writing, naming the clause of what_makes_a_run_void that
+    applies and the specific defect. NEVER the Developer. The reason is conflict of
+    interest rather than seniority: the party that produced a run must not be the party
+    who decides it did not happen, or a run can be discarded and the discarding called a
+    repair. The Developer names the defect and exhibits the regression test that now
+    covers it; the declaration is the Product Owner's, and it is refused if the reason
+    offered mentions a return, a Sharpe, a criterion or a verdict letter.
   declaration_requires: >
     a defect that a regression test now covers. A void run whose cause is not tested
     will happen again, and the second occurrence would be indistinguishable from an
@@ -1179,6 +1199,51 @@ spread_sample:
     per symbol-day, the time-weighted mean and the median of (ask - bid) / midpoint
     in basis points, and the same two restricted to 00:00-00:05 UTC
   is_a_trial: false
+  acquisition:
+    rule_id: S1
+    added_by: amendment-8
+    decided_by: >
+      a computed condition on research/spike-006-f1.json, in exactly the way rule C3
+      decides whether the depth sample is needed. Nobody chooses after a number exists.
+    condition: >
+      at least one registered variant, in at least one registered cost cell, earns a
+      net return over the scored out-of-sample window that is strictly greater than
+      zero.
+    quantity: net return over the scored out-of-sample window, after every cost line
+    threshold: "0"
+    comparison: strictly greater than
+    variants_considered: all nine registered variants
+    cells_considered: >
+      the four registered cells, every one of which prices the research venue's
+      published schedule. The maker, even and taker cells differ only in fill mix and
+      the stress cell only in its spread and slippage multiplier.
+    cells_excluded: [kraken_execution]
+    cells_excluded_because: >
+      the execution-venue sensitivity cell is a different fee schedule, and rule S1 is
+      a condition at research fees.
+    acquire_if_true: true
+    acquire_if_false: false
+    why_this_condition: >
+      Spread is an assumed cost, not a measurement, and the measurement can only ever
+      make a variant look worse. If every variant's gross carry is cancelled by its
+      basis risk and its fees, no spread measurement changes the verdict, and 1.8 to
+      3.2 GB would be acquired to refine a cost on a strategy that does not earn. If a
+      variant does show positive net return, spread is precisely the cost that could
+      kill it and the measurement becomes decisive. The same sequencing as rule C3, for
+      the same reason.
+    size_if_acquired:
+      symbol_days: 36
+      megabytes: 1800 to 3200
+    subsampling: >
+      none. The six symbols and six days are already fixed by the rule above, and a
+      subsample of an already rule-fixed sample would be a second rule chosen with
+      nothing to constrain it. The registered sample IS the minimum.
+    not_acquiring_is_reported: >
+      when the condition is false the report states that the spread sample was not
+      acquired, states rule S1 and the figures that decided it, and the cost assumption
+      continues to be labelled an assumption under invariant 12. An unmeasured spread
+      is never reported as a measured one, in either direction.
+    is_a_trial: false
   changes_no_result: >
     It measures the QUOTED spread on the perpetual leg, on six days, in one
     eleven-month stretch of a longer window. It says nothing about the spot leg,

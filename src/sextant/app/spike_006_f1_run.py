@@ -72,6 +72,7 @@ from sextant.app.spike_006_f1_analysis import (
     analyse,
     capacity_report,
     depth_sample_is_needed,
+    spread_acquisition,
     verdict,
 )
 from sextant.app.spike_006_f1_engine import (
@@ -875,6 +876,7 @@ def execute(
             "UNESTABLISHED would be acquiring data the registered rule does not read."
         ),
     }
+    payload["spread_sample"] = spread_acquisition(rows).as_json()
     payload["variants"] = [row.as_json() for row in rows]
     payload["verdict"] = outcome.as_json()
     payload["seconds"] = time.monotonic() - started

@@ -38,8 +38,13 @@ from sextant.app.spike_006_f1 import (
     MINIMUM_DEPTH_MONTHS,
     MINIMUM_MONTHS_TO_PROCEED,
     RECENT_WINDOW_MONTHS,
+    REGISTERED_CELLS,
     REGISTERED_VARIANTS,
     RESEARCH_FEE_OF_EQUITY_BPS,
+    SPREAD_SAMPLE_SYMBOL_DAYS,
+    SPREAD_TRIGGER_RULE,
+    SPREAD_TRIGGER_THRESHOLD,
+    execution_sensitivity,
 )
 from sextant.app.spike_006_f1_engine import recent_window, statistics_of
 from sextant.domain.time import Timestamp
@@ -697,6 +702,7 @@ class Capacity:
     """Rule C3 for one variant: the two quantities and the outcome they force."""
 
     variant: str
+    cell: str
     depth_months: int
     months_outside: int
     mean_inside: Decimal | None
@@ -706,6 +712,7 @@ class Capacity:
     def as_json(self) -> dict[str, object]:
         return {
             "variant": self.variant,
+            "cell_id": self.cell,
             "depth_window": f"{DEPTH_WINDOW_STARTS}/{DEPTH_WINDOW_ENDS}",
             "depth_months": self.depth_months,
             "minimum_depth_months": MINIMUM_DEPTH_MONTHS,
@@ -772,6 +779,7 @@ def capacity_of(row: VariantRow, monthly: Sequence[tuple[Timestamp, Decimal]]) -
         verdict = CapacityVerdict.MEASURED
     return Capacity(
         variant=row.variant,
+        cell=row.cell,
         depth_months=len(inside),
         months_outside=len(outside),
         mean_inside=mean_inside,
@@ -805,6 +813,80 @@ def depth_sample_is_needed(report: Sequence[Capacity]) -> bool:
     which is the opposite of the instruction to take the minimum the rule needs.
     """
     return any(item.verdict.needs_depth_data for item in report)
+
+
+# ---------------------------------------------------------------------------
+# Rule S1: whether the spread sample is acquired at all
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class SpreadAcquisition:
+    """Amendment 8's rule S1, decided from the result file and nothing else.
+
+    Spread is a configured assumption and the measurement can only ever make a variant
+    look worse. So the sample is worth its 1.8 to 3.2 GB exactly when some variant
+    earns at research fees, because that is the only case where a larger spread could
+    change a conclusion. Where nothing earns, refining a cost line on a strategy that
+    does not earn refines nothing.
+    """
+
+    best_variant: str | None
+    best_cell: str | None
+    best_net_return: Decimal | None
+    positive_count: int
+    considered: int
+
+    @property
+    def acquire(self) -> bool:
+        """Rule S1's condition: strictly positive net return, at research fees."""
+        return self.positive_count > 0
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "rule": SPREAD_TRIGGER_RULE,
+            "condition": (
+                "at least one registered variant, in at least one registered cost cell, "
+                "earns a net return over the scored out-of-sample window strictly "
+                "greater than "
+                f"{SPREAD_TRIGGER_THRESHOLD}"
+            ),
+            "runs_considered": self.considered,
+            "runs_with_a_positive_net_return": self.positive_count,
+            "best_run": None
+            if self.best_variant is None
+            else f"{self.best_variant} in {self.best_cell}",
+            "best_net_return": None if self.best_net_return is None else str(self.best_net_return),
+            "acquire_the_spread_sample": self.acquire,
+            "symbol_days_if_acquired": SPREAD_SAMPLE_SYMBOL_DAYS,
+            "cells_excluded": [execution_sensitivity().label],
+            "note": (
+                "Registered as a computed condition before any figure of the execution "
+                "it reads had been looked at, in the same shape as rule C3. Not "
+                "acquiring is reported, and the cost assumption stays labelled an "
+                "assumption under invariant 12 either way."
+            ),
+        }
+
+
+def spread_acquisition(rows: Sequence[VariantRow]) -> SpreadAcquisition:
+    """Rule S1 over every registered variant in every registered cell.
+
+    The execution-venue sensitivity cell is excluded because rule S1 is a condition at
+    *research* fees, and a different fee schedule is a different condition. Every one of
+    the four registered cells prices the research venue, so all four count.
+    """
+    research = {cell.label for cell in REGISTERED_CELLS}
+    considered = [row for row in rows if row.cell in research]
+    positive = [row for row in considered if row.net_return > SPREAD_TRIGGER_THRESHOLD]
+    best = max(considered, key=lambda row: row.net_return, default=None)
+    return SpreadAcquisition(
+        best_variant=None if best is None else best.variant,
+        best_cell=None if best is None else best.cell,
+        best_net_return=None if best is None else best.net_return,
+        positive_count=len(positive),
+        considered=len(considered),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -915,6 +997,7 @@ __all__ = [
     "Criteria",
     "Decomposition",
     "ResultsIncomplete",
+    "SpreadAcquisition",
     "VariantRow",
     "Verdict",
     "analyse",
@@ -925,5 +1008,6 @@ __all__ = [
     "monthly_of",
     "opening_instants",
     "regime_labels",
+    "spread_acquisition",
     "verdict",
 ]
