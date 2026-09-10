@@ -54,6 +54,7 @@ from sextant.adapters.vcs import Commit, GitRepository
 from sextant.domain.money import Notional
 from sextant.domain.time import Timestamp
 from sextant.engine.backtest.budget import TrialBudget, budget_from
+from sextant.engine.execution.breakeven import MONTHLY_ROUND_TRIPS, fee_of_equity_bps
 from sextant.engine.execution.costs import LiquidityBand
 from sextant.engine.execution.funding import DEFAULT_INTERVAL_HOURS
 from sextant.engine.statistics.persistence import (
@@ -303,6 +304,18 @@ def headline_cell() -> CellSpec:
             f"{FAMILY}: exactly one cell is the headline; the code declares {len(headline)}."
         )
     return headline[0]
+
+
+#: Amendment 27. One full-book round trip's fees in basis points of equity, at each
+#: schedule. Derived from the per-leg figures rather than restated, so a change to a
+#: fee schedule cannot leave these behind.
+RESEARCH_FEE_OF_EQUITY_BPS = fee_of_equity_bps(round_trip_fee_bps(headline_cell()), MARGIN_FRACTION)
+EXECUTION_FEE_OF_EQUITY_BPS = fee_of_equity_bps(
+    round_trip_fee_bps(execution_sensitivity()), MARGIN_FRACTION
+)
+
+#: D2b's threshold: a full monthly rebalance. Held in one place, in the engine.
+D2B_THRESHOLD_ROUND_TRIPS = MONTHLY_ROUND_TRIPS
 
 
 # ---------------------------------------------------------------------------
@@ -711,6 +724,7 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     ]
     checks.extend(_capacity_rule_checks(capacity))
     checks.extend(_contraction_checks(raw))
+    checks.extend(_break_even_checks(raw))
     checks.extend(_sensitivity_checks(raw))
     checks.extend(_budget_checks(raw))
     checks.extend(_variant_checks(_sequence(variants["registered"], "variants.registered")))
@@ -831,6 +845,50 @@ def _contraction_checks(raw: Mapping[str, object]) -> list[tuple[str, object, ob
         ("contraction_check.resamples", _text(block["resamples"]), str(RESAMPLES)),
         ("contraction_check.seed", _text(block["seed"]), str(BOOTSTRAP_SEED)),
         ("contraction_check.difference_method", _text(block["difference_method"]), "bootstrap"),
+    ]
+
+
+def _break_even_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Amendment 27's registered arithmetic, against the constants the runner uses.
+
+    The two fee-of-equity figures are checked because they are the denominators of
+    every number this amendment prints. A denominator nobody verified is a number that
+    can drift into flattering a conclusion without anybody editing a threshold.
+    """
+    block = _mapping(raw["break_even"], "break_even")
+    expectation = _mapping(block["declared_expectation"], "break_even.declared_expectation")
+    clauses = _sequence(expectation["clauses"], "break_even.declared_expectation.clauses")
+    second = _mapping(clauses[1], "break_even.declared_expectation.clauses[1]")
+    return [
+        (
+            "break_even.research_fee_of_equity_bps",
+            Decimal(_text(block["research_fee_of_equity_bps"])),
+            RESEARCH_FEE_OF_EQUITY_BPS.quantize(Decimal("0.01")),
+        ),
+        (
+            "break_even.execution_fee_of_equity_bps",
+            Decimal(_text(block["execution_fee_of_equity_bps"])),
+            EXECUTION_FEE_OF_EQUITY_BPS,
+        ),
+        ("break_even.is_a_criterion", bool(block["is_a_criterion"]), False),
+        ("break_even.consumes_variant_budget", bool(block["consumes_variant_budget"]), False),
+        ("break_even.declared_expectation.id", _text(expectation["id"]), "D2"),
+        (
+            "break_even.declared_expectation.carries_verdict_weight",
+            bool(expectation["carries_verdict_weight"]),
+            False,
+        ),
+        (
+            "break_even.declared_expectation.clauses[0].id",
+            _text(_mapping(clauses[0], "D2a")["id"]),
+            "D2a",
+        ),
+        ("break_even.declared_expectation.clauses[1].id", _text(second["id"]), "D2b"),
+        (
+            "break_even.declared_expectation.clauses[1].threshold",
+            _text(second["threshold"]),
+            str(int(D2B_THRESHOLD_ROUND_TRIPS)),
+        ),
     ]
 
 
@@ -998,11 +1056,14 @@ def registered_grid() -> Iterable[tuple[str, str]]:
 __all__ = [
     "BOOTSTRAP_SEED",
     "CONFIG_PATH",
+    "D2B_THRESHOLD_ROUND_TRIPS",
     "ENGINE_VERSION",
+    "EXECUTION_FEE_OF_EQUITY_BPS",
     "FAMILY",
     "MINIMUM_MONTHS_FOR_A_YEAR",
     "RECENT_WINDOW_MONTHS",
     "RESAMPLES",
+    "RESEARCH_FEE_OF_EQUITY_BPS",
     "RESULTS_PATH",
     "CellSpec",
     "DriftedFromPreRegistration",

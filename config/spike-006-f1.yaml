@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.5
+version: v1.6
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -57,6 +57,12 @@ amendments:
       the best variant is re-costed once at the execution venue's published fee
       schedule. Both are reporting additions; no criterion, variant, cell, threshold
       or budget changes.
+  - id: amendment-5
+    document_section: "27"
+    subject: >
+      The execution-venue re-cost is reported as a break-even turnover rather than as a
+      pass or fail, with declared expectation D2 on holding period being the binding
+      constraint. A reframing of one output; no new run, no criterion, no budget.
   - id: part-2
     document_section: 19-25
     subject: >
@@ -871,6 +877,93 @@ execution_sensitivity:
     rates, the report says exactly that, in the verdict, in those words. It would mean
     the edge is real and this account cannot harvest it, which is a different answer
     from both (A) and (B) and must not be presented as either.
+
+# ---------------------------------------------------------------------------
+# Break-even turnover, and declared expectation D2 (amendment 27)
+# ---------------------------------------------------------------------------
+#
+# A reframing of the execution-venue re-cost above, not new work. A pass-or-fail
+# verdict compresses the quantity that actually binds into a word and is useless the
+# moment a fee schedule changes. A break-even turnover carries the fee level in its
+# denominator, so a reader with different fees divides again rather than asking for
+# another backtest.
+break_even:
+  unit: round trips per year, where a round trip is the WHOLE BOOK
+  why_the_whole_book: >
+    It is the unit the fee arithmetic already uses, and a per-pair figure would depend
+    on the position count, which differs between variants.
+  fee_basis: basis points of equity, so numerator and denominator share units
+  fee_of_equity_formula: "round_trip_fee_bps / (1 + margin_fraction)"
+  research_fee_of_equity_bps: "22.50"
+  execution_fee_of_equity_bps: "105.8333333333333333333333333"
+  numerator: >
+    The best variant's out-of-sample GROSS return - before fees, spread, slippage and
+    conversion - compounded to an annual rate in basis points of equity. Reported as
+    its own number so both break-evens can be recomputed at any fee level without
+    rerunning anything. That is the point of the reframing.
+  three_numbers:
+    - name: break_even_at_research_fees
+      formula: "gross_return_bps_per_year / 22.50"
+    - name: break_even_at_execution_fees
+      formula: "gross_return_bps_per_year / 105.8333333333333333333333333"
+    - name: realised_turnover
+      formula: "fees_charged_bps_of_equity_per_year / 22.50"
+      measured_from: >
+        the fee line the engine actually charged in the headline cell, inverting the
+        same arithmetic rather than reconstructing traded notional. The three numbers
+        are then definitionally consistent: if realised exceeds the research
+        break-even, the gross carry did not cover its own fees and the net return is
+        negative. No separate turnover estimator can disagree with the fee line,
+        because it IS the fee line.
+  conversion_leg_excluded: >
+    Charged twice for the whole run rather than per rebalance, so folding it into a
+    per-round-trip figure would misattribute a fixed cost to turnover.
+  spread_and_slippage_excluded: >
+    They are assumptions rather than published rates, they are identical at both
+    venues, and they also scale with turnover. The fee break-even is therefore an
+    UPPER BOUND on allowable turnover and not an estimate of it: the break-even on
+    total cost is strictly lower. The report says so where the numbers appear.
+  consistency_check: >
+    The re-cost's own measured fee line must equal realised_turnover times 105.83 basis
+    points of equity per year, to rounding. The two are computed by different routes,
+    one from a run and one from arithmetic, and a disagreement means one of them is
+    wrong. Reported as a matched pair, never as one number.
+  declared_expectation:
+    id: D2
+    statement: >
+      The binding constraint on this family is holding period, not signal quality.
+    carries_verdict_weight: false
+    clauses:
+      - id: D2a
+        statement: >
+          If any variant clears criteria 1 to 6 in the headline cell, it is a
+          low-turnover one: its realised round trips per year is at or below the median
+          of the eight variants' realised turnover.
+        refuted_when: a clearing variant sits strictly above that median
+        unresolved_when: >
+          no variant clears, in which case D2a cannot be evaluated and is reported in
+          those words rather than quietly dropped
+      - id: D2b
+        statement: >
+          The best variant's break-even turnover at execution fees is fewer than 12
+          round trips per year, so a full monthly rebalance would not pay for itself at
+          execution fees.
+        threshold: 12
+        refuted_when: >
+          it is 12 or more, which would mean the execution-fee gap does not bind at the
+          rebalance frequency this family actually trades
+    what_would_refute_all_of_d2: >
+      A variant whose gross carry is large enough that 127 basis points a round trip
+      still leaves it profitable at monthly turnover. That would mean signal quality
+      rather than holding period was binding, and it would make this amendment's
+      framing wrong. It is a real possibility and it is why D2 is written down.
+  is_a_criterion: false
+  consumes_variant_budget: false
+  amends: >
+    26.2's closing promise of a survives-or-dies sentence. That sentence is now the
+    conclusion of a break-even statement rather than the whole of it, and where the two
+    break-evens straddle realised turnover the report gives the numbers rather than the
+    word. The rest of 26.2 stands unedited.
 
 # ---------------------------------------------------------------------------
 # Capacity: measured only inside the depth window

@@ -1,11 +1,10 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.5`. Part 1, the specification, committed before any funding number was
+**Version `v1.6`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
-Amendments 1 to 4 were all added before any variant had been run; no strategy result of any kind
-existed when any of them was written. Sections 16, 17, 18 and 26 state what they changed and
-why. Amendment 4 is the only one written after part 2, and it changes nothing part 2
-measured.**
+Amendments 1 to 5 were all added before any variant had been run; no strategy result of any kind
+existed when any of them was written. Sections 16, 17, 18, 26 and 27 state what they changed and
+why. Amendments 4 and 5 were written after part 2 and change nothing part 2 measured.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -1331,3 +1330,121 @@ section 8, the 32-trial budget of section 3, the seed counts of section 10, the 
 evaluability rule of section 6, and every threshold in sections 6, 7 and 14 are **unchanged**.
 26.1 adds a description of one month and a second reading of one headline. 26.2 adds one
 labelled sensitivity outside the grid. Neither changes what would count as an edge.
+
+---
+
+## 27. Amendment 5 — break-even turnover, and the expectation that goes with it
+
+**Added on the Sponsor's instruction, before the runner existed. No variant had been run and no
+equity curve existed. It is a reframing of 26.2's output, not new work: the same single re-cost,
+reported as a threshold rather than as a verdict. It changes no criterion, no variant, no cost
+cell, no threshold and no trial budget, and it consumes no variant budget for the same
+one-directional reason 26.2 gives.**
+
+### 27.1 Why a pass or fail hides the thing worth knowing
+
+26.2 registered a re-cost of the best variant at the execution venue's fees and said the report
+would state whether the carry "survives at research rates and dies at execution rates". **That
+framing throws away the quantity that actually binds.**
+
+Median funding on this asset class annualises to single digits of per cent. One round trip of a
+pair costs 27 basis points of leg notional at research fees and 127 at execution fees. So the
+question is not whether fees are survivable in the abstract; it is **how often the book may turn
+over before they consume the yield**. Twelve round trips a year erases the whole of a
+single-digit carry at execution fees. One or two does not. A verdict of "survives" or "dies"
+compresses that into a word and makes the answer useless the moment a fee schedule changes.
+
+**A break-even turnover is reusable.** It is a threshold with the fee level in the denominator,
+so a reader with a different fee schedule divides again rather than asking for another backtest.
+
+### 27.2 The three numbers, defined exactly
+
+**All three are round trips per year, and a round trip is the whole book: opening both legs of
+every held pair and closing them again.** Defined that way because it is the unit the fee
+arithmetic already uses and because a per-pair figure would depend on the position count, which
+differs between variants.
+
+**Fees are expressed in basis points of equity rather than of leg notional**, so the numerator
+and the denominator are in the same units. One pair consumes `s * (1 + margin_fraction)` of
+capital, so one leg's notional per unit of equity at full deployment is `1 / (1 + m)`:
+
+```
+fee per full-book round trip, in bps of equity  =  round_trip_fee_bps / (1 + margin_fraction)
+
+research  :  27 / 1.20  =   22.50 bps of equity
+execution : 127 / 1.20  =  105.83 bps of equity
+```
+
+| number | definition |
+|---|---|
+| **break-even at research fees** | `gross_return_bps_per_year / 22.50` |
+| **break-even at execution fees** | `gross_return_bps_per_year / 105.83` |
+| **realised turnover** | `fees_actually_charged_bps_of_equity_per_year / 22.50`, from the fee line the engine charged in the headline cell |
+
+**`gross_return_bps_per_year`** is the best variant's out-of-sample **gross** return — before
+fees, spread, slippage and conversion — compounded to an annual rate and expressed in basis
+points of equity. **It is reported explicitly as its own number**, so the two break-evens can be
+recomputed at any fee level without rerunning anything. That is the point of the reframing.
+
+**Realised turnover is measured by inverting the same arithmetic**, from the fees the engine
+actually charged rather than by reconstructing traded notional. That makes the three numbers
+definitionally consistent: if the realised figure exceeds the research break-even, the variant's
+gross carry did not cover its own fees, and the net return will be negative. No separate
+turnover estimator can disagree with the fee line, because it is the fee line.
+
+**The conversion leg is excluded** from the fee figure. It is charged twice for the whole run
+rather than per rebalance, so folding it into a per-round-trip number would misattribute a fixed
+cost to turnover.
+
+**Spread and slippage are excluded, and this matters.** They are assumptions rather than
+published rates, they are identical at both venues, and they also scale with turnover.
+**The fee break-even is therefore an upper bound on allowable turnover, not an estimate of it**:
+the break-even on total cost is strictly lower. The report says so where the numbers appear.
+
+**One consistency check, registered here so it cannot be skipped.** The re-cost's own measured
+fee line must equal `realised_turnover * 105.83` bps of equity per year, to rounding. The two
+are computed by different routes — one from a run, one from arithmetic — and a disagreement means
+one of them is wrong. It is reported as a matched pair, not as one number.
+
+### 27.3 Declared expectation D2, before anything has run
+
+D1 in 16.1 predicted decay. This predicts *where* the cost pressure acts, and it is registered in
+the same form: with a direction, and refutable.
+
+> **Declared expectation D2. The binding constraint on this family is holding period, not signal
+> quality.** In two clauses, each of which can be refuted by the numbers the grid already
+> produces:
+>
+> **D2a.** If any variant clears criteria 1 to 6 in the headline cell, it is a **low-turnover**
+> one: its realised round trips per year is **at or below the median** of the eight variants'
+> realised turnover. *Refuted* if a clearing variant sits strictly above that median.
+>
+> **D2b.** The best variant's **break-even turnover at execution fees is fewer than 12 round
+> trips per year** — that is, a full monthly rebalance would not pay for itself at execution
+> fees. *Refuted* if it is 12 or more, which would mean the execution-fee gap does not bind at
+> the rebalance frequency this family actually trades.
+
+**D2 carries no weight in the verdict**, exactly as D1 does not. It is stated so that a story
+told after the fact about fees and holding periods can be checked against a prediction made
+before it. Both clauses are recorded as confirmed, refuted or unresolved, and **unresolved is a
+real answer**: D2a cannot be evaluated if no variant clears, and that is reported in those words
+rather than quietly dropped.
+
+**What would refute the whole of D2.** A variant whose gross carry is large enough that even 127
+basis points a round trip leaves it profitable at monthly turnover. That would mean signal
+quality, not holding period, was the binding constraint, and it would make this amendment's
+framing wrong. It is a real possibility and it is why D2 is written down.
+
+### 27.4 What amendment 5 does not touch
+
+Criteria 1 to 6 of section 11, the eight variants, the four cost cells, the 32-trial budget, the
+seed counts, the funding-evaluability rule and every threshold in sections 6, 7 and 14 are
+**unchanged**. 26.2's re-cost is still one variant, one cell, one trial, recorded in the registry,
+read by no criterion, and consuming no variant budget. **All that changes is what is printed:
+three numbers and a sentence instead of a verdict.**
+
+> **26.2 is amended here.** Its closing paragraph promised a sentence of the form "the carry
+> clears at research rates and loses money at execution rates". That sentence is now the
+> *conclusion* of a break-even statement rather than the whole of it, and where the two
+> break-evens straddle realised turnover the report gives the numbers rather than the word. The
+> rest of 26.2 stands unedited.
