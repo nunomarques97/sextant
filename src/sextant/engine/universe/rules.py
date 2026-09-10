@@ -30,6 +30,7 @@ from sextant.domain.listing import MembershipState
 from sextant.domain.money import Notional
 from sextant.domain.provenance import Provenance
 from sextant.domain.time import Timestamp
+from sextant.engine.execution.funding import FundingSchedule
 from sextant.engine.universe.statistics import InstrumentHistory
 
 BASIS_POINTS = Decimal(10_000)
@@ -369,3 +370,77 @@ class SourcedMembershipRule(_Rule):
         if state is MembershipState.NOT_LISTED:
             return RuleOutcome.REJECT
         return RuleOutcome.NOT_EVALUABLE
+
+
+# -- Rule 9 ------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class FundingEvaluabilityRule(_Rule):
+    """Every settlement the venue owed in the trailing window must be published.
+
+    New for the carry family, and it exists because the funding stream *is* the
+    return. A perpetual with three of a month's ninety payments on file is not a
+    perpetual that earned less; it is one whose earnings nobody can compute, and
+    admitting it would put a partial sum into a ranking as though it were a whole
+    one.
+
+    Rejected rather than not-evaluable, deliberately. A hole in a published
+    cash-flow series is a fact about the archive and it is knowable at the
+    decision instant: the schedule can say, at that instant, that it does not
+    have what the venue's own stated cadence says should be there. That is a
+    positive finding about tradability under this specification, not ignorance.
+    """
+
+    schedule: FundingSchedule
+    trailing_days: int = 30
+
+    @property
+    def name(self) -> str:
+        """Identifier recorded in run metadata."""
+        return "funding_evaluability"
+
+    def evaluate(self, instrument: Instrument, at: Timestamp) -> RuleOutcome:
+        """Admit when the published settlements span the window without a hole."""
+        after = at.plus(-timedelta(days=self.trailing_days))
+        covered = self.schedule.covers(instrument.key, after, at)
+        return RuleOutcome.ADMIT if covered else RuleOutcome.REJECT
+
+
+# -- Rule 10 -----------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class BarCoverageRule(_Rule):
+    """Enough of the lookback's daily bars must actually exist.
+
+    A leg priced from a series with a third of its days missing is a leg whose
+    entry and exit prices are whatever happened to be stored, and for a hedged
+    pair that is worse than for a single position: the two legs' gaps need not
+    coincide, so a missing day turns a hedge into a one-sided bet for as long as
+    the gap lasts.
+
+    ``NOT_EVALUABLE`` when no history is held at all, because that is ignorance
+    about the instrument rather than a finding about it. ``REJECT`` when a history
+    exists and is too sparse, because that is a finding.
+    """
+
+    histories: Mapping[InstrumentKey, InstrumentHistory]
+    lookback_days: int
+    minimum_fraction: Decimal
+
+    @property
+    def name(self) -> str:
+        """Identifier recorded in run metadata."""
+        return "bar_coverage"
+
+    def evaluate(self, instrument: Instrument, at: Timestamp) -> RuleOutcome:
+        """Admit when the held fraction of the lookback's days clears the floor."""
+        history = self.histories.get(instrument.key)
+        if history is None:
+            return RuleOutcome.NOT_EVALUABLE
+        held = len(history.window_ending_at(at, self.lookback_days))
+        if self.lookback_days <= 0:
+            return RuleOutcome.NOT_EVALUABLE
+        fraction = Decimal(held) / Decimal(self.lookback_days)
+        return RuleOutcome.ADMIT if fraction >= self.minimum_fraction else RuleOutcome.REJECT

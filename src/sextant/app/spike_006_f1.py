@@ -89,6 +89,15 @@ MIN_MEDIAN_QUOTE_VOLUME = Notional(Decimal(250_000))
 FUNDING_TRAILING_DAYS = 30
 MIN_BAR_COVERAGE_FRACTION = Decimal("0.90")
 
+#: Section 6. The quote asset both legs are priced in, and the observation floor
+#: the turnover statistic needs before it is allowed to answer.
+QUOTE_ASSET = "USDT"
+TURNOVER_MIN_OBSERVATIONS = 20
+
+#: The longest lookback any registered variant reads: the 90-day funding sum of
+#: `carry-rank90-*`. Section 6 rule 6's bar-coverage window is measured over it.
+LONGEST_LOOKBACK_DAYS = 90
+
 #: The walk-forward shapes, section 7.
 IN_SAMPLE_MONTHS = 12
 FOLD_COUNT = 4

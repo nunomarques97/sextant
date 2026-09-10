@@ -68,6 +68,7 @@ from sextant.app.binance_archive import (
     MonthIndex,
     split_symbol,
 )
+from sextant.app.panels import fx_rates_from, reference_closes_from
 from sextant.app.spike import EXCLUDED_BASES
 from sextant.domain.instrument import Instrument, InstrumentKey
 from sextant.domain.listing import MembershipState
@@ -93,7 +94,6 @@ from sextant.engine.execution.fx import (
     CurrencyRouting,
     FxPolicy,
     FxRates,
-    FxRateUnavailable,
 )
 from sextant.engine.execution.markout import DelistingHaircut, SeriesEnd
 from sextant.engine.regime.segmentation import RegimeInputs, segment
@@ -512,36 +512,17 @@ def _executable_policy(
 
 
 def _fx_rates(panel: Mapping[str, tuple[PanelRow, ...]]) -> FxRates:
-    """Account-currency units per foreign unit, from the venue's own pair.
+    """The currency leg, from the shared reading in `app.panels`.
 
-    The pair is quoted as USDT per EUR, so the rate the engine wants - EUR per
-    USDT - is its reciprocal. Each observation is dated by the bar's *close*
-    time, never its open time: a rate is knowable when the bar that carries it
-    has finished forming.
+    Extracted so SEXTANT-006 takes it identically. A return in EUR in this task
+    and a return in EUR in that one must be the same quantity, and two copies of
+    a conversion are two chances to invert one of them.
     """
-    rows = panel.get(FX_SYMBOL)
-    if not rows:
-        raise ValueError(
-            f"No {FX_SYMBOL} series in the store. The currency leg cannot be priced, and "
-            "running without it would be the counterfactual wearing the label of the "
-            "measurement."
-        )
-    observations: dict[Timestamp, Decimal] = {}
-    for row in rows:
-        close = Decimal(row.close)
-        if close <= 0:
-            continue
-        opened = Timestamp.from_epoch_millis(row.open_time_ms)
-        observations[opened.plus(Timeframe.D1.duration)] = Decimal(1) / close
-    return FxRates.of(
+    return fx_rates_from(
+        panel,
+        symbol=FX_SYMBOL,
         foreign_currency=FOREIGN_CURRENCY,
         account_currency=ACCOUNT_CURRENCY,
-        observations=observations,
-        source=(
-            f"{FX_SYMBOL} daily closes from the venue's own public archive, inverted to give "
-            "account-currency units per foreign unit, dated by bar close. The pair is the "
-            "account's currency against the quote asset directly, so no proxy is assumed."
-        ),
     )
 
 
@@ -549,25 +530,8 @@ def _reference_closes(
     panel: Mapping[str, tuple[PanelRow, ...]],
     rates: FxRates,
 ) -> Mapping[Timestamp, Decimal]:
-    """The regime reference series, in the account's currency, dated by close."""
-    rows = panel.get(REGIME_SYMBOL)
-    if not rows:
-        raise ValueError(f"No {REGIME_SYMBOL} series in the store; regimes cannot be cut.")
-    closes: dict[Timestamp, Decimal] = {}
-    for row in rows:
-        close = Decimal(row.close)
-        if close <= 0:
-            continue
-        closed_at = Timestamp.from_epoch_millis(row.open_time_ms).plus(Timeframe.D1.duration)
-        try:
-            rate = rates.rate_at(closed_at)
-        except FxRateUnavailable:
-            # Before the FX series starts there is no rate, and inventing one
-            # would put a currency move into the regime cascade as though it
-            # were a price move. The reference series simply starts later.
-            continue
-        closes[closed_at] = close * rate
-    return closes
+    """The regime reference series, from the same shared reading."""
+    return reference_closes_from(panel, rates, symbol=REGIME_SYMBOL)
 
 
 # ---------------------------------------------------------------------------
