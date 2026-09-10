@@ -204,7 +204,7 @@ def _schedule(maker: Decimal, taker: Decimal, *, tier: str, source: str) -> FeeS
     return FeeSchedule(maker_bps=maker, taker_bps=taker, tier=tier, source=source)
 
 
-def _cell(spec: CellSpec) -> CostCell:
+def cell_from(spec: CellSpec) -> CostCell:
     """One registered cell, given the two venues its two schedules apply to."""
     return CostCell(
         spec=spec,
@@ -231,7 +231,7 @@ def _cell(spec: CellSpec) -> CostCell:
 
 def cost_cells() -> tuple[CostCell, ...]:
     """The four registered cells of section 8, in registration order."""
-    return tuple(_cell(spec) for spec in REGISTERED_CELLS)
+    return tuple(cell_from(spec) for spec in REGISTERED_CELLS)
 
 
 def sensitivity_cell() -> CostCell:
@@ -242,7 +242,7 @@ def sensitivity_cell() -> CostCell:
     and it is returned separately so that no loop over ``cost_cells`` can pick it
     up by accident.
     """
-    return _cell(execution_sensitivity())
+    return cell_from(execution_sensitivity())
 
 
 def cost_model(world: World, cell: CostCell) -> ItemisedCostModel:
@@ -371,6 +371,7 @@ __all__ = [
     "assumption_metadata",
     "band_floors",
     "build_engine",
+    "cell_from",
     "conversion_leg",
     "cost_cells",
     "cost_model",
