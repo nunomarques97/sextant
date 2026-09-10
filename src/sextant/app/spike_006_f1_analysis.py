@@ -28,10 +28,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import StrEnum
 
 from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
+    DEPTH_WINDOW_ENDS,
+    DEPTH_WINDOW_STARTS,
     EXECUTION_FEE_OF_EQUITY_BPS,
+    MINIMUM_DEPTH_MONTHS,
     MINIMUM_MONTHS_TO_PROCEED,
     RECENT_WINDOW_MONTHS,
     REGISTERED_VARIANTS,
@@ -664,6 +668,146 @@ def _signs_by_variant(
 
 
 # ---------------------------------------------------------------------------
+# Capacity: rule C3's decision, from series that already exist
+# ---------------------------------------------------------------------------
+
+
+class CapacityVerdict(StrEnum):
+    """What rule C3 decides for one variant. Four outcomes and no judgement call."""
+
+    UNESTABLISHED_TOO_FEW_MONTHS = "unestablished: too few scored months inside the depth window"
+    UNESTABLISHED_NO_EDGE_INSIDE = "unestablished: the variant did not earn inside the window"
+    MEASURED_WITH_A_CAVEAT = "measured, over a period in which the variant earned less than overall"
+    MEASURED = "measured, with its window"
+
+    @property
+    def needs_depth_data(self) -> bool:
+        """Whether reporting this outcome requires the order-book depth sample.
+
+        The point of asking. Two of the four outcomes are decided entirely by the
+        monthly return series and the depth window's calendar dates, and reporting
+        them needs no order-book data at all. Acquiring a depth sample to print the
+        word "unestablished" would be acquiring data the registered rule does not use.
+        """
+        return self in {CapacityVerdict.MEASURED, CapacityVerdict.MEASURED_WITH_A_CAVEAT}
+
+
+@dataclass(frozen=True, slots=True)
+class Capacity:
+    """Rule C3 for one variant: the two quantities and the outcome they force."""
+
+    variant: str
+    depth_months: int
+    months_outside: int
+    mean_inside: Decimal | None
+    mean_outside: Decimal | None
+    verdict: CapacityVerdict
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "variant": self.variant,
+            "depth_window": f"{DEPTH_WINDOW_STARTS}/{DEPTH_WINDOW_ENDS}",
+            "depth_months": self.depth_months,
+            "minimum_depth_months": MINIMUM_DEPTH_MONTHS,
+            "months_outside_the_depth_window": self.months_outside,
+            "mean_monthly_net_return_inside": None
+            if self.mean_inside is None
+            else str(self.mean_inside),
+            "mean_monthly_net_return_outside": None
+            if self.mean_outside is None
+            else str(self.mean_outside),
+            "verdict": self.verdict.value,
+            "requires_the_depth_sample": self.verdict.needs_depth_data,
+            "note": (
+                "Decided by rule C3's table from series that already exist. "
+                "UNESTABLISHED does not mean the strategy has no capacity; it means this "
+                "dataset cannot say what it is, which is the same class of statement as "
+                "invariant 9's not evaluable, and it is not softened."
+            ),
+        }
+
+
+def _inside_depth_window(at: Timestamp) -> bool:
+    """Whether a scored month's whole holding period lies inside the depth window.
+
+    Keyed on the month's OPENING instant and requiring the close to land inside too,
+    which is what "whole holding period" means. A month straddling either edge counts
+    as outside: a partially measurable month is not a measured one.
+    """
+    starts = Timestamp.parse(f"{DEPTH_WINDOW_STARTS}T00:00:00+00:00")
+    ends = Timestamp.parse(f"{DEPTH_WINDOW_ENDS}T00:00:00+00:00")
+    return starts <= at <= ends
+
+
+def _mean(values: Sequence[Decimal]) -> Decimal | None:
+    """The arithmetic mean, or None over nothing."""
+    if not values:
+        return None
+    return sum(values, Decimal(0)) / Decimal(len(values))
+
+
+def capacity_of(row: VariantRow, monthly: Sequence[tuple[Timestamp, Decimal]]) -> Capacity:
+    """Rule C3 applied to one variant, in the order the registered table states it."""
+    openings = opening_instants(monthly)
+    inside: list[Decimal] = []
+    outside: list[Decimal] = []
+    for closed_at, value in monthly:
+        opened_at = openings.get(closed_at)
+        if opened_at is None:
+            continue
+        target = (
+            inside
+            if _inside_depth_window(opened_at) and _inside_depth_window(closed_at)
+            else outside
+        )
+        target.append(value)
+    mean_inside, mean_outside = _mean(inside), _mean(outside)
+    if len(inside) < MINIMUM_DEPTH_MONTHS:
+        verdict = CapacityVerdict.UNESTABLISHED_TOO_FEW_MONTHS
+    elif mean_inside is None or mean_inside <= 0:
+        verdict = CapacityVerdict.UNESTABLISHED_NO_EDGE_INSIDE
+    elif mean_outside is not None and mean_outside > mean_inside:
+        verdict = CapacityVerdict.MEASURED_WITH_A_CAVEAT
+    else:
+        verdict = CapacityVerdict.MEASURED
+    return Capacity(
+        variant=row.variant,
+        depth_months=len(inside),
+        months_outside=len(outside),
+        mean_inside=mean_inside,
+        mean_outside=mean_outside,
+        verdict=verdict,
+    )
+
+
+def capacity_report(
+    payload: Mapping[str, object], rows: Sequence[VariantRow]
+) -> tuple[Capacity, ...]:
+    """Rule C3 for every variant in the headline cell."""
+    deterministic = _rows(payload, "deterministic")
+    series = {
+        (_text(item["construct"]), _text(item["cell_id"])): monthly_of(item)
+        for item in deterministic
+        if _text(item.get("kind")) == "variant"
+    }
+    return tuple(
+        capacity_of(row, series[(row.variant, row.cell)])
+        for row in rows
+        if (row.variant, row.cell) in series
+    )
+
+
+def depth_sample_is_needed(report: Sequence[Capacity]) -> bool:
+    """Whether any variant's C3 outcome requires the order-book depth sample.
+
+    The question the rule answers on its own. Acquiring a depth sample in order to
+    print "unestablished" would be acquiring data the registered rule does not read,
+    which is the opposite of the instruction to take the minimum the rule needs.
+    """
+    return any(item.verdict.needs_depth_data for item in report)
+
+
+# ---------------------------------------------------------------------------
 # The verdict
 # ---------------------------------------------------------------------------
 
@@ -765,6 +909,8 @@ __all__ = [
     "MINIMUM_MONTHS_PER_REGIME",
     "MINIMUM_REGIMES",
     "SELECTION_SHARE",
+    "Capacity",
+    "CapacityVerdict",
     "CostLines",
     "Criteria",
     "Decomposition",
@@ -773,6 +919,9 @@ __all__ = [
     "Verdict",
     "analyse",
     "break_even_of",
+    "capacity_of",
+    "capacity_report",
+    "depth_sample_is_needed",
     "monthly_of",
     "opening_instants",
     "regime_labels",

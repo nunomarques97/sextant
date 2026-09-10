@@ -68,7 +68,12 @@ from sextant.app.spike_006_f1 import (
     budget,
     registration_provenance,
 )
-from sextant.app.spike_006_f1_analysis import analyse, verdict
+from sextant.app.spike_006_f1_analysis import (
+    analyse,
+    capacity_report,
+    depth_sample_is_needed,
+    verdict,
+)
 from sextant.app.spike_006_f1_engine import (
     CostCell,
     assumption_metadata,
@@ -859,6 +864,17 @@ def execute(
     scored = payload["window"]
     months = int(str(scored["scored_months"])) if isinstance(scored, dict) else 0
     outcome = verdict(rows, headline_cell=_headline_label(), scored_months=months)
+    capacity = capacity_report(payload, rows)
+    payload["capacity"] = {
+        "rule": "C3, decided from series that already exist",
+        "per_variant": [item.as_json() for item in capacity],
+        "depth_sample_required": depth_sample_is_needed(capacity),
+        "why_it_matters": (
+            "The order-book depth sample is acquired only when rule C3 lands on a "
+            "measured outcome for at least one variant. Acquiring it to print the word "
+            "UNESTABLISHED would be acquiring data the registered rule does not read."
+        ),
+    }
     payload["variants"] = [row.as_json() for row in rows]
     payload["verdict"] = outcome.as_json()
     payload["seconds"] = time.monotonic() - started

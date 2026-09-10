@@ -29,10 +29,14 @@ import pytest
 
 from sextant.app.spike_006_f1 import ACCOUNT_EQUITY, EXECUTION_FEE_OF_EQUITY_BPS
 from sextant.app.spike_006_f1_analysis import (
+    Capacity,
+    CapacityVerdict,
     CostLines,
     ResultsIncomplete,
     analyse,
     break_even_of,
+    capacity_of,
+    depth_sample_is_needed,
     opening_instants,
     verdict,
 )
@@ -493,3 +497,72 @@ def test_the_f1_engine_is_built_with_the_registered_value(keyword: str, conseque
 
     source = inspect.getsource(spike_006_f1_engine.build_engine)
     assert keyword in source, f"build_engine must pass {keyword}, or {consequence}."
+
+
+# ---------------------------------------------------------------------------
+# Rule C3: capacity, decided from series that already exist
+# ---------------------------------------------------------------------------
+
+
+def _capacity(inside: str, outside: str, *, inside_months: int = 16) -> Capacity:
+    """One variant's C3 outcome for a given inside and outside monthly mean."""
+    series: list[tuple[Timestamp, Decimal]] = []
+    # Months whose whole holding period lies inside 2023-01-01..2024-05-17.
+    for index in range(inside_months + 1):
+        year, month = (2023, index + 1) if index < 12 else (2024, index - 11)
+        series.append((Timestamp.parse(f"{year}-{month:02d}-01T00:00:00+00:00"), Decimal(inside)))
+    # And a stretch clearly outside it.
+    for index in range(12):
+        series.append(
+            (Timestamp.parse(f"2021-{index + 1:02d}-01T00:00:00+00:00"), Decimal(outside))
+        )
+    rows = analyse(one_variant(terminal="0.10", sharpe_months="0.002", p95=0.1))
+    return capacity_of(rows[0], sorted(series, key=lambda item: item[0]))
+
+
+def test_a_variant_that_earned_nothing_inside_the_window_is_unestablished() -> None:
+    """C3's second row. No edge inside means no capacity there to report."""
+    outcome = _capacity("-0.01", "0.05")
+    assert outcome.verdict is CapacityVerdict.UNESTABLISHED_NO_EDGE_INSIDE
+    assert outcome.verdict.needs_depth_data is False
+
+
+def test_too_few_months_inside_the_window_is_unestablished() -> None:
+    """C3's first row, and the floor is twelve."""
+    outcome = _capacity("0.01", "0.01", inside_months=6)
+    assert outcome.verdict is CapacityVerdict.UNESTABLISHED_TOO_FEW_MONTHS
+    assert outcome.depth_months < 12
+    assert outcome.verdict.needs_depth_data is False
+
+
+def test_earning_less_inside_the_window_is_measured_with_the_sentence_beside_it() -> None:
+    """C3's third row: measured, and the caveat travels with the number."""
+    outcome = _capacity("0.01", "0.05")
+    assert outcome.verdict is CapacityVerdict.MEASURED_WITH_A_CAVEAT
+    assert outcome.verdict.needs_depth_data is True
+
+
+def test_earning_at_least_as_much_inside_the_window_is_measured() -> None:
+    outcome = _capacity("0.05", "0.01")
+    assert outcome.verdict is CapacityVerdict.MEASURED
+    assert outcome.verdict.needs_depth_data is True
+
+
+def test_unestablished_is_never_reported_as_a_capacity_of_zero() -> None:
+    """A dataset that cannot say is not a strategy that cannot scale."""
+    payload = _capacity("-0.01", "0.05").as_json()
+    assert "unestablished" in str(payload["verdict"])
+    assert "does not mean the strategy has no capacity" in str(payload["note"])
+
+
+def test_the_depth_window_travels_with_every_capacity_figure() -> None:
+    """Rule C1: no capacity figure in the report omits its window."""
+    payload = _capacity("0.05", "0.01").as_json()
+    assert payload["depth_window"] == "2023-01-01/2024-05-17"
+
+
+def test_the_depth_sample_is_needed_only_when_something_is_measurable() -> None:
+    """The question that decides whether any order-book data is acquired at all."""
+    assert depth_sample_is_needed([_capacity("-0.01", "0.05")]) is False
+    assert depth_sample_is_needed([_capacity("0.05", "0.01")]) is True
+    assert depth_sample_is_needed([_capacity("-0.01", "0.05"), _capacity("0.05", "0.01")]) is True
