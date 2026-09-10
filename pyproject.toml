@@ -93,6 +93,12 @@ ignore = [
 # malformed listing from AWS, which fails closed as ArchiveError.
 "src/sextant/adapters/exchanges/binance/archive.py" = ["S314"]
 "src/sextant/app/binance_pipeline.py" = ["T20"]
+# SEXTANT-006 acquisition: same long-running batch job, same interface.
+"src/sextant/app/futures_archive.py" = ["T20"]
+"src/sextant/app/futures_pipeline.py" = ["T20"]
+# Same S314 reasoning as the spot reader: the only XML here is the same public
+# S3 bucket listing over TLS, and a malformed listing fails closed as ArchiveError.
+"src/sextant/adapters/exchanges/binance/futures_archive.py" = ["S314"]
 "src/sextant/app/spike_005.py" = ["T20"]
 "src/sextant/app/spike_005_run.py" = ["T20"]
 "src/sextant/app/spike_005_report.py" = ["T20"]

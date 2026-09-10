@@ -113,6 +113,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Override the pre-registered seed count. For a smoke run only: a "
         "published result uses the registered count.",
     )
+    futures = subparsers.add_parser(
+        "futures",
+        help="SEXTANT-006: acquire the Binance USD-margined futures archive whole - "
+        "funding, perpetual bars and the premium index. Index and fetch reach the network.",
+    )
+    futures.add_argument(
+        "stage",
+        choices=("index", "fetch", "ingest", "calendar", "all"),
+        help="Which stage to run. Each is separately runnable and idempotent.",
+    )
     subparsers.add_parser(
         "snapshot-universe",
         help="Record today's venue membership so future delistings need no "
@@ -266,6 +276,14 @@ def _command_binance(stage: str) -> int:
     return EXIT_OK
 
 
+def _command_futures(stage: str) -> int:
+    """SEXTANT-006 acquisition. Each stage is idempotent and resumable."""
+    from sextant.app import futures_pipeline
+
+    futures_pipeline.run_stage(stage)
+    return EXIT_OK
+
+
 def _command_spike_005(stage: str, seeds: int | None) -> int:
     """SEXTANT-005. `run` executes the grid; `report` renders what it wrote."""
     if stage == "run":
@@ -293,6 +311,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _command_benchmark(args.stage, args.seeds)
         if args.command == "binance":
             return _command_binance(args.stage)
+        if args.command == "futures":
+            return _command_futures(args.stage)
         if args.command == "spike-005":
             return _command_spike_005(args.stage, args.seeds)
         if args.command == "snapshot-universe":
