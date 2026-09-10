@@ -264,15 +264,32 @@ class HttpTransport:
         return payload
 
     def _get(self, path: str, params: Mapping[str, str], *, cost: float) -> httpx.Response:
+        """One GET, rate-limited, journalled and retried.
+
+        **An empty parameter mapping is not passed to the client.** httpx treats
+        an explicit ``params=`` argument as the whole query and discards whatever
+        the URL already carried, so ``get(url_with_a_query, params={})`` silently
+        requests ``url_without_its_query``. Every caller that builds a complete
+        URL and supplies no parameters - which is every archive listing in this
+        project - was therefore having its query string deleted, and an S3
+        listing with no ``prefix`` answers with the top of the bucket rather than
+        with an error. That is precisely the failure invariant 10 exists to
+        forbid: a request that failed, returning as an empty result nobody can
+        distinguish from a genuinely empty answer.
+
+        The guard is the ``if query`` below, and
+        ``tests/unit/test_http_transport.py`` pins it.
+        """
         url = path if path.startswith("http") else f"{self.base_url}/{path.lstrip('/')}"
-        recorded = tuple(sorted((key, str(value)) for key, value in params.items()))
+        query = dict(params)
+        recorded = tuple(sorted((key, str(value)) for key, value in query.items()))
         last_detail = "no attempt was made"
 
         for attempt in range(1, self._max_attempts + 1):
             self._limiter.acquire(cost)
             requested_at = utc_now()
             try:
-                response = self._client.get(url, params=dict(params))
+                response = self._client.get(url, params=query) if query else self._client.get(url)
             except httpx.HTTPError as exc:
                 last_detail = f"{type(exc).__name__}: {exc}"
                 self._journal.append(

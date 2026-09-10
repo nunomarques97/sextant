@@ -247,6 +247,7 @@ class BinanceDataArchive:
             if marker is not None:
                 url += f"&marker={quote(marker, safe='')}"
             root = ElementTree.fromstring(self._transport.get_bytes(url))
+            _assert_prefix_echoed(root, prefix)
             yield root
             truncated = root.findtext(f"{_S3_NS}IsTruncated")
             if truncated != "true":
@@ -323,6 +324,24 @@ class BinanceDataArchive:
         _verify_zip(payload, item)
         destination.write_bytes(payload)
         return hashlib.sha256(payload).hexdigest()
+
+
+def _assert_prefix_echoed(root: ElementTree.Element, prefix: str) -> None:
+    """Refuse a listing that answers a question we did not ask.
+
+    S3 echoes the ``Prefix`` it was given. A response echoing a different one is
+    an answer to a different request - which is what happens when a query string
+    is lost between here and the wire - and its contents would be the top of the
+    bucket rather than this symbol's months. Without this check that arrives as
+    an empty or wrong result, indistinguishable from a symbol the archive does
+    not carry, which is exactly the collapse invariant 10 forbids.
+    """
+    echoed = root.findtext(f"{_S3_NS}Prefix")
+    if echoed is None or echoed != prefix:
+        raise ArchiveError(
+            f"The bucket was asked for prefix {prefix!r} and answered about {echoed!r}. "
+            "A listing that answers a different question is not an empty listing."
+        )
 
 
 def _verify_zip(payload: bytes, item: MonthlyFile) -> None:
