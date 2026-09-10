@@ -102,6 +102,16 @@ class CarryAllocator(Protocol):
     @property
     def is_cross_sectional(self) -> bool: ...
 
+    @property
+    def positions(self) -> int:
+        """The REGISTERED position count, which is every construct's denominator."""
+        ...
+
+    @property
+    def margin_fraction(self) -> Decimal:
+        """What one pair consumes beyond its spot leg, as a fraction of it."""
+        ...
+
     def allocate(
         self,
         candidates: Sequence[Instrument],
@@ -466,6 +476,16 @@ class CadencedCarry:
         return self.inner.is_cross_sectional
 
     @property
+    def positions(self) -> int:
+        """The wrapped variant's registered position count, unchanged."""
+        return self.inner.positions
+
+    @property
+    def margin_fraction(self) -> Decimal:
+        """The wrapped variant's margin fraction, unchanged."""
+        return self.inner.margin_fraction
+
+    @property
     def rebalance_count(self) -> int:
         """How many times the signal was actually consulted.
 
@@ -713,9 +733,13 @@ class SelectionOnlyCarry:
     fully invested this is the variant itself and the two series are identical,
     which is the correct answer and is reported as such rather than hidden: only
     ``carry-positive-10`` can stand aside, so only it can differ here.
+
+    A cadenced variant is accepted too, and for it the construct is the carried book
+    scaled to full investment rather than a fresh selection: the effect being isolated
+    is the one the variant actually had, cadence included.
     """
 
-    inner: CashAndCarry
+    inner: CarryAllocator
 
     @property
     def name(self) -> str:

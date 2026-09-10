@@ -1,0 +1,692 @@
+"""Reducing F1's result file to the six criteria and the verdict's inputs.
+
+Pure over the **saved JSON**, not over the live run. That is deliberate and it is
+the one design decision in this module worth arguing for: the grid costs hours of
+wall clock, and an analysis that could only run inside it would make every reporting
+fix cost another night. Everything here is recomputable from
+``research/spike-006-f1.json`` alone, which is also what makes the file a thing a
+competent stranger can check rather than a thing they have to trust.
+
+Nothing here decides anything. Every threshold arrives from
+:mod:`sextant.app.spike_006_f1`; every criterion is section 11's, in section 11's
+words; and a criterion that cannot be evaluated answers ``None`` rather than
+``False``. The difference matters: ``False`` says the variant failed, ``None`` says
+the data could not say, and collapsing them is how a (C) becomes a (B).
+
+Why the statistics are recomputed rather than read
+--------------------------------------------------
+
+The Deflated Sharpe Ratio needs skewness, kurtosis and the per-observation Sharpe.
+Those are recomputed here from the monthly return series the file carries, rather
+than stored alongside it, so there is exactly one path from returns to statistics
+and no chance of a stored summary describing a different series than the one printed
+beside it.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from decimal import Decimal
+
+from sextant.app.spike_006_f1 import (
+    MINIMUM_MONTHS_TO_PROCEED,
+    RECENT_WINDOW_MONTHS,
+    REGISTERED_VARIANTS,
+)
+from sextant.app.spike_006_f1_engine import recent_window, statistics_of
+from sextant.domain.time import Timestamp
+from sextant.engine.regime.segmentation import Regime, conclusive
+from sextant.engine.statistics.dsr import DeflatedSharpeResult, deflated_sharpe_ratio
+from sextant.engine.statistics.independence import (
+    MINIMUM_EFFECTIVE_OBSERVATIONS,
+    independence_of,
+)
+from sextant.engine.statistics.metrics import PerformanceStatistics
+
+#: Criterion 2's threshold, section 11.
+DSR_THRESHOLD = 0.95
+
+#: Criterion 3's threshold: the share of the combined excess the selection effect
+#: must account for.
+SELECTION_SHARE = Decimal("0.50")
+
+#: Criterion 4's thresholds.
+MINIMUM_REGIMES = 3
+MINIMUM_MONTHS_PER_REGIME = 6
+
+#: The percentile every null is read at for criteria 1 and 6.
+NULL_PERCENTILE = "95.0"
+
+#: The construct suffixes the decomposition reads.
+SELECTION_ONLY = "selection-only"
+TIMING_NULL = "timing-null"
+EXPOSURE_MATCHED = "exposure-matched"
+EQUAL_WEIGHT_PASSIVE = "equal-weight-passive"
+
+
+class ResultsIncomplete(RuntimeError):
+    """The result file does not carry what a criterion needs. Nothing is guessed."""
+
+
+# ---------------------------------------------------------------------------
+# Reading the file
+# ---------------------------------------------------------------------------
+
+
+def _rows(payload: Mapping[str, object], key: str) -> tuple[Mapping[str, object], ...]:
+    """One list of records out of the result file, as typed mappings."""
+    value = payload.get(key)
+    if not isinstance(value, list):
+        raise ResultsIncomplete(f"{key} is not a list in the result file.")
+    out: list[Mapping[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ResultsIncomplete(f"an entry of {key} is not a record.")
+        out.append({str(name): field for name, field in item.items()})
+    return tuple(out)
+
+
+def _text(value: object) -> str:
+    """A scalar as text, so nothing depends on how JSON typed it."""
+    return str(value)
+
+
+def _decimal(value: object) -> Decimal:
+    """A money or return figure, exactly as it was written."""
+    return Decimal(_text(value))
+
+
+def _optional_float(value: object) -> float | None:
+    """A statistic that may legitimately be absent."""
+    return None if value is None else float(_text(value))
+
+
+def monthly_of(row: Mapping[str, object]) -> tuple[tuple[Timestamp, Decimal], ...]:
+    """The monthly net return series of one run, in instant order."""
+    raw = row.get("monthly_returns")
+    if not isinstance(raw, dict):
+        raise ResultsIncomplete(f"{row.get('construct')} carries no monthly returns.")
+    series = [(Timestamp.parse(str(at)), Decimal(str(value))) for at, value in raw.items()]
+    return tuple(sorted(series, key=lambda item: item[0]))
+
+
+def opening_instants(
+    monthly: Sequence[tuple[Timestamp, Decimal]],
+) -> Mapping[Timestamp, Timestamp]:
+    """For each closing instant, the instant its holding period opened.
+
+    A month's return is keyed by the instant it closed; its regime is the label
+    that was knowable when the position was opened. Keying the regime to the close
+    would let a month be attributed to a state that only became visible after the
+    decision, which is the look-ahead the cascade exists to avoid.
+    """
+    instants = [at for at, _ in monthly]
+    return {instants[index]: instants[index - 1] for index in range(1, len(instants))}
+
+
+def regime_labels(payload: Mapping[str, object]) -> Mapping[Timestamp, str]:
+    """The cascade's label at every instant it classified."""
+    return {
+        Timestamp.parse(_text(row["at"])): _text(row["regime"]) for row in _rows(payload, "regimes")
+    }
+
+
+# ---------------------------------------------------------------------------
+# One variant in one cell
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Decomposition:
+    """Where a variant's return came from, section 10's four ways."""
+
+    combined: Decimal
+    timing_effect: Decimal | None
+    selection_effect: Decimal | None
+    funding: Decimal
+    gross: Decimal
+    costs: Decimal
+
+    @property
+    def funding_share(self) -> Decimal | None:
+        """Funding as a share of the combined net return, or None at zero net."""
+        if self.combined == 0:
+            return None
+        return self.funding / self.combined
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "combined_net_return": str(self.combined),
+            "timing_effect_net_return": None
+            if self.timing_effect is None
+            else str(self.timing_effect),
+            "selection_effect_net_return": None
+            if self.selection_effect is None
+            else str(self.selection_effect),
+            "funding_received_net": str(self.funding),
+            "gross_pnl": str(self.gross),
+            "total_costs": str(self.costs),
+            "funding_share_of_combined": None
+            if self.funding_share is None
+            else str(self.funding_share),
+            "note": (
+                "Funding is the return, not a cost line. A share above one means the "
+                "funding stream earned more than the book kept, and the difference is "
+                "basis and costs."
+            ),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class Criteria:
+    """Section 11's six criteria for one variant in one cell, each answered."""
+
+    beats_exposure_matched_null: bool | None
+    survives_deflation: bool | None
+    win_is_selection: bool | None
+    regime_stability: bool | None
+    sign_stable_across_cells: bool | None
+    recent_window_holds: bool | None
+    regimes_positive: int
+    regimes_countable: tuple[str, ...]
+    effective_observations: float
+
+    @property
+    def answered(self) -> tuple[bool | None, ...]:
+        return (
+            self.beats_exposure_matched_null,
+            self.survives_deflation,
+            self.win_is_selection,
+            self.regime_stability,
+            self.sign_stable_across_cells,
+            self.recent_window_holds,
+        )
+
+    @property
+    def all_hold(self) -> bool:
+        """True only when every one of the six is answered True."""
+        return all(item is True for item in self.answered)
+
+    @property
+    def effective_observations_met(self) -> bool:
+        return self.effective_observations >= MINIMUM_EFFECTIVE_OBSERVATIONS
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "1_beats_exposure_matched_null_and_is_positive": self.beats_exposure_matched_null,
+            "2_survives_deflation": self.survives_deflation,
+            "3_win_is_selection": self.win_is_selection,
+            "4_regime_stability": self.regime_stability,
+            "4_regimes_positive": self.regimes_positive,
+            "4_regimes_countable": list(self.regimes_countable),
+            "5_sign_stable_across_cost_regimes": self.sign_stable_across_cells,
+            "6_recent_window_holds": self.recent_window_holds,
+            "all_six_hold": self.all_hold,
+            "effective_observations": self.effective_observations,
+            "effective_observations_floor": MINIMUM_EFFECTIVE_OBSERVATIONS,
+            "effective_observations_met": self.effective_observations_met,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class VariantRow:
+    """Everything the report prints for one variant in one cell."""
+
+    variant: str
+    cell: str
+    fill_mix: str
+    rebalances: int | None
+    idle_months: int | None
+    net_return: Decimal
+    statistics: PerformanceStatistics | None
+    recent_statistics: PerformanceStatistics | None
+    recent_months: int
+    recent_net_return: Decimal
+    null_p95: float | None
+    recent_null_p95: float | None
+    deflated: DeflatedSharpeResult | None
+    decomposition: Decomposition
+    regime_returns: Mapping[str, tuple[Decimal, int]]
+    criteria: Criteria
+
+    @property
+    def sharpe(self) -> float | None:
+        return None if self.statistics is None else self.statistics.sharpe_annualised
+
+    def as_json(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "variant": self.variant,
+            "cell_id": self.cell,
+            "fill_mix": self.fill_mix,
+            "net_return": str(self.net_return),
+            "sharpe_annualised": self.sharpe,
+            "sharpe_standard_error": (
+                None if self.statistics is None else self.statistics.sharpe_standard_error
+            ),
+            "observations": None if self.statistics is None else self.statistics.observations,
+            "skewness": None if self.statistics is None else self.statistics.skewness,
+            "kurtosis": None if self.statistics is None else self.statistics.kurtosis,
+            "exposure_matched_null_p95": self.null_p95,
+            "recent_window": {
+                "months": self.recent_months,
+                "net_return": str(self.recent_net_return),
+                "sharpe_annualised": (
+                    None
+                    if self.recent_statistics is None
+                    else self.recent_statistics.sharpe_annualised
+                ),
+                "null_p95_same_draws": self.recent_null_p95,
+            },
+            "deflated_sharpe": None if self.deflated is None else _dsr_json(self.deflated),
+            "decomposition": self.decomposition.as_json(),
+            "regime_returns": {
+                label: {"net_return": str(value), "months": months}
+                for label, (value, months) in sorted(self.regime_returns.items())
+            },
+            "criteria": self.criteria.as_json(),
+        }
+        if self.rebalances is not None:
+            payload["rebalances"] = self.rebalances
+            payload["rebalance_count_note"] = (
+                f"{self.rebalances} rebalances, against roughly three times that for its "
+                "monthly siblings on the same window. Section 28.3 requires this figure "
+                "beside the result wherever the result appears."
+            )
+        if self.idle_months is not None:
+            payload["idle_months_before_first_rebalance"] = self.idle_months
+        return payload
+
+
+def _dsr_json(result: DeflatedSharpeResult) -> dict[str, object]:
+    """Every input to the DSR beside its output.
+
+    The DSR is one number that four assumptions feed into - the trial count, the
+    measured variance of the trial Sharpes, the observation count and the shape of
+    the return distribution - and a report showing only the output invites exactly
+    the argument this project exists to avoid.
+    """
+    return {
+        "trials": result.trials,
+        "trial_sharpe_variance": result.trial_sharpe_variance,
+        "expected_maximum_sharpe_per_period": result.expected_maximum_sharpe_per_period,
+        "probabilistic_sharpe_ratio": result.probabilistic_sharpe_ratio,
+        "deflated_sharpe_ratio": result.deflated_sharpe_ratio,
+        "threshold": DSR_THRESHOLD,
+        "observations": result.observations,
+        "skewness": result.skewness,
+        "kurtosis": result.kurtosis,
+        "autocorrelation_corrected": result.autocorrelation_corrected,
+    }
+
+
+# ---------------------------------------------------------------------------
+# The reductions
+# ---------------------------------------------------------------------------
+
+
+def _percentile(row: Mapping[str, object] | None, block: str) -> float | None:
+    """The registered percentile out of one null's summary, or None if absent."""
+    if row is None:
+        return None
+    sharpe = row.get(block)
+    if not isinstance(sharpe, dict):
+        return None
+    percentiles = sharpe.get("percentiles")
+    if not isinstance(percentiles, dict):
+        return None
+    entry = percentiles.get(NULL_PERCENTILE)
+    if not isinstance(entry, dict):
+        return None
+    return _optional_float(entry.get("value"))
+
+
+def _variance(row: Mapping[str, object] | None) -> float | None:
+    """The measured variance of the null's Sharpe distribution, the DSR's input."""
+    if row is None:
+        return None
+    sharpe = row.get("sharpe")
+    if not isinstance(sharpe, dict):
+        return None
+    return _optional_float(sharpe.get("variance"))
+
+
+def _costs_of(row: Mapping[str, object]) -> tuple[Decimal, Decimal, Decimal]:
+    """The gross, the funding line and the total cost of one run.
+
+    Funding is returned as a *receipt*: the ledger records a positive funding cost
+    when the book paid and a negative one when it was paid, so the sign is flipped
+    here and the field is named for what it is.
+    """
+    costs = row.get("costs")
+    if not isinstance(costs, dict):
+        raise ResultsIncomplete(f"{row.get('construct')} carries no cost breakdown.")
+    funding_paid = _decimal(costs.get("funding", "0"))
+    total = _decimal(costs.get("total", "0"))
+    gross = _decimal(row.get("gross_pnl", "0"))
+    return gross, -funding_paid, total
+
+
+def _regime_returns(
+    monthly: Sequence[tuple[Timestamp, Decimal]], labels: Mapping[Timestamp, str]
+) -> dict[str, tuple[Decimal, int]]:
+    """Compounded net return and month count per regime, keyed by the opening label."""
+    openings = opening_instants(monthly)
+    grouped: dict[str, tuple[Decimal, int]] = {}
+    for closed_at, value in monthly:
+        opened_at = openings.get(closed_at)
+        if opened_at is None:
+            continue
+        label = labels.get(opened_at)
+        if label is None:
+            continue
+        product, count = grouped.get(label, (Decimal(1), 0))
+        grouped[label] = (product * (Decimal(1) + value), count + 1)
+    return {label: (product - Decimal(1), count) for label, (product, count) in grouped.items()}
+
+
+def _compound(monthly: Sequence[tuple[Timestamp, Decimal]]) -> Decimal:
+    """The compounded net return of a slice of a monthly series."""
+    product = Decimal(1)
+    for _, value in monthly:
+        product *= Decimal(1) + value
+    return product - Decimal(1)
+
+
+def _criteria(
+    *,
+    statistics: PerformanceStatistics | None,
+    net_return: Decimal,
+    null_p95: float | None,
+    deflated: DeflatedSharpeResult | None,
+    decomposition: Decomposition,
+    regimes: Mapping[str, tuple[Decimal, int]],
+    passive_regimes: Mapping[str, tuple[Decimal, int]],
+    countable: tuple[str, ...],
+    sign_stable: bool | None,
+    recent_statistics: PerformanceStatistics | None,
+    recent_net_return: Decimal,
+    recent_null_p95: float | None,
+    effective: float,
+) -> Criteria:
+    """Section 11's six, each answered True, False or None."""
+    sharpe = None if statistics is None else statistics.sharpe_annualised
+    one = None if sharpe is None or null_p95 is None else bool(sharpe > null_p95 and net_return > 0)
+    two = None if deflated is None else deflated.deflated_sharpe_ratio >= DSR_THRESHOLD
+
+    selection = decomposition.selection_effect
+    three: bool | None = None
+    if selection is not None:
+        if decomposition.combined <= 0:
+            three = False
+        else:
+            three = bool(selection > 0 and selection >= decomposition.combined * SELECTION_SHARE)
+
+    positive = sum(
+        1
+        for label, (value, months) in regimes.items()
+        if label in countable and months >= MINIMUM_MONTHS_PER_REGIME and value > 0
+    )
+    never_worse = all(
+        value >= passive_regimes.get(label, (Decimal(0), 0))[0]
+        for label, (value, months) in regimes.items()
+        if label in countable and months >= MINIMUM_MONTHS_PER_REGIME
+    )
+    four = (positive >= MINIMUM_REGIMES and never_worse) if countable else None
+
+    recent_sharpe = None if recent_statistics is None else recent_statistics.sharpe_annualised
+    six = (
+        None
+        if recent_sharpe is None or recent_null_p95 is None
+        else bool(recent_sharpe > recent_null_p95 and recent_net_return > 0)
+    )
+    return Criteria(
+        beats_exposure_matched_null=one,
+        survives_deflation=two,
+        win_is_selection=three,
+        regime_stability=four,
+        sign_stable_across_cells=sign_stable,
+        recent_window_holds=six,
+        regimes_positive=positive,
+        regimes_countable=countable,
+        effective_observations=effective,
+    )
+
+
+def analyse(payload: Mapping[str, object]) -> tuple[VariantRow, ...]:
+    """Every variant in every cell, reduced to the numbers the verdict needs."""
+    deterministic = _rows(payload, "deterministic")
+    nulls = _rows(payload, "nulls")
+    labels = regime_labels(payload)
+    trials = payload.get("trials")
+    if not isinstance(trials, dict):
+        raise ResultsIncomplete("the result file carries no trial count.")
+    trial_count = int(_text(trials["including_nulls"]))
+
+    by_key = {(_text(row["construct"]), _text(row["cell_id"])): row for row in deterministic}
+    nulls_by_key = {(_text(row["construct"]), _text(row["cell_id"])): row for row in nulls}
+    scored_counts = _scored_counts(payload)
+    countable = tuple(sorted(regime.value for regime in conclusive(scored_counts)))
+
+    signs = _signs_by_variant(deterministic)
+    rows: list[VariantRow] = []
+    for row in deterministic:
+        if _text(row.get("kind")) != "variant":
+            continue
+        variant, cell = _text(row["construct"]), _text(row["cell_id"])
+        monthly = monthly_of(row)
+        statistics = statistics_of(monthly)
+        trailing = recent_window(monthly, RECENT_WINDOW_MONTHS)
+        null = nulls_by_key.get((f"{variant}/{EXPOSURE_MATCHED}", cell))
+        variance = _variance(null)
+        deflated = (
+            deflated_sharpe_ratio(statistics, trials=trial_count, trial_sharpe_variance=variance)
+            if statistics is not None and variance is not None
+            else None
+        )
+        gross, funding, costs = _costs_of(row)
+        selection = by_key.get((f"{variant}/{SELECTION_ONLY}", cell))
+        timing = by_key.get((f"{variant}/{TIMING_NULL}", cell))
+        decomposition = Decomposition(
+            combined=_decimal(row["terminal_return"]),
+            timing_effect=None if timing is None else _decimal(timing["terminal_return"]),
+            selection_effect=None if selection is None else _decimal(selection["terminal_return"]),
+            funding=funding,
+            gross=gross,
+            costs=costs,
+        )
+        passive = by_key.get((EQUAL_WEIGHT_PASSIVE, cell))
+        regimes = _regime_returns(monthly, labels)
+        passive_regimes = {} if passive is None else _regime_returns(monthly_of(passive), labels)
+        rows.append(
+            VariantRow(
+                variant=variant,
+                cell=cell,
+                fill_mix=_text(row["fill_mix"]),
+                rebalances=None if row.get("rebalances") is None else int(_text(row["rebalances"])),
+                idle_months=(
+                    None
+                    if row.get("idle_months_before_first_rebalance") is None
+                    else int(_text(row["idle_months_before_first_rebalance"]))
+                ),
+                net_return=_decimal(row["terminal_return"]),
+                statistics=statistics,
+                recent_statistics=statistics_of(trailing),
+                recent_months=len(trailing),
+                recent_net_return=_compound(trailing),
+                null_p95=_percentile(null, "sharpe"),
+                recent_null_p95=_percentile(null, "recent_window_sharpe"),
+                deflated=deflated,
+                decomposition=decomposition,
+                regime_returns=regimes,
+                criteria=_criteria(
+                    statistics=statistics,
+                    net_return=_decimal(row["terminal_return"]),
+                    null_p95=_percentile(null, "sharpe"),
+                    deflated=deflated,
+                    decomposition=decomposition,
+                    regimes=regimes,
+                    passive_regimes=passive_regimes,
+                    countable=countable,
+                    sign_stable=signs.get(variant),
+                    recent_statistics=statistics_of(trailing),
+                    recent_net_return=_compound(trailing),
+                    recent_null_p95=_percentile(null, "recent_window_sharpe"),
+                    effective=independence_of(
+                        [float(value) for _, value in monthly]
+                    ).effective_observations,
+                ),
+            )
+        )
+    return tuple(rows)
+
+
+def _scored_counts(payload: Mapping[str, object]) -> Mapping[Regime, int]:
+    """Month counts per regime over the scored window, as the enum."""
+    raw = payload.get("regime_month_counts_scored")
+    if not isinstance(raw, dict):
+        raise ResultsIncomplete("the result file carries no scored regime month counts.")
+    return {Regime(str(label)): int(str(count)) for label, count in raw.items()}
+
+
+def _signs_by_variant(
+    deterministic: Sequence[Mapping[str, object]],
+) -> Mapping[str, bool | None]:
+    """Criterion 5: whether a variant's net return keeps its sign in all four cells.
+
+    ``None`` when the variant was not run in all four, because "the sign held in the
+    three cells we have" is not the criterion that was registered.
+    """
+    expected = {spec.label for spec in REGISTERED_VARIANTS}
+    grouped: dict[str, list[Decimal]] = {}
+    cells: dict[str, set[str]] = {}
+    for row in deterministic:
+        if _text(row.get("kind")) != "variant":
+            continue
+        variant = _text(row["construct"])
+        if variant not in expected:
+            continue
+        grouped.setdefault(variant, []).append(_decimal(row["terminal_return"]))
+        cells.setdefault(variant, set()).add(_text(row["cell_id"]))
+    out: dict[str, bool | None] = {}
+    for variant, returns in grouped.items():
+        if len(cells[variant]) < 4:
+            out[variant] = None
+            continue
+        out[variant] = all(value > 0 for value in returns) or all(value < 0 for value in returns)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# The verdict
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Verdict:
+    """Which of (A), (B) or (C) the numbers support, and why."""
+
+    letter: str
+    reason: str
+    clearing_criterion_one: tuple[str, ...]
+    clearing_all_six: tuple[str, ...]
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "letter": self.letter,
+            "reason": self.reason,
+            "variants_clearing_criterion_1": list(self.clearing_criterion_one),
+            "variants_clearing_all_six": list(self.clearing_all_six),
+        }
+
+
+def verdict(rows: Sequence[VariantRow], *, headline_cell: str, scored_months: int) -> Verdict:
+    """Section 11's verdict rule, applied without discretion.
+
+    (B) when nothing clears criterion 1. (C) when something clears criterion 1 but
+    not all six, or the window is too short, or every variant that cleared criterion
+    1 has too few effective observations. (A) only when a variant clears all six and
+    none of the (C) conditions bites. A (B) or a (C) is never presented as a
+    softened (A), and this function is the only place the letter is chosen.
+    """
+    headline = [row for row in rows if row.cell == headline_cell]
+    ones = tuple(
+        sorted(row.variant for row in headline if row.criteria.beats_exposure_matched_null)
+    )
+    alls = tuple(sorted(row.variant for row in headline if row.criteria.all_hold))
+    if scored_months < MINIMUM_MONTHS_TO_PROCEED:
+        return Verdict(
+            letter="C",
+            reason=(
+                f"The resolved window carries {scored_months} scored months against the "
+                f"registered floor of {MINIMUM_MONTHS_TO_PROCEED}. Section 7 makes that a (C) "
+                "whatever the returns say."
+            ),
+            clearing_criterion_one=ones,
+            clearing_all_six=alls,
+        )
+    if not ones:
+        return Verdict(
+            letter="B",
+            reason=(
+                "No variant's out-of-sample net Sharpe exceeded the 95th percentile of its "
+                "own exposure-matched null while also earning a positive net return, in the "
+                "headline cell. Criterion 1 is the floor and nothing reached it."
+            ),
+            clearing_criterion_one=ones,
+            clearing_all_six=alls,
+        )
+    thin = [
+        row
+        for row in headline
+        if row.criteria.beats_exposure_matched_null and not row.criteria.effective_observations_met
+    ]
+    if len(thin) == len(ones):
+        return Verdict(
+            letter="C",
+            reason=(
+                "Every variant that cleared criterion 1 has fewer effective observations than "
+                f"the registered floor of {MINIMUM_EFFECTIVE_OBSERVATIONS}, so the data cannot "
+                "distinguish the edge from noise however the other criteria read."
+            ),
+            clearing_criterion_one=ones,
+            clearing_all_six=alls,
+        )
+    if not alls:
+        return Verdict(
+            letter="C",
+            reason=(
+                f"{len(ones)} variant(s) cleared criterion 1 but none cleared all six. The "
+                "result is a partial signal the registered criteria do not accept, which is "
+                "(C) and not a weaker (A)."
+            ),
+            clearing_criterion_one=ones,
+            clearing_all_six=alls,
+        )
+    return Verdict(
+        letter="A",
+        reason=(
+            f"{len(alls)} variant(s) cleared all six registered criteria in the headline cell "
+            "with sufficient effective observations."
+        ),
+        clearing_criterion_one=ones,
+        clearing_all_six=alls,
+    )
+
+
+__all__ = [
+    "DSR_THRESHOLD",
+    "MINIMUM_MONTHS_PER_REGIME",
+    "MINIMUM_REGIMES",
+    "SELECTION_SHARE",
+    "Criteria",
+    "Decomposition",
+    "ResultsIncomplete",
+    "VariantRow",
+    "Verdict",
+    "analyse",
+    "monthly_of",
+    "opening_instants",
+    "regime_labels",
+    "verdict",
+]

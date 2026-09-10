@@ -136,10 +136,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     f1.add_argument(
         "stage",
-        choices=("verify", "ordering", "dataset"),
+        choices=("verify", "ordering", "dataset", "run"),
         help="`verify` runs the drift guard and the commit gate; `ordering` prints the "
         "audit lines the report quotes, and is rerun after the results are committed; "
-        "`dataset` measures the acquisition and writes pre-registration part 2.",
+        "`dataset` measures the acquisition and writes pre-registration part 2; "
+        "`run` executes the registered 36-trial grid and writes the result file.",
+    )
+    f1.add_argument(
+        "--seeds",
+        type=int,
+        default=None,
+        help="Override the null seed counts. A smoke run only: the result file records "
+        "the override and says it is not publishable.",
     )
     subparsers.add_parser(
         "snapshot-universe",
@@ -302,7 +310,7 @@ def _command_futures(stage: str) -> int:
     return EXIT_OK
 
 
-def _command_spike_006_f1(stage: str) -> int:
+def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
     """The F1 guards, runnable on their own with no dataset present.
 
     `verify` is what a reader runs to confirm that the committed specification and
@@ -334,6 +342,11 @@ def _command_spike_006_f1(stage: str) -> int:
         print(f"  written: {written.as_posix()}")
         print(spike_006_f1_dataset.render_summary(payload))
         return EXIT_OK
+    if stage == "run":
+        from sextant.app import spike_006_f1_run
+
+        spike_006_f1_run.execute(repository_root=root, seed_override=seeds)
+        return EXIT_OK
     audit = spike_006_f1.ordering_audit(root=root)
     for line in audit.lines():
         print(f"  {line}")
@@ -362,7 +375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "spike":
             return _command_spike(args.stage)
         if args.command == "spike-006-f1":
-            return _command_spike_006_f1(args.stage)
+            return _command_spike_006_f1(args.stage, args.seeds)
         if args.command == "archive":
             return _command_archive(args.stage)
         if args.command == "benchmark":
