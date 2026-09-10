@@ -131,6 +131,11 @@ HAIRCUT_ON_EITHER_SIDE = True
 #: because a ceiling nobody counts against is not a ceiling.
 MAXIMUM_RE_EXECUTIONS = 2
 
+#: The version of the pre-registration this code implements. Held here as well as in
+#: the configuration so a report can cite the specification's current version beside
+#: the version the run it describes actually read, without either being retyped.
+REGISTERED_VERSION = "v1.9"
+
 #: Section 30, amendment 8. Who may declare a run void, and who may not. Two roles
 #: rather than one sentence of prose, because the prose outlives the conversation it
 #: was written in and the whole point is that a reader cannot get this wrong. The
@@ -910,6 +915,7 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.extend(_budget_checks(raw))
     checks.extend(_variant_checks(_sequence(variants["registered"], "variants.registered")))
     checks.extend(_cadence_checks(variants))
+    checks.append(("version", _text(raw["version"]), REGISTERED_VERSION))
     checks.extend(_void_run_checks(raw))
     checks.extend(_spread_trigger_checks(raw))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
@@ -1258,6 +1264,7 @@ __all__ = [
     "RECENT_WINDOW_MONTHS",
     "REGISTERED_CELLS",
     "REGISTERED_VARIANTS",
+    "REGISTERED_VERSION",
     "RESAMPLES",
     "RESEARCH_FEE_OF_EQUITY_BPS",
     "RESULTS_PATH",

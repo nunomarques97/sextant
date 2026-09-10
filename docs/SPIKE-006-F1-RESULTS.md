@@ -9,9 +9,18 @@ ancestry is checkable with `git merge-base --is-ancestor`.
 
 - pre-registration: **v1.7.1**
 - engine version: `sextant-006-f1`
-- run made from commit: `a819c019d8b3`
+- run made from commit: `ce77cf5bf218`
 - everything denominated in **EUR**
 - **verdict: (B)**
+
+> **This run read `v1.7.1`; the specification is now `v1.9`.** Amendments 7 and 8 were registered while the grid
+> was running and neither changes a computed value: amendment 7 fixes how a void
+> execution is counted in the trial registry, and amendment 8 fixes who may
+> declare one void and makes the spread sample conditional on rule S1. No
+> variant, cell, criterion, threshold, seed count or budget differs between the
+> two versions, and every figure below would be identical under either. The
+> ordering still holds: both amendments were committed before any figure of this
+> run had been read.
 
 ---
 
@@ -28,7 +37,7 @@ ordering can, and these are the two facts that establish it.
 | committed at | 2026-09-10T12:33:09+00:00 |
 | commit subject | feat(carry): the cadence wrapper, and what it does between rebalances |
 | clean at run time | yes |
-| repository head at run time | `a819c019d8b3efee156e10780dfbc464c311cf2e` |
+| repository head at run time | `ce77cf5bf21807d46a4d642c780997e69763a382` |
 
 The run refuses to start if the configuration is untracked or has uncommitted
 changes, because in either case no committed SHA describes the bytes the run
@@ -52,7 +61,7 @@ produce a number anybody has seen.
 | charged this run | 36 |
 | recorded in the committed registry | 36 |
 | remaining | 0 |
-| null and benchmark constructs, not charged | 65 |
+| null and benchmark constructs, not charged | 84 |
 
 No post-hoc trial was recorded against this family. The nine variants and the
 four cells are what ran, and nothing else.
@@ -98,15 +107,15 @@ window this length it is usually the most important number on the page.
 
 | variant | net return | Sharpe | std err | 95th pct of its null | months | rebalances |
 |---|---:|---:|---:|---:|---:|---:|
-| `carry-basket-10` | -14.82% | -1.655 | 0.489 | -2.836 | 56 | 56 |
-| `carry-basket-5` | -12.92% | -1.768 | 0.492 | -2.116 | 56 | 56 |
-| `carry-positive-10` | -64.42% | -2.950 | 0.540 | -2.836 | 56 | 56 |
-| `carry-premium-10` | -87.67% | -1.209 | 0.477 | -2.836 | 56 | 56 |
-| `carry-rank30-10` | -64.42% | -2.950 | 0.540 | -2.836 | 56 | 56 |
-| `carry-rank30-5` | -75.91% | -2.169 | 0.506 | -2.116 | 56 | 56 |
-| `carry-rank90-10` | -46.60% | -2.766 | 0.532 | -2.836 | 56 | 56 |
-| `carry-rank90-10-quarterly` (18 rebalances) | -34.37% | -2.146 | 0.505 | -2.737 | 56 | 18 |
-| `carry-rank90-5` | -48.54% | -3.134 | 0.550 | -2.116 | 56 | 56 |
+| `carry-basket-10` | -16.11% | -0.794 | 0.469 | -1.575 | 56 | 56 |
+| `carry-basket-5` | -5.74% | -0.248 | 0.464 | -1.262 | 56 | 56 |
+| `carry-positive-10` | -57.13% | -1.805 | 0.493 | -1.575 | 56 | 56 |
+| `carry-premium-10` | -91.81% | -1.221 | 0.477 | -1.575 | 56 | 56 |
+| `carry-rank30-10` | -57.13% | -1.805 | 0.493 | -1.575 | 56 | 56 |
+| `carry-rank30-5` | -72.31% | -1.451 | 0.483 | -1.262 | 56 | 56 |
+| `carry-rank90-10` | -31.09% | -1.183 | 0.476 | -1.575 | 56 | 56 |
+| `carry-rank90-10-quarterly` (18 rebalances) | -15.49% | -0.680 | 0.467 | -1.560 | 56 | 18 |
+| `carry-rank90-5` | -35.60% | -1.305 | 0.479 | -1.262 | 56 | 56 |
 
 **The null is the exposure-matched one**: as many carry pairs as the variant held
 at that rebalance, drawn at random, leaving the same fraction idle. It inherits the
@@ -123,8 +132,8 @@ is cadence.
 
 | | net return | Sharpe | rebalances | idle months before first rebalance |
 |---|---:|---:|---:|---:|
-| `carry-rank90-10` | -46.60% | -2.766 | 56 | 0 |
-| `carry-rank90-10-quarterly` | -34.37% | -2.146 | 18 | 2 |
+| `carry-rank90-10` | -31.09% | -1.183 | 56 | 0 |
+| `carry-rank90-10-quarterly` | -15.49% | -0.680 | 18 | 2 |
 
 The quarterly variant consulted its signal **18** times
 against **56** for its monthly twin over the same scored
@@ -142,6 +151,41 @@ sourced delisting still forces an exit, a pair leaving the carry universe is
 dropped and never re-bought, and the freed capital sits idle rather than
 concentrating the rest. Section 28.6.
 
+### Cadence and turnover are not monotonically related
+
+Amendment 6 was argued for on the assumption that a slower cadence trades less.
+**That assumption is wrong as stated, and the correction is recorded here rather
+than dropped.** On a controlled fixture whose liquidity ranking rotates, the
+quarterly variant turned over *more* than its monthly twin, not less: 9132.49
+against 9074.48 of notional traded.
+
+The mechanism is drift. Skipping two decision instants does not remove the trades
+those instants would have made, it defers them. The held weights drift from the
+target for three months instead of one, and the single correction at the end of
+the quarter can exceed the two corrections that were skipped. Whether it does
+depends on how fast the ranking moves relative to the cadence, which is a
+property of the market rather than of the schedule.
+
+This makes the quarterly cell worth **more** than the amendment claimed, not less.
+A monotonic relationship could have been reasoned about from the fee schedule
+alone, and the variant would have been an expensive way to confirm arithmetic.
+A non-monotonic one cannot be: where the fee-optimal cadence sits is a
+measurement, and this is the cell that measures it. The regression test asserts
+that cadence changes turnover and deliberately does not assert a direction.
+
+On the archive, in this window, it went the other way from the fixture:
+
+| | rebalances | notional traded | fees | spread | slippage | total cost |
+|---|---:|---:|---:|---:|---:|---:|
+| `carry-rank90-10` | 56 | 141,036.89 | 95.14 | 285.87 | 124.01 | 306.56 |
+| `carry-rank90-10-quarterly` | 18 | 91,566.95 | 61.76 | 189.63 | 82.23 | 128.76 |
+
+The quarterly variant traded **64.9%** of its monthly twin's notional here, so
+on this universe the slower cadence did trade less. On the rotating fixture it
+traded more. Both are real and they do not contradict each other: the direction
+depends on how fast the ranking moves relative to the cadence, which is precisely
+why it had to be measured rather than assumed.
+
 ## 7. Where the return came from
 
 Four ways of cutting the same book. **Combined** is the variant. **Timing** holds the
@@ -152,15 +196,15 @@ the return rather than a cost line and is never blended into fees.
 
 | variant | combined | timing | selection | funding | gross | costs |
 |---|---:|---:|---:|---:|---:|---:|
-| `carry-basket-10` | -14.82% | -15.88% | -14.82% | 0.00 | 21.57 | 243.92 |
-| `carry-basket-5` | -12.92% | -15.88% | -12.92% | 0.00 | 26.75 | 220.51 |
-| `carry-positive-10` | -64.42% | -15.88% | -64.42% | 0.00 | -219.86 | 746.39 |
-| `carry-premium-10` | -87.67% | -15.88% | -87.67% | 0.00 | -684.76 | 630.27 |
-| `carry-rank30-10` | -64.42% | -15.88% | -64.42% | 0.00 | -219.86 | 746.39 |
-| `carry-rank30-5` | -75.91% | -15.88% | -75.91% | 0.00 | -382.00 | 756.67 |
-| `carry-rank90-10` | -46.60% | -15.88% | -46.60% | 0.00 | -113.25 | 585.68 |
-| `carry-rank90-10-quarterly` (18 rebalances) | -34.37% | -15.11% | -34.92% | 0.00 | -77.09 | 438.52 |
-| `carry-rank90-5` | -48.54% | -15.88% | -48.54% | 0.00 | -84.02 | 644.16 |
+| `carry-basket-10` | -16.11% | -20.77% | -16.11% | -25.81 | -4.25 | 263.27 |
+| `carry-basket-5` | -5.74% | -20.77% | -5.74% | 108.70 | 135.76 | 113.18 |
+| `carry-positive-10` | -57.13% | -20.77% | -57.13% | 304.79 | 32.27 | 584.49 |
+| `carry-premium-10` | -91.81% | -20.77% | -91.81% | 13.75 | -739.67 | 623.69 |
+| `carry-rank30-10` | -57.13% | -20.77% | -57.13% | 304.79 | 32.27 | 584.49 |
+| `carry-rank30-5` | -72.31% | -20.77% | -72.31% | 322.00 | -148.58 | 614.12 |
+| `carry-rank90-10` | -31.09% | -20.77% | -31.09% | 387.33 | 227.52 | 306.56 |
+| `carry-rank90-10-quarterly` (18 rebalances) | -15.49% | -20.78% | -16.26% | 370.68 | 267.06 | 128.76 |
+| `carry-rank90-5` | -35.60% | -20.77% | -35.60% | 327.39 | 216.47 | 423.04 |
 
 Funding, gross and costs are in account currency on the registered starting
 equity. A funding figure larger than the combined return means the settlement
@@ -183,15 +227,15 @@ when its position was opened, not when it closed.
 
 | variant | bear | bull | recovery |
 |---|---:|---:|---:|
-| `carry-basket-10` | -7.96% (30m) | -4.47% (15m) | -2.26% (9m) |
-| `carry-basket-5` | -6.31% (30m) | -3.98% (15m) | -2.30% (9m) |
-| `carry-positive-10` | -49.72% (30m) | -18.76% (15m) | -11.66% (9m) |
-| `carry-premium-10` | -82.88% (30m) | -19.28% (15m) | -9.25% (9m) |
-| `carry-rank30-10` | -49.72% (30m) | -18.76% (15m) | -11.66% (9m) |
-| `carry-rank30-5` | -64.41% (30m) | -21.49% (15m) | -12.60% (9m) |
-| `carry-rank90-10` | -34.37% (30m) | -12.34% (15m) | -6.10% (9m) |
-| `carry-rank90-10-quarterly` (18 rebalances) | -25.12% (30m) | -6.65% (15m) | -5.31% (9m) |
-| `carry-rank90-5` | -34.47% (30m) | -13.54% (15m) | -8.13% (9m) |
+| `carry-basket-10` | -17.93% (30m) | 2.02% (15m) | 0.02% (9m) |
+| `carry-basket-5` | -13.97% (30m) | 8.58% (15m) | 1.13% (9m) |
+| `carry-positive-10` | -50.65% (30m) | -5.66% (15m) | -8.83% (9m) |
+| `carry-premium-10` | -89.61% (30m) | -13.01% (15m) | -9.57% (9m) |
+| `carry-rank30-10` | -50.65% (30m) | -5.66% (15m) | -8.83% (9m) |
+| `carry-rank30-5` | -68.84% (30m) | -4.16% (15m) | -8.17% (9m) |
+| `carry-rank90-10` | -32.98% (30m) | 3.41% (15m) | -2.12% (9m) |
+| `carry-rank90-10-quarterly` (18 rebalances) | -20.82% (30m) | 8.12% (15m) | -0.88% (9m) |
+| `carry-rank90-5` | -35.39% (30m) | 1.40% (15m) | -3.31% (9m) |
 
 ## 9. The most recent 24 scored months
 
@@ -202,15 +246,15 @@ which would be a different experiment.
 
 | variant | months | net return | Sharpe | 95th pct, same draws | holds |
 |---|---:|---:|---:|---:|---|
-| `carry-basket-10` | 24 | -5.97% | -6.583 | -2.785 | no |
-| `carry-basket-5` | 24 | -4.70% | -3.786 | -2.145 | no |
-| `carry-positive-10` | 24 | -47.83% | -3.165 | -2.785 | no |
-| `carry-premium-10` | 24 | -81.07% | -1.406 | -2.785 | no |
-| `carry-rank30-10` | 24 | -47.83% | -3.165 | -2.785 | no |
-| `carry-rank30-5` | 24 | -61.60% | -2.403 | -2.145 | no |
-| `carry-rank90-10` | 24 | -35.10% | -3.330 | -2.785 | no |
-| `carry-rank90-10-quarterly` (18 rebalances) | 24 | -26.10% | -2.857 | -2.729 | no |
-| `carry-rank90-5` | 24 | -34.04% | -3.562 | -2.145 | no |
+| `carry-basket-10` | 24 | -1.32% | -0.394 | -1.999 | no |
+| `carry-basket-5` | 24 | 2.06% | 0.656 | -1.581 | yes |
+| `carry-positive-10` | 24 | -49.09% | -2.598 | -1.999 | no |
+| `carry-premium-10` | 24 | -88.66% | -1.624 | -1.999 | no |
+| `carry-rank30-10` | 24 | -49.09% | -2.598 | -1.999 | no |
+| `carry-rank30-5` | 24 | -64.07% | -1.914 | -1.581 | no |
+| `carry-rank90-10` | 24 | -33.95% | -2.644 | -1.999 | no |
+| `carry-rank90-10-quarterly` (18 rebalances) | 24 | -19.37% | -1.942 | -1.956 | no |
+| `carry-rank90-5` | 24 | -34.60% | -2.624 | -1.581 | no |
 
 ## 10. Sign stability across the cost regimes
 
@@ -219,15 +263,15 @@ a variant whose result is the assumption rather than the market.
 
 | variant | `vip0_maker` | `vip0_even` | `vip0_taker` | `stress` |
 |---|---:|---:|---:|---:|
-| `carry-basket-10` | -14.47% | -14.82% | -15.18% | -21.95% |
-| `carry-basket-5` | -12.59% | -12.92% | -13.24% | -19.45% |
-| `carry-positive-10` | -64.02% | -64.42% | -64.81% | -77.98% |
-| `carry-premium-10` | -87.50% | -87.67% | -87.83% | -92.61% |
-| `carry-rank30-10` | -64.02% | -64.42% | -64.81% | -77.98% |
-| `carry-rank30-5` | -75.62% | -75.91% | -76.20% | -85.94% |
-| `carry-rank90-10` | -46.20% | -46.60% | -46.99% | -60.64% |
-| `carry-rank90-10-quarterly` | -34.06% | -34.37% | -34.68% | -46.05% |
-| `carry-rank90-5` | -48.13% | -48.54% | -48.96% | -63.16% |
+| `carry-basket-10` | -15.77% | -16.11% | -16.46% | -23.13% |
+| `carry-basket-5` | -5.39% | -5.74% | -6.09% | -12.78% |
+| `carry-positive-10` | -56.66% | -57.13% | -57.61% | -73.46% |
+| `carry-premium-10` | -91.69% | -91.81% | -91.92% | -95.15% |
+| `carry-rank30-10` | -56.66% | -57.13% | -57.61% | -73.46% |
+| `carry-rank30-5` | -71.98% | -72.31% | -72.64% | -83.88% |
+| `carry-rank90-10` | -30.58% | -31.09% | -31.60% | -49.13% |
+| `carry-rank90-10-quarterly` | -15.09% | -15.49% | -15.89% | -30.42% |
+| `carry-rank90-5` | -35.08% | -35.60% | -36.11% | -53.82% |
 
 ## 11. Deflation, and what the search cost
 
@@ -236,20 +280,20 @@ produced by chance alone. The trial count is the honest one from the append-only
 hash-chained registry, nulls included, because a null draw is a search whether or
 not anybody hoped it would win.
 
-- trials including null constructs: **354**
-- trials excluding null constructs: **116**
+- trials including null constructs: **455**
+- trials excluding null constructs: **152**
 
 | variant | Sharpe | expected max under the null | PSR | DSR | clears 0.95 |
 |---|---:|---:|---:|---:|---|
-| `carry-basket-10` | -1.655 | 5.3438 | 0.0350 | 0.0000 | no |
-| `carry-basket-5` | -1.768 | 5.9599 | 0.0432 | 0.0000 | no |
-| `carry-positive-10` | -2.950 | 5.3438 | 0.0000 | 0.0000 | no |
-| `carry-premium-10` | -1.209 | 5.3438 | 0.0000 | 0.0000 | no |
-| `carry-rank30-10` | -2.950 | 5.3438 | 0.0000 | 0.0000 | no |
-| `carry-rank30-5` | -2.169 | 5.9599 | 0.0000 | 0.0000 | no |
-| `carry-rank90-10` | -2.766 | 5.3438 | 0.0000 | 0.0000 | no |
-| `carry-rank90-10-quarterly` (18 rebalances) | -2.146 | 4.6295 | 0.0000 | 0.0000 | no |
-| `carry-rank90-5` | -3.134 | 5.9599 | 0.0000 | 0.0000 | no |
+| `carry-basket-10` | -0.794 | 1.8163 | 0.0351 | 0.0000 | no |
+| `carry-basket-5` | -0.248 | 1.8818 | 0.2797 | 0.0000 | no |
+| `carry-positive-10` | -1.805 | 1.8163 | 0.0000 | 0.0000 | no |
+| `carry-premium-10` | -1.221 | 1.8163 | 0.0000 | 0.0000 | no |
+| `carry-rank30-10` | -1.805 | 1.8163 | 0.0000 | 0.0000 | no |
+| `carry-rank30-5` | -1.451 | 1.8818 | 0.0000 | 0.0000 | no |
+| `carry-rank90-10` | -1.183 | 1.8163 | 0.0012 | 0.0000 | no |
+| `carry-rank90-10-quarterly` (18 rebalances) | -0.680 | 1.8619 | 0.0662 | 0.0000 | no |
+| `carry-rank90-5` | -1.305 | 1.8818 | 0.0011 | 0.0000 | no |
 
 The expected maximum is in per-observation units and is the benchmark the observed
 Sharpe is deflated against. Its inputs - the trial count, the measured variance of
@@ -265,18 +309,38 @@ more expensive. This is a **single clearly-labelled sensitivity**, read by no
 criterion, consuming no variant budget. **No result at the research venue is evidence
 about execution at the other one.**
 
-The re-cost was run on **`carry-premium-10`**, chosen by the rule fixed before the grid
+The re-cost was run on **`carry-basket-5`**, chosen by the rule fixed before the grid
 ran: highest out-of-sample net Sharpe in the headline cell.
 
 | | round trips per year |
 |---|---:|
-| break-even at research fees | could not be formed |
-| break-even at execution fees | could not be formed |
-| realised turnover | could not be formed |
+| break-even at research fees (22.50 bps of equity) | 8.33 |
+| break-even at execution fees (105.83 bps of equity) | 1.77 |
+| realised turnover | 3.00 |
+| gross carry, annualised | 187.3938832281445961398841700 bps |
 
-The gross return or the fee line the arithmetic needs was not available, so no
-break-even is reported. It is not reported as zero: a tight threshold and no
-threshold are different facts about a strategy.
+The best variant's gross carry pays for 8.33 full-book round trips a year at research fees and 1.77 at execution fees, against 3.00 realised, so it clears the research schedule and not the execution one. Both figures are upper bounds: spread and slippage also scale with turnover and are excluded.
+
+**Both break-evens are upper bounds.** Spread and slippage also scale with
+turnover, are identical at both venues, and are excluded from the fee arithmetic,
+so the break-even on total cost is strictly lower than either figure. The
+conversion leg is excluded too: it is charged twice for a whole run rather than
+per rebalance, and folding a fixed cost into a per-round-trip figure would
+misattribute it to turnover.
+
+### Declared expectation D2
+
+Registered before the runner produced anything: *the binding constraint on this
+family is holding period, not signal quality.*
+
+- **D2a** (a clearing variant is at or below the median realised turnover of the
+  nine): **unresolved** - no variant cleared all six, so it cannot be evaluated
+- **D2b** (the best variant's execution break-even is fewer than 12 round trips a
+  year): **confirmed**
+
+D2 carries no weight in the verdict. It was stated so that a story told after the
+fact about fees and holding periods can be checked against a prediction made
+before it.
 
 ## 13. The six criteria
 
@@ -285,15 +349,15 @@ criterion that could not be evaluated reads `n/a`, which is not a pass.
 
 | variant | 1 null+sign | 2 deflation | 3 selection | 4 regimes | 5 sign | 6 recent | all six | N_eff |
 |---|---|---|---|---|---|---|---|---:|
-| `carry-basket-10` | no | no | no | no | yes | no | **no** | 56.0 |
-| `carry-basket-5` | no | no | no | no | yes | no | **no** | 56.0 |
-| `carry-positive-10` | no | no | no | no | yes | no | **no** | 20.7 |
-| `carry-premium-10` | no | no | no | no | yes | no | **no** | 47.8 |
-| `carry-rank30-10` | no | no | no | no | yes | no | **no** | 20.7 |
-| `carry-rank30-5` | no | no | no | no | yes | no | **no** | 20.4 |
-| `carry-rank90-10` | no | no | no | no | yes | no | **no** | 41.9 |
-| `carry-rank90-10-quarterly` (18 rebalances) | no | no | no | no | yes | no | **no** | 53.0 |
-| `carry-rank90-5` | no | no | no | no | yes | no | **no** | 48.6 |
+| `carry-basket-10` | no | no | no | no | yes | no | **no** | 36.2 |
+| `carry-basket-5` | no | no | no | no | yes | yes | **no** | 43.1 |
+| `carry-positive-10` | no | no | no | no | yes | no | **no** | 20.8 |
+| `carry-premium-10` | no | no | no | no | yes | no | **no** | 45.0 |
+| `carry-rank30-10` | no | no | no | no | yes | no | **no** | 20.8 |
+| `carry-rank30-5` | no | no | no | no | yes | no | **no** | 19.8 |
+| `carry-rank90-10` | no | no | no | no | yes | no | **no** | 25.0 |
+| `carry-rank90-10-quarterly` (18 rebalances) | no | no | no | no | yes | no | **no** | 40.5 |
+| `carry-rank90-5` | no | no | no | no | yes | no | **no** | 32.4 |
 
 **Criterion 1 carries a sign condition** that SEXTANT-005's did not. That task
 recorded its criterion 1 misfiring: in a cross-section where almost everything
@@ -304,7 +368,52 @@ stricter rather than looser.
 
 `N_eff` is the effective observation count after the series' own autocorrelation.
 
-## 14. Verdict for family F1
+## 14. What the two sample rules decided
+
+Neither order-book sample is a trial and neither can change a variant's result.
+Both are acquisitions, and both were made conditional on this file **before it
+existed**: rule C3 for depth, in section 17, and rule S1 for spread, in section 30.
+
+### Rule C3, capacity (depth)
+
+Shown in the headline cell, `vip0_even`. The requirement below is computed across
+all four registered cells, so a variant that earned inside the window in any of them
+would still call the sample for.
+
+| variant | scored months inside the depth window | mean net inside | mean net outside | outcome |
+|---|---:|---:|---:|---|
+| `carry-basket-5` | 16 | -0.11% | -0.09% | unestablished: the variant did not earn inside the window |
+| `carry-basket-10` | 16 | -0.60% | -0.20% | unestablished: the variant did not earn inside the window |
+| `carry-rank30-5` | 16 | -0.21% | -2.99% | unestablished: the variant did not earn inside the window |
+| `carry-rank30-10` | 16 | -0.19% | -2.06% | unestablished: the variant did not earn inside the window |
+| `carry-rank90-5` | 16 | 0.35% | -1.29% | measured, with its window |
+| `carry-rank90-10` | 16 | 0.41% | -1.14% | measured, with its window |
+| `carry-premium-10` | 16 | -0.87% | -4.73% | unestablished: the variant did not earn inside the window |
+| `carry-positive-10` | 16 | -0.19% | -2.06% | unestablished: the variant did not earn inside the window |
+| `carry-rank90-10-quarterly` | 16 | 0.43% | -0.59% | measured, with its window |
+
+**Depth sample required: yes.** At least one variant lands on a measured outcome, so section 12's twenty-symbol, seventeen-day bookDepth sample is acquired.
+
+UNESTABLISHED does not mean this family has no capacity. It means this dataset
+cannot say what it is, which is the same class of statement as invariant 9's
+*not evaluable*, and it is not softened.
+
+### Rule S1, the spread sample
+
+| | |
+|---|---:|
+| runs considered, at research fees | 36 |
+| of those, with a positive net return | 0 |
+| best run | `carry-basket-5` in `vip0_maker` |
+| its net return | -5.39% |
+
+**Spread sample acquired: no.** No registered variant earns a positive net return at research fees. Spread is an assumed cost and measuring it can only make a variant look worse, so the measurement would refine a cost line on a book that does not earn. The 1.8 to 3.2 GB is not downloaded.
+
+Either way the configured spread remains labelled an assumption under invariant
+12. An unmeasured spread is never reported as a measured one, and a decision not
+to measure is not a claim that the assumption was right.
+
+## 15. Verdict for family F1
 
 ### (B)
 

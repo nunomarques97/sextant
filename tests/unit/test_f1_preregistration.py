@@ -33,6 +33,7 @@ from sextant.app.spike_006_f1 import (
     MINIMUM_DEPTH_MONTHS,
     REGISTERED_CELLS,
     REGISTERED_VARIANTS,
+    REGISTERED_VERSION,
     SPREAD_SAMPLE_SYMBOL_DAYS,
     SPREAD_TRIGGER_RULE,
     SPREAD_TRIGGER_THRESHOLD,
@@ -95,7 +96,7 @@ def _alter(payload: dict[str, object], path: tuple[str | int, ...], value: objec
 def test_the_committed_specification_agrees_with_the_code() -> None:
     """If this fails, no F1 result may be produced."""
     registered = assert_no_drift()
-    assert str(registered["version"]) == "v1.9"
+    assert str(registered["version"]) == REGISTERED_VERSION
     assert str(registered["family"]) == FAMILY
 
 

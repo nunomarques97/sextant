@@ -32,6 +32,7 @@ from sextant.app.spike_006_f1 import (
     CADENCE_PAIR,
     EXECUTION_FEE_OF_EQUITY_BPS,
     MARGIN_FRACTION,
+    REGISTERED_VERSION,
     RESEARCH_FEE_OF_EQUITY_BPS,
     RESULTS_PATH,
     THINNER_EVIDENCE_VARIANT,
@@ -177,8 +178,37 @@ def _preamble(payload: Mapping[str, object]) -> str:
             f"- everything denominated in **{_text(payload['denomination'])}**",
             f"- **verdict: ({_text(verdict['letter'])})**",
             "",
+            _version_note(_text(payload["registered_version"])),
+            "",
             "---",
             "",
+        ]
+    )
+
+
+def _version_note(ran_against: str) -> str:
+    """Why the version cited above is behind the one in the repository.
+
+    Stated in the document rather than reconciled quietly. The run read the
+    specification as it stood when it started; two amendments were registered while it
+    was still running, both of them rules about counting, authority and acquisition
+    rather than about any computed quantity. A reader who checks out the current
+    specification and finds a different version number is entitled to know why without
+    having to reconstruct it from git.
+    """
+    if ran_against == REGISTERED_VERSION:
+        return ""
+    return NEWLINE.join(
+        [
+            f"> **This run read `{ran_against}`; the specification is now "
+            f"`{REGISTERED_VERSION}`.** Amendments 7 and 8 were registered while the grid",
+            "> was running and neither changes a computed value: amendment 7 fixes how a void",
+            "> execution is counted in the trial registry, and amendment 8 fixes who may",
+            "> declare one void and makes the spread sample conditional on rule S1. No",
+            "> variant, cell, criterion, threshold, seed count or budget differs between the",
+            "> two versions, and every figure below would be identical under either. The",
+            "> ordering still holds: both amendments were committed before any figure of this",
+            "> run had been read.",
         ]
     )
 
@@ -450,7 +480,55 @@ def _cadence_section(payload: Mapping[str, object]) -> str:
             "",
         ]
     )
+    lines.extend(_realised_turnover(payload))
     return NEWLINE.join(lines)
+
+
+def _realised_turnover(payload: Mapping[str, object]) -> list[str]:
+    """What the two cadences actually traded, which is the point of measuring it.
+
+    The fixture and the archive disagree in *direction*, and both are printed. That
+    disagreement is the finding: whether a slower cadence trades less depends on how
+    fast the ranking moves relative to the cadence, and neither fixture nor archive
+    settles it in general.
+    """
+    monthly, quarterly = CADENCE_PAIR
+    runs = {
+        _text(row["construct"]): row
+        for row in _sequence(payload["deterministic"])
+        if isinstance(row, dict)
+        and _text(row.get("cell_id")) == headline_cell().label
+        and _text(row.get("kind")) == "variant"
+    }
+    if monthly not in runs or quarterly not in runs:
+        return []
+    fast, slow = _mapping(runs[monthly]), _mapping(runs[quarterly])
+    fast_turnover = Decimal(_text(fast["turnover"]))
+    slow_turnover = Decimal(_text(slow["turnover"]))
+    fast_costs = _mapping(fast["costs"])
+    slow_costs = _mapping(slow["costs"])
+    if fast_turnover == 0:
+        return []
+    share = (slow_turnover / fast_turnover * 100).quantize(Decimal("0.1"))
+    return [
+        "On the archive, in this window, it went the other way from the fixture:",
+        "",
+        "| | rebalances | notional traded | fees | spread | slippage | total cost |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+        f"| `{monthly}` | {_text(fast.get('rebalances'))} | {_money(fast_turnover)} "
+        f"| {_money(fast_costs['fees'])} | {_money(fast_costs['spread'])} "
+        f"| {_money(fast_costs['slippage'])} | {_money(fast_costs['total'])} |",
+        f"| `{quarterly}` | {_text(slow.get('rebalances'))} | {_money(slow_turnover)} "
+        f"| {_money(slow_costs['fees'])} | {_money(slow_costs['spread'])} "
+        f"| {_money(slow_costs['slippage'])} | {_money(slow_costs['total'])} |",
+        "",
+        f"The quarterly variant traded **{share}%** of its monthly twin's notional here, so",
+        "on this universe the slower cadence did trade less. On the rotating fixture it",
+        "traded more. Both are real and they do not contradict each other: the direction",
+        "depends on how fast the ranking moves relative to the cadence, which is precisely",
+        "why it had to be measured rather than assumed.",
+        "",
+    ]
 
 
 def _decomposition_section(payload: Mapping[str, object]) -> str:
