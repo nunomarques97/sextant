@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 
 import numpy as np
 import numpy.typing as npt
@@ -108,6 +109,126 @@ def percentile_with_interval(
         resamples=resamples,
         confidence=confidence,
         sample_size=int(sample.size),
+    )
+
+
+class GroupStatistic(StrEnum):
+    """Which summary a two-sample difference is taken between."""
+
+    MEDIAN = "median"
+    """For a numeric attribute. Robust to the long right tail a funding-rate or
+    turnover distribution always has, where a mean would let one contract move the
+    comparison."""
+
+    MEAN = "mean"
+    """For a share, which is the mean of a zero-or-one indicator. Carried so that a
+    categorical attribute and a numeric one go through the same method rather than
+    acquiring a test of their own."""
+
+
+@dataclass(frozen=True, slots=True)
+class DifferenceEstimate:
+    """The gap between two groups' summaries, with its bootstrap interval.
+
+    ``excludes_zero`` is the whole point. A difference whose interval spans zero is
+    not a finding, and the property exists so that no caller has to decide that for
+    itself and none can decide it differently.
+    """
+
+    statistic: GroupStatistic
+    left_value: float
+    right_value: float
+    difference: float
+    low: float
+    high: float
+    resamples: int
+    confidence: float
+    left_size: int
+    right_size: int
+
+    @property
+    def excludes_zero(self) -> bool:
+        """Whether the interval lies wholly above or wholly below zero."""
+        return (self.low > 0.0 and self.high > 0.0) or (self.low < 0.0 and self.high < 0.0)
+
+    @property
+    def width(self) -> float:
+        """How wide the interval is, in the units of the attribute."""
+        return self.high - self.low
+
+    def as_json(self) -> dict[str, object]:
+        """Every number, plus the verdict the interval supports."""
+        return {
+            "statistic": self.statistic.value,
+            "left": self.left_value,
+            "right": self.right_value,
+            "difference": self.difference,
+            "interval_low": self.low,
+            "interval_high": self.high,
+            "interval_excludes_zero": self.excludes_zero,
+            "resamples": self.resamples,
+            "confidence": self.confidence,
+            "left_size": self.left_size,
+            "right_size": self.right_size,
+        }
+
+
+def _summary(sample: npt.NDArray[np.float64], statistic: GroupStatistic) -> float:
+    """One group's summary, by the named statistic."""
+    if statistic is GroupStatistic.MEDIAN:
+        return float(np.median(sample))
+    return float(np.mean(sample))
+
+
+def difference_with_interval(
+    left: Sequence[float] | npt.NDArray[np.float64],
+    right: Sequence[float] | npt.NDArray[np.float64],
+    *,
+    statistic: GroupStatistic,
+    generator: np.random.Generator,
+    resamples: int = DEFAULT_RESAMPLES,
+    confidence: float = DEFAULT_CONFIDENCE,
+) -> DifferenceEstimate:
+    """``left`` minus ``right``, and where that gap would fall on a repeat.
+
+    Each group is resampled independently with replacement at its own size, which is
+    the ordinary two-sample bootstrap and is right here because the two groups are
+    two populations rather than two measurements of one. Sizes are preserved, so a
+    small group keeps its wide interval instead of borrowing precision from a large
+    one - which matters directly: the excluded group at a contraction can be several
+    times the size of the surviving one, or the other way round.
+
+    ``generator`` is required rather than defaulted, so a caller cannot accidentally
+    produce an interval nobody can reproduce.
+    """
+    first = np.asarray(left, dtype=np.float64)
+    second = np.asarray(right, dtype=np.float64)
+    if first.size == 0 or second.size == 0:
+        raise EmptyDistribution(
+            "Cannot take a difference against an empty group: "
+            f"sizes are {first.size} and {second.size}. An empty group is a real "
+            "condition and the caller decides what it means; it is not a zero."
+        )
+    if not 0.0 < confidence < 1.0:
+        raise ValueError(f"confidence must be in (0, 1), got {confidence}")
+    first_indices = generator.integers(0, first.size, size=(resamples, first.size))
+    second_indices = generator.integers(0, second.size, size=(resamples, second.size))
+    if statistic is GroupStatistic.MEDIAN:
+        drawn = np.median(first[first_indices], axis=1) - np.median(second[second_indices], axis=1)
+    else:
+        drawn = np.mean(first[first_indices], axis=1) - np.mean(second[second_indices], axis=1)
+    tail = (1.0 - confidence) / 2.0 * 100.0
+    return DifferenceEstimate(
+        statistic=statistic,
+        left_value=_summary(first, statistic),
+        right_value=_summary(second, statistic),
+        difference=_summary(first, statistic) - _summary(second, statistic),
+        low=float(np.percentile(drawn, tail)),
+        high=float(np.percentile(drawn, 100.0 - tail)),
+        resamples=resamples,
+        confidence=confidence,
+        left_size=int(first.size),
+        right_size=int(second.size),
     )
 
 

@@ -59,6 +59,31 @@ SPOT_FEES = FeeSchedule(
     ),
 )
 
+#: This venue's published perpetual and dated futures schedule at the entry tier.
+#: Read from the venue's own fee schedule page on 2026-09-10 for SEXTANT-006
+#: amendment 26.2, which needed it rather than an assumption.
+#:
+#: It is **identical to the research venue's** USD-M perpetual schedule, which was
+#: not the expected answer and is the most useful thing the lookup produced: the
+#: whole cost difference between the two venues sits on the SPOT leg, which is the
+#: long leg of every cash-and-carry pair. See `adapters/exchanges/binance/costs.py`
+#: for the counterpart, and note that the two modules are peers - neither imports
+#: the other, so the coincidence is stated in prose rather than shared as a
+#: constant.
+FUTURES_FEES = FeeSchedule(
+    maker_bps=Decimal(2),
+    taker_bps=Decimal(5),
+    tier="level 1 (30-day futures volume below 5,000,000 USD)",
+    source=(
+        "The venue's own published fee schedule, read 2026-09-10: level 1 futures at 0.0200% "
+        "maker and 0.0500% taker, below 5,000,000 USD of 30-day futures volume. The page does "
+        "not distinguish perpetual from dated contracts. The schedule runs down to negative "
+        "maker rates at the Pro levels; at this account's size the entry tier is what applies, "
+        "and the venue's stated rule that a tier is the most favourable of spot volume, "
+        "futures volume and assets on platform cannot move a 1,500 EUR account off it."
+    ),
+)
+
 #: The stablecoin and FX pair schedule, used for the currency conversion leg.
 FX_PAIR_FEE_BPS = Decimal(20)
 
