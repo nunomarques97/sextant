@@ -61,6 +61,24 @@ SPOT_FEES = FeeSchedule(
     ),
 )
 
+#: The venue's published USD-M perpetual futures schedule at the entry tier.
+#: Contractual, not assumed, and NOT the same as the spot schedule: maker and
+#: taker differ here, which is why SEXTANT-006's headline cost cell sits at a
+#: 50/50 fill mix rather than at the venue's own schedule the way SEXTANT-005's
+#: did. When maker and taker are equal the fill mix cannot move the fee line;
+#: here it can, so the assumption is live and the headline must not sit at the
+#: flattering end of it.
+FUTURES_FEES = FeeSchedule(
+    maker_bps=Decimal(2),
+    taker_bps=Decimal(5),
+    tier="VIP 0 (30-day volume below the first published threshold), no token discount",
+    source=(
+        "The venue's published USD-M futures trading fee schedule: 0.0200% maker and "
+        "0.0500% taker at VIP 0. The discount for paying fees in the venue's own token is "
+        "deliberately not applied, for the same reason it is not applied to spot."
+    ),
+)
+
 #: The conversion leg between the account's currency and the quote asset. The
 #: venue prices EUR/USDT as an ordinary spot pair rather than on a separate
 #: stablecoin schedule, so the spot rate is what the leg is charged at.

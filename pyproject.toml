@@ -77,6 +77,10 @@ ignore = [
 # S311 flags `random` as unsuitable for cryptography, which is true and beside the
 # point in a seeded, reproducible generative test.
 "tests/**" = ["S101", "S105", "S106", "S311"]
+# The one test that starts `git`: a repository built under tmp_path, so the
+# provenance adapter is proved against a real history rather than a mock of one.
+# Kept scoped to this file so S603 and S607 stay active everywhere else.
+"tests/unit/test_registration_order.py" = ["S603", "S607"]
 "src/sextant/app/cli.py" = ["T20"]   # the CLI is allowed to write to stdout
 "src/sextant/app/spike.py" = ["T20"]  # the research spike reports progress on stdout
 # The archive stages are long-running batch jobs run by hand. Progress on stdout
@@ -100,6 +104,7 @@ ignore = [
 # S3 bucket listing over TLS, and a malformed listing fails closed as ArchiveError.
 "src/sextant/adapters/exchanges/binance/futures_archive.py" = ["S314"]
 "src/sextant/app/spike_005.py" = ["T20"]
+"src/sextant/app/spike_006_f1.py" = ["T20"]
 "src/sextant/app/spike_005_run.py" = ["T20"]
 "src/sextant/app/spike_005_report.py" = ["T20"]
 # S311 flags `random` as unsuitable for cryptography, which is true and
@@ -112,6 +117,13 @@ ignore = [
 "src/sextant/engine/strategies/momentum.py" = ["S311"]
 # And for the SEXTANT-006 carry nulls, for the identical reason.
 "src/sextant/engine/strategies/carry.py" = ["S311"]
+# S603 and S607 flag any subprocess call and any call that resolves an executable
+# from the PATH. Both are true of this module and both are the point: it asks the
+# `git` on the PATH four read-only questions about this repository's own history,
+# with a fixed argument list and no shell. A hardened alternative would mean
+# reimplementing commit-graph reachability, and the exposure is a git binary the
+# developer already runs by hand a hundred times a day.
+"src/sextant/adapters/vcs.py" = ["S603", "S607"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

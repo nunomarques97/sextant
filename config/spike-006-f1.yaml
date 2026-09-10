@@ -1,0 +1,917 @@
+# Pre-registered specification for SEXTANT-006 family F1, cash-and-carry.
+#
+# The machine-readable half of docs/PRE-REGISTRATION-006-F1.md. Committed BEFORE
+# the grid runs, in its own commit, so that the git history is itself the evidence
+# that nothing here was chosen after somebody saw a return.
+#
+# Two mechanisms make that evidence more than an assertion:
+#
+#   1. THE DRIFT GUARD. sextant.app.spike_006_f1.assert_no_drift compares every
+#      number below against the constant the code will actually use and refuses to
+#      start if they disagree. A specification that can silently differ from the
+#      code it specifies is not a specification.
+#
+#   2. THE ORDERING AUDIT. The drift guard proves code and config agree *now*; it
+#      cannot prove they were not edited together after a result was seen. Git can.
+#      The runner refuses to start unless this file is committed and clean, records
+#      the commit SHA it read into the results, and the report cites that SHA
+#      beside the SHA of the commit that introduced the results, with the ancestry
+#      between them verified. See the `provenance` block at the end.
+#
+#   3. THE TRIAL BUDGET. `trial_budget` below is enforced, not described. The
+#      runner charges one trial per variant per cost cell before the engine runs,
+#      refuses an unregistered variant or cell outright, and refuses everything
+#      once the declared allowance is spent. A budget nothing enforces is not a
+#      budget.
+#
+# If any value here turns out to be wrong, the correction gets a NEW version
+# identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
+# here is ever edited in place once a result has been published against it.
+
+version: v1.3
+family: F1
+family_name: cash-and-carry, funding and basis
+registered_on: 2026-09-10
+supersedes: null
+amendments:
+  - id: amendment-1
+    document_section: "16"
+    subject: >
+      The decay expectation D1, the per-calendar-year decomposition, the standalone
+      recent-24-month window as criterion 6, the maintenance margin as an assumption
+      at three settings, and the bookDepth capacity sample.
+  - id: amendment-2
+    document_section: "17"
+    subject: >
+      Three rules on how a capacity figure may be reported, and the correction that
+      0.025 maintenance margin is a stress level rather than a candidate rate.
+  - id: amendment-3
+    document_section: "18"
+    subject: >
+      The trial budget is enforced by the runner rather than described in prose, and
+      the pre-registration ordering is auditable from the report through git.
+
+# ---------------------------------------------------------------------------
+# The hypothesis
+# ---------------------------------------------------------------------------
+hypothesis:
+  statement: >
+    Over the evaluation window and across the regimes it contains, at least one of
+    the eight cash-and-carry variants specified below earns an out-of-sample,
+    net-of-cost return in EUR that is not explained by chance selection, not
+    explained by reduced market exposure, survives deflation by the honest count of
+    every trial in this task, and is still present in the most recent 24 scored
+    months.
+  rejected_when: >
+    No variant clears criterion 1. That is a complete answer for this family and is
+    recorded as verdict (B).
+  undetermined_when: >
+    One or more variants clear criterion 1 but the statistics cannot separate edge
+    from noise at the available effective sample size, or the recent window is too
+    short to say whether the edge survives. Recorded as verdict (C), which is never
+    presented as a softened (A).
+
+# ---------------------------------------------------------------------------
+# The research boundary
+# ---------------------------------------------------------------------------
+venue:
+  spot: binance
+  perpetual: binance_perp
+  role: research venue only
+  boundary: >
+    No result computed here is evidence that any strategy is executable on Kraken,
+    or that this account may trade perpetual futures on Binance at all. That
+    question is separate and remains open. Nothing here is a live-trading decision;
+    docs/LIVE-GATES.md is unaffected.
+
+# ---------------------------------------------------------------------------
+# The trial budget, declared before anything runs and enforced by the runner
+# ---------------------------------------------------------------------------
+#
+# Document section 3. The budget is the exact grid rather than a ceiling with a
+# reserve behind it: a reserve is what gets spent after a result is seen, so the
+# type refuses a maximum that exceeds variants * cost_cells.
+#
+# Nulls, benchmarks and decomposition constructs are NOT charged. They are not
+# attempts at finding an edge, and charging them would make running more of them -
+# the honest thing - consume the allowance. They are counted in full in
+# research/trial-registry.jsonl, which is what the Deflated Sharpe Ratio reads.
+trial_budget:
+  family: F1
+  engine_version: sextant-006-f1
+  maximum_trials: 32
+  charged_per: one strategy trial per registered variant per registered cost cell
+  variants:
+    - carry-basket-5
+    - carry-basket-10
+    - carry-rank30-5
+    - carry-rank30-10
+    - carry-rank90-5
+    - carry-rank90-10
+    - carry-premium-10
+    - carry-positive-10
+  cost_cells:
+    - vip0_maker
+    - vip0_even
+    - vip0_taker
+    - stress
+  nulls_are_charged: false
+  enforcement:
+    unregistered_variant: refused
+    unregistered_cost_cell: refused
+    exhausted_allowance: refused
+    charge_happens: before the engine runs, never after a result exists
+    rerun_is_idempotent: >
+      Charging is idempotent on the variant/cell pair, so re-running the whole grid
+      spends the allowance once rather than twice. A budget that broke on a rerun
+      would be a budget that discouraged reproducing a result.
+  on_exhaustion: >
+    F1 is closed. No ninth variant, no adjusted parameter, no additional lookback,
+    no further cell. If the eight did not clear the criteria, that is the answer.
+  post_hoc_policy: >
+    Anything tested in this family beyond the eight is post-hoc by construction. It
+    requires a new pre-registered version committed before it is considered, counts
+    in full in the registry, and is reported in its own section with the reason it
+    was added.
+
+# ---------------------------------------------------------------------------
+# The account
+# ---------------------------------------------------------------------------
+account:
+  currency: EUR
+  equity: "1500"
+  max_positions: 10
+  margin_fraction: "0.20"
+  margin_fraction_status: >
+    An assumption, labelled as one everywhere. 0.20 means the futures leg is opened
+    at five times leverage against the capital set aside for it, far inside what the
+    venue permits on a major, chosen to be conservative rather than representative.
+    The venue publishes no historical margin tiers, so no measured value exists.
+  min_notional_fraction: "0.25"
+  lot_rounding_fraction: "0.01"
+
+# ---------------------------------------------------------------------------
+# What a carry position is
+# ---------------------------------------------------------------------------
+carry_position:
+  definition: >
+    Long spot and short perpetual on the same base asset, equal base quantity, so
+    the pair holds the basis plus the funding stream and has no term in the asset's
+    own price.
+  leg_weight_formula: "1 / (positions * (1 + margin_fraction))"
+  gross_exposure_formula: "2 / (1 + margin_fraction)"
+  net_exposure: "0"
+  weight_denominator: >
+    The REGISTERED position count, never the number of pairs actually opened.
+    Rescaling to full investment would erase the exposure difference the timing null
+    exists to measure.
+  funding_sign_convention: >
+    value * rate on signed position values, so a short leg with a positive rate
+    produces a negative cost line, which is a receipt. Funding is a realised,
+    exactly timestamped cash flow read from the venue's own published settlements,
+    never an assumed rate.
+
+# ---------------------------------------------------------------------------
+# Universe construction
+# ---------------------------------------------------------------------------
+universe:
+  quote_policy: USDT
+  quote_policy_note: >
+    USDT on both legs. There is no EUR-quoted perpetual on this venue, so the
+    secondary EUR policy SEXTANT-005 ran has no counterpart here and is not
+    registered. Every reported figure is still in EUR.
+  rules_in_order:
+    - name: paired_symbols
+      admits: >
+        assets for which the venue publishes both AUSDT spot and AUSDT perpetual, by
+        EXACT base-asset match. A scaled-unit perpetual such as 1000PEPEUSDT is
+        excluded, because pairing it with PEPEUSDT spot needs a unit-conversion rule
+        and a rule invented here is a degree of freedom exercised after the data was
+        seen. The count lost to this is reported.
+    - name: sourced_membership_both_legs
+      admits: >
+        assets whose spot listing calendar and perpetual listing calendar both say
+        LISTED at the rebalance instant. UNDETERMINED is neither admitted nor
+        rejected; it is counted and reported.
+    - name: listing_age
+      minimum_days: 180
+      measured_on: the perpetual leg's earliest sourced listing instant
+    - name: funding_evaluability
+      requires: >
+        a published funding settlement for every settlement instant in the trailing
+        30 days. A gap disqualifies.
+      trailing_days: 30
+    - name: median_quote_volume
+      minimum: "250000"
+      statistic: the perpetual's trailing 30-day median daily quote turnover
+      minimum_observations: 20
+    - name: bar_coverage
+      requires: >
+        both legs have a closed daily bar at both ends of the longest lookback the
+        variant uses, and at least 90 per cent of the daily bars in between.
+      minimum_fraction: "0.90"
+    - name: excluded_asset_class
+      excludes: >
+        stablecoin bases, wrapped duplicates, leveraged tokens and staked
+        derivatives, by the frozen list in sextant.app.spike.EXCLUDED_BASES plus the
+        leveraged-token stem rule.
+  leveraged_token_suffix_rule:
+    excluded_base_suffixes: ["UP", "DOWN", "BULL", "BEAR"]
+  carried_unchanged_from_spike_005: [listing_age, median_quote_volume, excluded_asset_class]
+  carried_unchanged_note: >
+    At the same thresholds, so no result here can be attributed to a universe screen
+    retuned for a new dataset. Rules 1 and 4 are new and exist because a paired
+    construction and a funding stream are new.
+  membership_source:
+    method: monthly file presence in the venue's public archive
+    tree: klines
+    tree_note: >
+      Presence is taken from the KLINE tree and not the funding tree. 1,135
+      kline-months carry no funding object, so using funding presence would delist a
+      contract on a missing cash-flow file.
+    provenance: venue_archive
+
+# ---------------------------------------------------------------------------
+# The window and the walk-forward structure
+# ---------------------------------------------------------------------------
+window:
+  first_usable_month_rule: >
+    The earliest month start T such that a venue-sourced EUR conversion rate exists
+    for every day from T onward; T is at least 300 days after the first day the
+    archive holds a bar for the FX pair, so the 180-day listing age, the 90-day
+    longest lookback and the 30-day turnover window are all satisfiable with a
+    ragged-edge month to spare; and the carry universe is non-empty at T and at
+    every subsequent rebalance.
+  first_usable_month_lookback_days: 300
+  last_usable_month_end_rule: >
+    The end of the last month M for which the archive holds a complete monthly
+    object set for both M and M+1, in every tree the family reads. M+1 is required
+    because a symbol absent from the final published month cannot be distinguished
+    from a symbol whose final object has not been published yet.
+  minimum_months_to_proceed: 36
+  minimum_months_note: >
+    Below 36 usable months this family reports verdict (C) on sample size alone and
+    runs no variant. Same floor as SEXTANT-005, fixed before the window was resolved
+    so the decision to stop cannot be talked out of later.
+  rebalance: first instant of each calendar month, 00:00:00 UTC
+  plans:
+    walk_forward:
+      in_sample_months: 12
+      fold_count: 4
+      fold_length: "(usable_months - 12) / 4, floored, remainder left off the end"
+      positions_carry_across_folds: true
+      liquidates: last fold only
+  nothing_is_fitted: >
+    Every variant's parameters are fixed below and no procedure chooses among them.
+    The walk-forward structure is kept unchanged anyway, because the benchmarks and
+    nulls run through it and a construct measured over a different window from the
+    thing it benchmarks is not a benchmark. The first twelve months are held back
+    and never scored.
+
+# ---------------------------------------------------------------------------
+# Costs
+# ---------------------------------------------------------------------------
+costs:
+  cells:
+    - label: vip0_maker
+      spot_maker_bps: "10"
+      spot_taker_bps: "10"
+      futures_maker_bps: "2"
+      futures_taker_bps: "5"
+      maker_fraction: "1.00"
+      is_headline: false
+      runs_nulls: false
+      what_it_is: the venue's published VIP 0 schedules, both legs assumed to rest
+    - label: vip0_even
+      spot_maker_bps: "10"
+      spot_taker_bps: "10"
+      futures_maker_bps: "2"
+      futures_taker_bps: "5"
+      maker_fraction: "0.50"
+      is_headline: true
+      runs_nulls: true
+      what_it_is: the headline cell; every criterion is judged here
+    - label: vip0_taker
+      spot_maker_bps: "10"
+      spot_taker_bps: "10"
+      futures_maker_bps: "2"
+      futures_taker_bps: "5"
+      maker_fraction: "0.00"
+      is_headline: false
+      runs_nulls: false
+      what_it_is: both legs assumed to cross
+    - label: stress
+      spot_maker_bps: "10"
+      spot_taker_bps: "10"
+      futures_maker_bps: "2"
+      futures_taker_bps: "5"
+      maker_fraction: "0.00"
+      spread_and_slippage_multiplier: "2"
+      is_headline: false
+      runs_nulls: true
+      what_it_is: taker, and spread and slippage at twice the assumption on both legs
+  headline_is_the_middle_cell: >
+    Not the cheapest. SEXTANT-005 judged at the venue's own schedule because maker
+    and taker were equal there and the fill mix could not move the answer. Here they
+    are not equal, so the fill mix is a live assumption and the headline must not sit
+    at the flattering end of it.
+  liquidity_bands:
+    deep_floor: "5000000"
+    mid_floor: "1000000"
+    statistic: trailing median daily quote turnover
+  spread_bps:
+    deep: "10"
+    mid: "25"
+    thin: "60"
+    unknown: "60"
+  slippage_bps:
+    deep: "5"
+    mid: "10"
+    thin: "25"
+    unknown: "25"
+  assumption_status: >
+    Spread and slippage are ASSUMPTIONS, not measurements, and every report line
+    says so. Identical to SEXTANT-005's, deliberately, so no question of retuning
+    arises. They are charged on BOTH legs, so a carry round trip costs twice what a
+    single-leg strategy pays. That is the central reason a small carry can fail to
+    survive.
+  charged_on_both_legs: true
+  delisting_haircut_fraction: "0.20"
+  haircut_is_a_loss_on_either_side: true
+  funding_is_not_a_cost_line: >
+    Funding is the return, not a cost. It is accounted per settlement per leg,
+    reported as its own line in every table, and never blended into fees.
+  funding_default_interval_hours: 8
+  fx:
+    symbol: EURUSDT
+    foreign_currency: USDT
+    rate: the reciprocal of the pair's daily close, dated by bar close
+    conversion_bps: "10"
+    charged: once in and once out
+    note: >
+      The pair trades on the venue itself, so the conversion is EUR to USDT directly
+      and no USDT-equals-USD assumption is needed. Unchanged from SEXTANT-005.
+
+# ---------------------------------------------------------------------------
+# The eight variants
+# ---------------------------------------------------------------------------
+variants:
+  fixed_for_every_variant:
+    signal_instant: the rebalance instant R, 00:00 UTC on the first of the month
+    signal_inputs: >
+      funding settled at or before R; daily closes whose close_time is at or before R
+    entry_price: each leg's last daily close that had finished forming at or before R
+    exit_price: the same rule at the next rebalance
+    rebalance_frequency: monthly
+    sizing: equal capital across the selected pairs
+    tie_handling: ranks descending, ties broken by base asset ascending, byte-wise
+    insufficient_data: >
+      any universe rule failing means the asset is not in the universe; counted and
+      reported as not-evaluable, never silently dropped
+    carrying_positions: >
+      pairs carry across rebalances and folds; only the difference between held book
+      and target book is traded, and only that difference pays cost
+    trailing_funding_definition: >
+      the SUM of every funding rate settled in the L days ending at R. A sum rather
+      than a mean because it is the quantity actually received, and because a mean
+      would need a divisor the varying settlement interval makes ambiguous.
+    premium_definition: >
+      the perpetual's premium-index daily close for the last bar closed at or before R
+    turnover_days: 30
+  registered:
+    - id: carry-basket-5
+      signal: turnover
+      positions: 5
+      require_positive: false
+      selection_rule: the 5 assets with the largest trailing 30-day median quote turnover
+    - id: carry-basket-10
+      signal: turnover
+      positions: 10
+      require_positive: false
+      selection_rule: the 10 assets with the largest trailing 30-day median quote turnover
+    - id: carry-rank30-5
+      signal: funding_30
+      positions: 5
+      require_positive: false
+      selection_rule: the 5 assets with the largest trailing_funding(A, R, 30)
+    - id: carry-rank30-10
+      signal: funding_30
+      positions: 10
+      require_positive: false
+      selection_rule: the 10 assets with the largest trailing_funding(A, R, 30)
+    - id: carry-rank90-5
+      signal: funding_90
+      positions: 5
+      require_positive: false
+      selection_rule: the 5 assets with the largest trailing_funding(A, R, 90)
+    - id: carry-rank90-10
+      signal: funding_90
+      positions: 10
+      require_positive: false
+      selection_rule: the 10 assets with the largest trailing_funding(A, R, 90)
+    - id: carry-premium-10
+      signal: premium
+      positions: 10
+      require_positive: false
+      selection_rule: the 10 assets with the largest premium(A, R)
+    - id: carry-positive-10
+      signal: funding_30
+      positions: 10
+      require_positive: true
+      selection_rule: >
+        the assets with trailing_funding(A, R, 30) strictly greater than zero, the 10
+        largest of them; if fewer than 10 qualify, hold only those and leave the rest
+        in cash
+  why_these_eight: >
+    Three questions and no more. `basket` asks whether carry pays at all, with no
+    selection. `rank30`, `rank90` and `premium` ask whether choosing which assets to
+    carry adds anything, on three signals of the same underlying quantity. `positive`
+    is the only variant whose exposure varies, which is why it is the one the timing
+    null can bite on. There is no threshold sweep, no lookback ladder beyond two
+    points and no weighting scheme other than equal: each would be a plausible thing
+    to try and each would spend budget on a variant with no distinct hypothesis.
+
+# ---------------------------------------------------------------------------
+# Benchmarks, nulls and the decomposition
+# ---------------------------------------------------------------------------
+benchmarks:
+  all_in_eur: true
+  registered:
+    - id: eur_cash
+      definition: zero return, zero cost
+    - id: btc_buy_and_hold
+      definition: BTCUSDT spot held across the window in EUR, paying the same cost regime
+    - id: equal_weight_passive
+      definition: >
+        the entire point-in-time carry universe held LONG SPOT ONLY, equally
+        weighted. Deliberately the long-only benchmark: it is what the same capital
+        would have done without the short leg.
+    - id: random_selection_fully_invested
+      definition: >
+        N carry pairs drawn uniformly without replacement at every rebalance, always
+        fully invested. The outer sanity check.
+    - id: exposure_matched_selection_null
+      per_variant: true
+      definition: >
+        draws uniformly without replacement exactly as many carry pairs as the
+        variant held at that rebalance, leaving the same fraction idle. The variant's
+        exposure path, none of its selection. This is the null that matters for this
+        family.
+    - id: timing_null
+      per_variant: true
+      definition: >
+        holds the whole carry universe equally weighted, scaled to the variant's
+        realised invested fraction. The variant's timing, none of its selection.
+
+null_experiment:
+  seed_counts:
+    exposure_matched_per_cell: 500
+    fully_invested_per_cell: 2000
+  seed_start: 1
+  seed_reduction_ladder: [500, 250, 100]
+  reduction_direction: >
+    down only, and the reduction is reported with the wall-clock projection that
+    caused it. It is never stepped up.
+  cells_running_nulls: [vip0_even, stress]
+  nulls_are_trials: >
+    Strategy-specific nulls are themselves trials and are counted in full in
+    research/trial-registry.jsonl, which is what the Deflated Sharpe Ratio reads.
+    They are not charged against the variant budget.
+
+decomposition:
+  per_variant_per_cell:
+    - combined: the variant's own net return series
+    - timing_effect: the timing null's series
+    - selection_effect: the variant's own selected pairs, scaled to full investment
+    - funding_contribution: >
+        the sum of all funding received and paid, as a share of the combined net
+        return, reported beside the basis contribution and the cost lines so a reader
+        can see whether the return came from the funding stream, from basis
+        convergence, or from something that should not have been there at all
+
+# ---------------------------------------------------------------------------
+# Success criteria
+# ---------------------------------------------------------------------------
+criteria:
+  all_must_hold: true
+  count: 6
+  registered:
+    - id: 1
+      name: positive, and beats its own exposure-matched null
+      test: >
+        OOS annualised net Sharpe in EUR, vip0_even cell, STRICTLY GREATER than the
+        95th percentile of that variant's own exposure-matched null in the same cell,
+        AND OOS net return STRICTLY GREATER than zero.
+      sign_condition_added: true
+      sign_condition_reason: >
+        SEXTANT-005 recorded that its criterion 1 misfired: in a cross-section where
+        almost everything fell, a variant could clear "beats the 95th percentile of
+        its own null" by losing less than chance lost, and two did, one while
+        destroying 78.89 per cent of the account. Corrected here, in a
+        pre-registration written before any number, and the correction makes the
+        criterion stricter.
+    - id: 2
+      name: survives deflation
+      test: DSR at least 0.95 at the full registry trial count, same cell
+      threshold: "0.95"
+    - id: 3
+      name: the win is selection, not exposure
+      test: >
+        the selection effect's net return exceeds EUR cash AND accounts for at least
+        50 per cent of the combined excess over EUR cash
+      minimum_share: "0.50"
+    - id: 4
+      name: regime stability
+      test: >
+        positive OOS net return in at least 3 of the regimes carrying at least 6
+        months each, and in no such regime a net return worse than
+        equal_weight_passive over the same months
+      minimum_regimes: 3
+      minimum_months_per_regime: 6
+    - id: 5
+      name: sign stability across cost regimes
+      test: net return keeps its sign across all four cells
+    - id: 6
+      name: the edge is not confined to the early window
+      test: >
+        the most recent 24 scored months, evaluated alone, satisfy criterion 1 in the
+        headline cell
+      added_by: amendment-1
+  verdict_b_when: no variant satisfies criterion 1
+  verdict_c_when: >
+    at least one variant satisfies criterion 1 but not all six; or the resolved
+    window carries fewer than 36 months; or N_eff falls below 24 for every variant
+    that cleared criterion 1. (C) states precisely what is missing and what it would
+    take to resolve it, and is never presented as a softened (A).
+  no_criterion_is_looser_than_spike_005: true
+
+# ---------------------------------------------------------------------------
+# Decay: declared expectation D1 and the three statistics that test it
+# ---------------------------------------------------------------------------
+decay:
+  declared_expectation:
+    id: D1
+    statement: >
+      The mean monthly net return of the two most recent complete scored calendar
+      years is LOWER than that of the two earliest complete scored calendar years,
+      for the best variant in the headline cell.
+    carries_verdict_weight: false
+    why_declared: >
+      Stated before the grid runs so that a decay narrative told after the fact can
+      be checked against a prediction made before it. Funding carry has had capital
+      pointed at it since roughly 2021, so an average across 2020 to 2026 may be
+      dominated by an early period that no longer exists.
+  per_calendar_year_table:
+    reported_for: every variant, in the headline cell
+    alongside_not_instead_of: the per-regime table
+    columns:
+      [
+        scored months,
+        net return,
+        funding contribution,
+        basis contribution,
+        costs,
+        annualised Sharpe with its standard error,
+      ]
+    minimum_months_for_a_year: 6
+    under_populated_year: >
+      A year with fewer than 6 scored months is reported with its return and an
+      explicit statement that nothing can be concluded from it, exactly as an
+      under-populated regime is. No Sharpe is computed for it.
+  trend:
+    method: ordinary-least-squares slope of monthly net return on months elapsed
+    interval: 95 per cent bootstrap
+    resamples: 10000
+    seed: 987654321
+    decay_is: a negative slope whose interval excludes zero
+    not_decay: >
+      A negative slope whose interval spans zero is not decay and will not be
+      described as though it were.
+  recent_window:
+    months: 24
+    test: criterion 1 of the criteria block, evaluated on those months alone
+    null_source: >
+      the SAME exposure-matched null draws, restricted to the same trailing months
+      and percentiled over them. No new engine run and no new registry trial.
+    multiplicity_paid_by: >
+      requiring BOTH windows to clear rather than either, which is criterion 6. A
+      second test on one result can only remove passes here, never add one.
+    small_sample_declared: >
+      24 months is a small sample and it is stated in advance. SEXTANT-004 measured a
+      Sharpe standard error of 0.709 over 24 months. The window is reported with the
+      effect size it could have detected at its own N_eff.
+    two_distinct_findings_never_merged:
+      rejects: >
+        the point estimate is negative, or positive and below its own null's 95th
+        percentile by more than the sample could plausibly be wrong about
+      cannot_resolve: >
+        the point estimate is positive and below its null by less than the detectable
+        effect size. This is (C) for the persistence question specifically, and it is
+        reported in those words.
+    standard_error_correction: >
+      Mertens skewness and kurtosis correction, because SEXTANT-005 measured skewness
+      2.46 and kurtosis 10.36 on this asset class. An uncorrected standard error would
+      make the bar for calling a rejection LOWER on exactly the distributions where a
+      Sharpe estimate is least trustworthy.
+  outcomes:
+    persisting_edge: criteria 1 to 5 and criterion 6 all clear
+    decayed_edge: >
+      criteria 1 to 5 clear and criterion 6 fails with a REJECTING recent window.
+      Reported in those words with both windows' numbers, and it is NOT verdict (A).
+      An edge that existed until 2023 and does not exist now cannot justify building a
+      system to trade it in 2026.
+    undetermined_persistence: >
+      criteria 1 to 5 clear and criterion 6 fails with an UNRESOLVED recent window.
+      Verdict (C), stated as: the full window shows an edge, the recent window is too
+      short to say whether it survives, and here is the N_eff that would settle it.
+
+# ---------------------------------------------------------------------------
+# Leverage, stage 3, and the maintenance margin that is an assumption
+# ---------------------------------------------------------------------------
+leverage:
+  runs_only_if: F1 clears criterion 1 at 1x
+  never: >
+    Leverage is never a way to turn a losing family into a winning one. If F1 does
+    not clear criterion 1 at 1x, none of this is run and none of it is reported.
+  spot_leg_sweep: not run
+  spot_leg_sweep_reason: >
+    Levering a cash-and-carry means borrowing to buy more spot, at a margin-lending
+    rate this venue does not publish historically. A sweep over an invented number is
+    not a sweep, so it is not run, and that is reported as a limitation of the family
+    rather than hidden.
+  margin_buffer_sweep: ["0.50", "0.20", "0.10", "0.05"]
+  margin_buffer_note: >
+    The futures leg's initial margin fraction: two, five, ten and twenty times
+    leverage on that leg alone. Approved as the better parameterisation of stage 3
+    for this family, and not as a second-best substitute for a sweep that cannot be
+    run. Return, drawdown, Sharpe, Sortino, capital
+    utilisation and sensitivity to fees, funding and slippage at each.
+  probability_of_ruin_from: >
+    the empirical distribution of the pair's own daily basis moves. NOT a normal
+    approximation: SEXTANT-005 measured skewness 2.46 and kurtosis 10.36, where a
+    Gaussian assumption understates the tail by a wide margin precisely where it
+    matters.
+  at_1x_there_is_no_liquidation_price: >
+    A fully-collateralised carry pair at 1x has no liquidation price at all, so no
+    edge finding in this family depends on the maintenance margin.
+
+maintenance_margin:
+  status: assumption, not a datum
+  point_in_time_available: false
+  what_the_venue_publishes:
+    fapi_v1_leverageBracket: >
+      not public. HTTP 401, API-key format invalid, without a credential. Even the
+      current schedule is not readable anonymously.
+    fapi_v1_exchangeInfo: >
+      public, carries NO margin brackets, and lists only currently-trading contracts.
+    web_cms_brackets_endpoint: rejected a bare request, illegal parameter
+    data_archive: no brackets family exists at any grain
+  archived_copy_search:
+    attempted: true
+    snapshot: >
+      https://web.archive.org/web/20211223052201/https://www.binance.com/en/futures/trading-rules/perpetual/leverage-margin
+    snapshot_date: 2021-12-23
+    result: >
+      not established. The page is client-rendered: the snapshot holds the page shell
+      and its translation strings, and the bracket table came from a request the
+      archive did not capture. No maintMarginRatio, maintenanceMarginRate or
+      equivalent field appears anywhere in the archived HTML. Recorded so nobody has
+      to rediscover where the trail goes cold.
+    timeboxed: >
+      The Sponsor's instruction was to use an archived copy if cheaply findable and
+      not to chase it otherwise. It was not cheaply findable and was not chased.
+  bracket_assignment_does_not_arise:
+    largest_single_leg_notional_eur: "1428.57"
+    arithmetic: "1500 / (1 * (1 + 0.05))"
+    approximately_usdt: "1550"
+    todays_first_bracket_ceiling_usdt_btcusdt: "50000"
+    ratio: about thirty-two times below the first bracket's ceiling
+    consequence: >
+      Every position in every variant, in every cell, at every margin-buffer setting,
+      sits in the first bracket and is nowhere near leaving it. Bracket assignment is
+      the size-dependent and genuinely hard part of a historical margin
+      reconstruction, and at this capital it does not arise. The only open question is
+      what the FIRST-BRACKET RATE was historically, which is a single number per era
+      rather than a schedule.
+  settings:
+    - rate: "0.005"
+      status: headline
+      basis: today's published first-bracket rate for majors
+      caveat: an assumption and a look-ahead, applied to 2020 data
+    - rate: "0.010"
+      status: companion
+      basis: twice the headline, for the possibility that the rate was higher earlier
+      caveat: also an assumption; nothing measured supports or contradicts it
+    - rate: "0.025"
+      status: stress
+      basis: five times today's published rate
+      caveat: >
+        A STRESS LEVEL, NOT A CANDIDATE RATE at this capital. A variant that fails
+        only at 0.025 is NOT rejected on that basis, and the report says so where the
+        number appears.
+  bias_direction: >
+    Optimistic. The first-bracket rate may have been higher in 2020 than it is now,
+    which would make liquidation more frequent and probability of ruin higher than
+    reported. The 0.010 companion shows how much that could matter.
+  relaxation_recorded: >
+    Section 16.3 originally required a leverage conclusion to hold at 0.025. That
+    sentence was wrong and 17.2 corrected it, before any result existed, on the
+    arithmetic above rather than on anything observed. It touches only how a leverage
+    and probability-of-ruin conclusion is phrased. Criteria 1 to 6 are untouched.
+
+# ---------------------------------------------------------------------------
+# Capacity: measured only inside the depth window
+# ---------------------------------------------------------------------------
+capacity:
+  depth_window:
+    starts: 2023-01-01
+    ends: 2024-05-17
+    months: 17
+  evaluation_window_spans: roughly 2020 to 2026
+  the_collision: >
+    Declared expectation D1 predicts the edge is concentrated early. If D1 holds,
+    the period where the edge most likely lives is precisely the period where
+    capacity cannot be measured. Those two facts are not independent, and a report
+    that put a depth-measured capacity figure next to a headline return earned mostly
+    in 2021 would be implying a measurement nobody made.
+  rules:
+    - id: C1
+      rule: >
+        Every depth-derived capacity figure carries the window it was measured over,
+        in the same cell, in the same row. No capacity figure in this report omits its
+        window.
+    - id: C2
+      rule: >
+        A capacity number for any period outside the depth window is an extrapolation.
+        It appears in its own table, under its own heading, labelled as an
+        extrapolation, with the assumption that carried it outside the window stated.
+        It is never in the same table as a measured value and never in an adjacent
+        column, because adjacency is itself a claim.
+    - id: C3
+      rule: >
+        When the edge sits outside the window, capacity is reported as UNESTABLISHED,
+        in those words. Decided by the table below, from series that already exist.
+      minimum_depth_months: 12
+      decision_table:
+        - condition: depth_months < 12
+          report: >
+            capacity unestablished. The depth window does not contain enough of this
+            variant's scored months to measure it.
+        - condition: mean_inside <= 0
+          report: >
+            capacity unestablished. The variant did not earn over the months where
+            depth can be measured, so there is no edge there whose capacity could be
+            reported.
+        - condition: mean_inside > 0 and mean_outside > mean_inside
+          report: >
+            capacity reported as measured over a period in which this variant earned
+            less than it did overall, and that sentence appears beside the number.
+        - condition: mean_inside > 0 and mean_outside <= mean_inside
+          report: capacity reported as measured, with its window, under rule C1
+      unestablished_is_a_real_answer: >
+        It does not mean the strategy has no capacity. It means this dataset cannot
+        say what it is, which is the same class of statement as invariant 9's not
+        evaluable, and it is not softened.
+  turnover_capacity:
+    reported_for: the whole window
+    basis: daily quote turnover, in every kline row for every month
+    kept_separate: >
+      A different quantity from resting depth, labelled as an inference from traded
+      notional rather than from a book, and kept out of the depth table by rule C2.
+
+# ---------------------------------------------------------------------------
+# The two rule-fixed measurements, neither of which is a trial
+# ---------------------------------------------------------------------------
+spread_sample:
+  tree: bookTicker
+  available: 2023-05-16 to 2024-03-30
+  size_per_symbol_day: 50 to 90 MB
+  days:
+    [2023-05-16, 2023-06-01, 2023-08-01, 2023-10-01, 2023-12-01, 2024-02-01]
+  symbols:
+    count: 6
+    rule: >
+      two perpetuals per liquidity band, chosen by the same trailing 30-day median
+      quote turnover the cost model's bands are cut on, evaluated at 2023-05-15: the
+      two highest-turnover members of the carry universe at that instant, the two
+      nearest its median, and the two nearest its 10th percentile. Ties broken by
+      symbol ascending.
+    evaluated_at: 2023-05-15
+  statistic: >
+    per symbol-day, the time-weighted mean and the median of (ask - bid) / midpoint
+    in basis points, and the same two restricted to 00:00-00:05 UTC
+  is_a_trial: false
+  changes_no_result: >
+    It measures the QUOTED spread on the perpetual leg, on six days, in one
+    eleven-month stretch of a longer window. It says nothing about the spot leg,
+    about slippage, about the other 2,000-odd days, or about what a 150 EUR order
+    would have paid. It sits BESIDE the configured assumption and every variant
+    remains costed at the assumption. Invariant 12 is not weakened by measuring
+    something; it would be weakened by reporting the measurement as the cost model.
+
+depth_sample:
+  tree: bookDepth
+  grain: daily
+  available: 2023-01-01 to 2024-05-17
+  size_per_symbol_day_mb: "0.47"
+  days:
+    rule: the first trading day of each calendar month in the available range
+    count: 17
+    first: 2023-01-01
+    last: 2024-05-01
+  symbols:
+    count: 20
+    rule: >
+      the perpetual legs of the twenty carry-universe members with the largest
+      trailing 30-day median quote turnover at 2022-12-31, ties broken by symbol
+      ascending
+    evaluated_at: 2022-12-31
+  statistic: >
+    per symbol-day, the median across the day's minutes of cumulative resting
+    notional within 1 per cent of mid, and the same within 5 per cent; plus both
+    restricted to 00:00-00:05 UTC
+  is_a_trial: false
+  what_it_cannot_say: >
+    It measures resting depth on the PERPETUAL leg only, on seventeen days, in a
+    seventeen-month stretch of a longer window. Nothing about the spot leg, nothing
+    about the other years, nothing about what would actually have filled. Capacity is
+    reported as a bound with its basis stated, constrained by rules C1, C2 and C3.
+
+# ---------------------------------------------------------------------------
+# Statistics
+# ---------------------------------------------------------------------------
+statistics:
+  out_of_sample_only: true
+  sharpe: annualised from monthly net returns in EUR
+  periods_per_year: 12
+  deflated_sharpe:
+    citation: bailey-lopez-de-prado-2014-ssrn-2460551
+    trial_count_source: >
+      research/trial-registry.jsonl, INCLUDING null constructs and INCLUDING every
+      trial from every family in this task and every trial from SEXTANT-004 and
+      SEXTANT-005 the registry already holds. That is the honest count and it is a
+      large one.
+    also_reported:
+      [
+        the strategy-only count,
+        the this-family-only count,
+        the bar at SEXTANT-005's trial count,
+        the bar at this task's trial count,
+      ]
+    deflation_cost_must_be_readable: >
+      Both bars are stated so the deflation this task's wider search costs can be
+      read directly.
+  bootstrap:
+    resamples: 10000
+    interval: 95 per cent two-sided
+    seed: 987654321
+  effective_observations:
+    reported_beside_the_raw_count: true
+    formulas: both of the two SEXTANT-005 used
+    cross_sectional_note: >
+      Two carry pairs are two bets on two BASES, and bases can be far less correlated
+      than the underlying prices are. Whether they are is measured, not assumed.
+  where_statistics_cannot_decide: >
+    The report says so and quantifies how far short they fall: the effect size that
+    would have been detectable at the available N_eff, and the N_eff that would have
+    been needed for the observed effect.
+
+# ---------------------------------------------------------------------------
+# Provenance: how a reader verifies the ordering without trusting anyone
+# ---------------------------------------------------------------------------
+#
+# Document section 18. The drift guard proves that the code and this file agree at
+# run time. It cannot prove they were not edited together after a result was seen,
+# because a check that runs inside the run is written by the same run. Git ordering
+# can prove it, and these are the four facts that do it.
+provenance:
+  config_must_be_committed_before_the_run: true
+  runner_refuses_when:
+    untracked: >
+      This file is not tracked by git. A pre-registration that is not committed
+      before the run cannot be shown to have existed before the results.
+    dirty: >
+      This file has staged or unstaged edits. Its committed SHA describes different
+      bytes from the ones the run would read, so citing that SHA would be a false
+      statement about the ordering.
+  recorded_into_the_results:
+    [
+      the config's path,
+      the config's commit SHA,
+      the config's commit instant,
+      the config was clean at run time,
+      HEAD's SHA at run time,
+    ]
+  report_must_cite:
+    - the config's commit SHA and instant
+    - the SHA and instant of the commit that introduced the results file
+    - whether the config's commit is an ancestor of the results' commit
+  ancestry_is_the_audit: >
+    If the config's commit is an ancestor of the commit that introduced the results,
+    and the config was clean when the run started, then the specification
+    demonstrably existed before the numbers did, and a reader can verify it with two
+    git commands rather than by taking anyone's word for it.
+  what_it_does_not_prove: >
+    That the specification was WISE, or that the eight variants were the right eight.
+    Only that they were fixed first. Ordering is a necessary condition for a
+    pre-registration to mean anything and it is not a sufficient one.

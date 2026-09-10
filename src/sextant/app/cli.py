@@ -26,6 +26,10 @@ from sextant.domain.errors import SextantError
 
 EXIT_OK = 0
 EXIT_STARTUP_REFUSED = 2
+#: The pre-registration ordering could not be verified: the results are not
+#: committed yet, or the specification's commit is not an ancestor of theirs. A
+#: distinct code from a startup refusal, because the run itself did nothing wrong.
+EXIT_ORDERING_UNVERIFIED = 3
 
 _LOGGER = logging.getLogger("sextant.app.cli")
 
@@ -122,6 +126,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "stage",
         choices=("index", "fetch", "ingest", "calendar", "all"),
         help="Which stage to run. Each is separately runnable and idempotent.",
+    )
+    f1 = subparsers.add_parser(
+        "spike-006-f1",
+        help="SEXTANT-006 family F1, cash-and-carry. `verify` checks the code against "
+        "the registered specification and reports the pre-registration ordering. "
+        "Reaches no network.",
+    )
+    f1.add_argument(
+        "stage",
+        choices=("verify", "ordering"),
+        help="`verify` runs the drift guard and the commit gate; `ordering` prints the "
+        "audit lines the report quotes, and is rerun after the results are committed.",
     )
     subparsers.add_parser(
         "snapshot-universe",
@@ -284,6 +300,36 @@ def _command_futures(stage: str) -> int:
     return EXIT_OK
 
 
+def _command_spike_006_f1(stage: str) -> int:
+    """The F1 guards, runnable on their own with no dataset present.
+
+    `verify` is what a reader runs to confirm that the committed specification and
+    the code agree, and that the specification is committed at all. `ordering` is
+    what produces the two SHAs and the ancestry between them that the report cites;
+    it is rerun after the results have been committed, because the SHA of the commit
+    that introduces a results file does not exist while the file is being written.
+    """
+    from sextant.app import spike_006_f1
+
+    root = Path()
+    if stage == "verify":
+        spike_006_f1.assert_no_drift()
+        provenance = spike_006_f1.registration_provenance(root=root)
+        print(f"  specification: {provenance.config_path}")
+        print(f"  committed:     {provenance.config_commit.cite()}")
+        print(f"  head:          {provenance.head_sha[:12]}")
+        budget = spike_006_f1.budget()
+        print(
+            f"  trial budget:  {budget.maximum_trials} trials "
+            f"({len(budget.variants)} variants over {len(budget.cost_cells)} cells), enforced"
+        )
+        return EXIT_OK
+    audit = spike_006_f1.ordering_audit(root=root)
+    for line in audit.lines():
+        print(f"  {line}")
+    return EXIT_OK if audit.is_verified else EXIT_ORDERING_UNVERIFIED
+
+
 def _command_spike_005(stage: str, seeds: int | None) -> int:
     """SEXTANT-005. `run` executes the grid; `report` renders what it wrote."""
     if stage == "run":
@@ -305,6 +351,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _command_status(args.profile, args.config_dir)
         if args.command == "spike":
             return _command_spike(args.stage)
+        if args.command == "spike-006-f1":
+            return _command_spike_006_f1(args.stage)
         if args.command == "archive":
             return _command_archive(args.stage)
         if args.command == "benchmark":
