@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.7.1
+version: v1.8
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,6 +63,17 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-7
+    document_section: "29"
+    subject: >
+      How a void execution is counted. What makes a run void is a statement about the
+      machinery and never about the result; the Sponsor declares it, on a written
+      reason naming a defect a test now covers; the rows stay in the append-only
+      registry and are counted in full by the Deflated Sharpe Ratio; the deflation
+      cost of the repeat is reported as a pair, and the verdict follows the full
+      count. A family may be re-executed at most twice, after which it is suspended
+      and reported as (C). Written after the first execution was found void and
+      before any figure of the second had been read.
   - id: amendment-6.1
     document_section: "28.6"
     subject: >
@@ -174,6 +185,42 @@ trial_budget:
     requires a new pre-registered version committed before it is considered, counts
     in full in the registry, and is reported in its own section with the reason it
     was added.
+
+# ---------------------------------------------------------------------------
+# Void executions and how the registry counts them (amendment 29)
+# ---------------------------------------------------------------------------
+void_runs:
+  what_makes_a_run_void:
+    - a registered parameter was not read by the code path that ran
+    - an accounting identity failed
+    - the dataset changed underneath the run
+    - the run did not complete
+  never_void_because: >
+    the answer was disliked, surprising, worse than expected, or worse than another
+    run's. No property of the RETURNS can make a run void. A reason mentioning a
+    Sharpe, a net return, a criterion or a verdict letter is not a voiding reason.
+  declared_by: the Sponsor, in writing, naming the clause and the specific defect
+  declaration_requires: >
+    a defect that a regression test now covers. A void run whose cause is not tested
+    will happen again, and the second occurrence would be indistinguishable from an
+    excuse.
+  rows_are_deleted: false
+  rows_are_counted_by_the_dsr: true
+  rows_carry_a_note: >
+    every row written by a re-execution states, in its note field, why the previous
+    execution was void, so the registry is self-describing.
+  deflation_reported_as_a_pair: >
+    the DSR at the registry's full count, which every criterion is judged on, and the
+    DSR excluding void executions, reported for information and never used. If the two
+    straddle 0.95 the verdict says so in those words and follows the full count.
+  maximum_re_executions: 2
+  on_exceeding_it: >
+    the family is suspended rather than re-executed and its verdict is reported as
+    (C), naming every defect found. (C) is the honest answer: the apparatus could not
+    be made trustworthy inside the budget. Never converted to (A) or (B) by a fourth
+    attempt inside this task.
+  grants_no_trial: true
+  relaxes_no_threshold: true
 
 # ---------------------------------------------------------------------------
 # The account

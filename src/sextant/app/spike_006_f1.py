@@ -125,6 +125,11 @@ HAIRCUT_FRACTION = Decimal("0.20")
 #: the engine ran on its own default of ``False`` - verified the number and wired
 #: none of it.
 HAIRCUT_ON_EITHER_SIDE = True
+
+#: Section 29. How many times a family may be re-executed after a void run before it
+#: is suspended and reported as (C). Two, so three executions in total. Held here
+#: because a ceiling nobody counts against is not a ceiling.
+MAXIMUM_RE_EXECUTIONS = 2
 FX_SYMBOL = "EURUSDT"
 FOREIGN_CURRENCY = "USDT"
 REGIME_SYMBOL = "BTCUSDT"
@@ -483,6 +488,28 @@ def _variant_checks(registered: Sequence[object]) -> list[tuple[str, object, obj
     return checks
 
 
+def _void_run_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Section 29's counting rule, guarded like every other registered value.
+
+    Checked because this block is the one that decides how many searches the
+    Deflated Sharpe Ratio deflates against. A rule that could be edited between a
+    result and a report would be worth less than no rule.
+    """
+    block = _mapping(raw["void_runs"], "void_runs")
+    return [
+        (
+            "void_runs.maximum_re_executions",
+            _text(block["maximum_re_executions"]),
+            str(MAXIMUM_RE_EXECUTIONS),
+        ),
+        ("void_runs.rows_are_deleted", bool(block["rows_are_deleted"]), False),
+        ("void_runs.rows_are_counted_by_the_dsr", bool(block["rows_are_counted_by_the_dsr"]), True),
+        ("void_runs.grants_no_trial", bool(block["grants_no_trial"]), True),
+        ("void_runs.relaxes_no_threshold", bool(block["relaxes_no_threshold"]), True),
+        ("void_runs.declared_by", _text(block["declared_by"]).split(",")[0], "the Sponsor"),
+    ]
+
+
 def _cadence_checks(variants: Mapping[str, object]) -> list[tuple[str, object, object]]:
     """Amendment 28.3's pairing and its reporting requirement.
 
@@ -805,6 +832,7 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.extend(_budget_checks(raw))
     checks.extend(_variant_checks(_sequence(variants["registered"], "variants.registered")))
     checks.extend(_cadence_checks(variants))
+    checks.extend(_void_run_checks(raw))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
     for band in ("deep", "mid", "thin", "unknown"):
         checks.append(
@@ -1146,6 +1174,7 @@ __all__ = [
     "HAIRCUT_ON_EITHER_SIDE",
     "IN_SAMPLE_MONTHS",
     "MARGIN_FRACTION",
+    "MAXIMUM_RE_EXECUTIONS",
     "MINIMUM_MONTHS_FOR_A_YEAR",
     "RECENT_WINDOW_MONTHS",
     "REGISTERED_CELLS",

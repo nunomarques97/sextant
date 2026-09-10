@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.7.1`. Part 1, the specification, committed before any funding number was
+**Version `v1.8`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
@@ -8,7 +8,9 @@ and why. Amendments 4, 5 and 6 were written after part 2 and change nothing part
 Amendment 6 is the only one that changes the grid, and it is the last: the grid closed when the
 runner started. `v1.7.1` adds section 28.6, which resolves what 28.2 left implicit about the months
 between quarterly rebalances. It changes no registered choice, adds no variant and was committed
-before the runner produced a number.**
+before the runner produced a number. `v1.8` adds section 29, the rule for how a void
+execution is counted, written after the first execution was found void and before any figure of
+the second had been read. It changes no variant, cell, criterion, threshold or budget.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -1615,3 +1617,111 @@ is asserted by a test rather than described.
 **The grid is now closed.** Nine variants, four cells, 36 trials. On exhaustion F1 is closed: no
 tenth variant, no adjusted parameter, no additional lookback, no further cell and no further
 cadence. If the nine do not clear the criteria, that is the answer.
+
+---
+
+## 29. Amendment 7 — void runs, and how the trial registry counts them
+
+**Added on the Sponsor's instruction, before the numbers of the second execution had been
+looked at. The first execution's numbers had been seen and are void for the reasons below; the
+second execution was still running when this was written and no figure from it had been read.
+This section is a rule about counting, not a change to any variant, cell, criterion, threshold
+or budget.**
+
+### 29.1 Why the rule is written now
+
+The trial registry is append-only and hash-chained, and the Deflated Sharpe Ratio reads its
+count. That is what makes the deflation honest: a search cannot be un-run.
+
+It also means an **engineering accident inflates the bar**. The first execution of this family's
+grid ran to completion and reached a verdict with every funding line at exactly zero, because
+the engine was built without the published settlement schedule and with the delisting haircut on
+one side rather than either. Two registered values, verified by the drift guard, read by no code
+path. Re-running left a second set of rows in the registry, and the DSR now deflates against
+both.
+
+For one repeat that is conservative and correct. Repeated, it stops being either: a family could
+become unclearable because its runner was rewritten three times, which is a fact about this
+project's engineering and not about the market. **A bar that moves for reasons unrelated to the
+strategy space is not a statistical control, it is noise with a threshold attached.**
+
+**So the rule is written before anybody knows whether it helps or hurts.** At the moment of
+writing, the second execution's figures do not exist in any form anybody here has read. Deciding
+this after a number exists is precisely the thing this apparatus is built to prevent.
+
+### 29.2 What makes a run void
+
+A run is **void** if and only if at least one of the following is true of it, and each is a
+statement about the *machinery*, never about the result:
+
+1. **A registered parameter was not read by the code path that ran.** The value the runner used
+   differed from the value the committed configuration declares, for any reason: a keyword never
+   passed, a default left in place, a constant compared by the drift guard and consumed by
+   nothing. The two defects above are both of this kind.
+2. **An accounting identity failed.** The ledger did not reconcile, the hedge did not cancel, a
+   cost line was double counted, or funding entered the accounting more or less than once.
+3. **The dataset changed underneath the run.** The archive fingerprint recorded in the results
+   does not match the bytes on disk, or the run read a file that was rewritten while it ran.
+4. **The run did not complete.** It raised, was killed, or wrote a partial result file.
+
+**A run is not void because its answer was disliked, was surprising, was worse than expected, or
+was worse than another run's.** No property of the *returns* can make a run void. If the reason
+being offered mentions a Sharpe, a net return, a criterion or a verdict letter, it is not a
+voiding reason and the run stands.
+
+### 29.3 Who declares it, and when
+
+**The Sponsor declares a run void, on a written statement of which clause of 29.2 applies and
+what the specific defect was.** Not the developer, and not the runner. The declaration is
+recorded in the results document of the family it concerns and in the commit that supersedes the
+run.
+
+**The declaration must name a defect that a test now covers.** A void run whose cause is not
+regression-tested is a void run that will happen again, and the second occurrence would be
+indistinguishable from an excuse. Both defects above are covered: a parametrised test asserts
+each registered keyword reaches the engine wiring, the runner refuses to write a carry result
+whose funding line is zero throughout, and fifteen invariants pin the hedge and the funding
+identity.
+
+### 29.4 How a void run is counted
+
+**Its rows stay in the registry. Nothing is ever deleted, edited or excluded from
+`research/trial-registry.jsonl`.** The chain would not survive it and the file's whole value is
+that it cannot be revised.
+
+**Its rows are counted in the DSR's trial count.** The count the deflation reads is the registry's
+own count, including void executions, and no filtered count is substituted for it. The reported
+figure is therefore conservative: it deflates against more searches than the strategy space was
+actually searched with.
+
+**Its rows carry a note saying so.** Every row written by a re-execution carries, in its `note`
+field, the reason the previous execution was void. The registry is then self-describing: a reader
+counting rows can see which of them are repeats and why, without being told.
+
+**The deflation cost of the repeat is reported explicitly**, as a pair of figures: the DSR at the
+registry's full count, which is the one every criterion is judged on, and the DSR at the count
+excluding void executions, which is reported **for information only and never used**. If the two
+straddle the 0.95 threshold, that fact is stated in the verdict in those words, and **the verdict
+follows the full count**. A criterion judged on the smaller number would be a criterion loosened
+after a result was seen.
+
+### 29.5 The ceiling, and what happens at it
+
+**A family may be re-executed at most twice for void runs.** That is three executions in total.
+On a third void run the family is **suspended rather than re-executed**: its verdict is reported
+as **(C)**, stating that the machinery could not be made to produce a trustworthy result inside
+the task's budget, and naming every defect found. **(C) is the honest answer there** — the data
+and the statistics could not distinguish an edge from noise because the apparatus measuring them
+was not trustworthy, which is a real finding about this project's readiness and not a
+disappointment to be worked around.
+
+**A suspended family is never converted to (A) or (B) by a fourth attempt inside this task.** If
+it matters enough to retry, it is a new pre-registered version in a new task, with the registry
+carrying every row of every attempt.
+
+### 29.6 What this does not touch
+
+The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6, the seed counts,
+the null constructs, declared expectations D1 and D2, and every threshold in sections 6, 7, 8, 11
+and 14 are **unchanged**. This section governs how executions are counted and who may declare one
+void. It grants no new trial, relaxes no threshold, and cannot make a failing variant pass.

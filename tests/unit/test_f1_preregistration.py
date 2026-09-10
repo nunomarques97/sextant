@@ -29,6 +29,7 @@ from sextant.app.spike_006_f1 import (
     MAINTENANCE_MARGINS,
     MARGIN_BUFFER_SWEEP,
     MARGIN_FRACTION,
+    MAXIMUM_RE_EXECUTIONS,
     MINIMUM_DEPTH_MONTHS,
     REGISTERED_CELLS,
     REGISTERED_VARIANTS,
@@ -89,7 +90,7 @@ def _alter(payload: dict[str, object], path: tuple[str | int, ...], value: objec
 def test_the_committed_specification_agrees_with_the_code() -> None:
     """If this fails, no F1 result may be produced."""
     registered = assert_no_drift()
-    assert str(registered["version"]) == "v1.7.1"
+    assert str(registered["version"]) == "v1.8"
     assert str(registered["family"]) == FAMILY
 
 
@@ -539,3 +540,58 @@ def test_the_ninth_variant_costs_four_more_trials_and_no_more() -> None:
     declared = budget()
     assert declared.maximum_trials == len(REGISTERED_VARIANTS) * len(REGISTERED_CELLS) == 36
     assert THINNER_EVIDENCE_VARIANT in declared.variants
+
+
+# ---------------------------------------------------------------------------
+# Amendment 7: how a void execution is counted
+# ---------------------------------------------------------------------------
+
+
+def test_a_void_run_never_removes_rows_from_the_registry(tmp_path: Path) -> None:
+    """The chain would not survive it, and the file's value is that it cannot be revised."""
+    payload = _registered()
+    _alter(payload, ("void_runs", "rows_are_deleted"), True)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="rows_are_deleted"):
+        assert_no_drift(altered)
+
+
+def test_the_deflation_never_reads_a_count_that_excludes_void_runs(tmp_path: Path) -> None:
+    """The one edit that would turn an engineering repeat into a looser bar."""
+    payload = _registered()
+    _alter(payload, ("void_runs", "rows_are_counted_by_the_dsr"), False)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="rows_are_counted_by_the_dsr"):
+        assert_no_drift(altered)
+
+
+def test_raising_the_re_execution_ceiling_refuses_the_run(tmp_path: Path) -> None:
+    """Two repeats, then the family is suspended and reported as (C)."""
+    payload = _registered()
+    _alter(payload, ("void_runs", "maximum_re_executions"), 5)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="maximum_re_executions"):
+        assert_no_drift(altered)
+
+
+def test_the_developer_cannot_declare_a_run_void(tmp_path: Path) -> None:
+    """It is the Sponsor's call, in writing, and the guard holds the name."""
+    payload = _registered()
+    _alter(payload, ("void_runs", "declared_by"), "the developer, at their discretion")
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="declared_by"):
+        assert_no_drift(altered)
+
+
+def test_the_void_rule_grants_no_trial_and_relaxes_no_threshold(tmp_path: Path) -> None:
+    """A counting rule that could hand out a trial would be a budget with a back door."""
+    for field in ("grants_no_trial", "relaxes_no_threshold"):
+        payload = _registered()
+        _alter(payload, ("void_runs", field), False)
+        altered = _write(payload, tmp_path / f"{field}.yaml")
+        with pytest.raises(DriftedFromPreRegistration, match=field):
+            assert_no_drift(altered)
+
+
+def test_the_ceiling_is_two_and_lives_in_one_place() -> None:
+    assert MAXIMUM_RE_EXECUTIONS == 2
