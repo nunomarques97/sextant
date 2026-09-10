@@ -43,6 +43,11 @@ on three views of the same underlying quantity and ask whether choosing *which*
 assets to carry adds anything. ``positive`` is the only variant whose exposure
 varies, which is why the decomposition has something to decompose.
 
+Amendment 6 adds a fourth question, cadence, at exactly one point.
+:class:`CadencedCarry` carries it, so :class:`CashAndCarry` still holds no
+rebalance frequency of its own and the eight variants registered before the
+amendment are unchanged in every field.
+
 Pure computation. No I/O, no clock, no venue - the funding settlements and the
 premium series arrive as plain values from the layer that is allowed to read a
 store.
@@ -57,6 +62,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
+from typing import Protocol
 
 from sextant.domain.errors import DomainError
 from sextant.domain.instrument import Instrument, InstrumentKey
@@ -77,6 +83,31 @@ TURNOVER_DAYS = 30
 
 class CarryError(DomainError):
     """A carry construction was asked for something it cannot express."""
+
+
+class CarryAllocator(Protocol):
+    """What a carry construct must offer to be recorded and to be nulled against.
+
+    Narrower than :class:`~sextant.engine.backtest.allocation.Allocator`: the
+    return type is a long-short allocation, because the constructs that read a
+    record read its weights and need both signs.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def parameter_set_id(self) -> str: ...
+
+    @property
+    def is_cross_sectional(self) -> bool: ...
+
+    def allocate(
+        self,
+        candidates: Sequence[Instrument],
+        at: Timestamp,
+        view: PointInTimeView,
+    ) -> LongShortAllocation: ...
 
 
 class CarrySignal(StrEnum):
@@ -197,9 +228,9 @@ class CashAndCarry:
 
     Every variant in section 9.2 is one of these. The differences between them
     are the signal, the position count and whether a sign filter applies, and
-    nothing else - no weighting scheme, no threshold ladder, no rebalance
-    frequency. Parameters are fixed by the pre-registration and nothing fits
-    them.
+    nothing else - no weighting scheme, no threshold ladder and no rebalance
+    frequency, which :class:`CadencedCarry` carries instead. Parameters are fixed
+    by the pre-registration and nothing fits them.
     """
 
     label: str
@@ -341,6 +372,152 @@ def build_pair_allocation(
 
 
 # ---------------------------------------------------------------------------
+# Cadence: amendment 6
+# ---------------------------------------------------------------------------
+
+
+#: Rebalance months are anchored to the calendar rather than to the run, so
+#: ``(month - 1) % rebalance_months == 0``. At three that is January, April, July
+#: and October, exactly as section 28.2 registers it. Calendar-anchored on purpose:
+#: a cadence measured from the window start would move every rebalance date if the
+#: fold structure ever changed, and the variant would silently become a different
+#: variant.
+def is_rebalance_month(at: Timestamp, rebalance_months: int) -> bool:
+    """Whether ``at`` falls on one of the variant's rebalance instants."""
+    if rebalance_months <= 0:
+        raise CarryError(f"rebalance_months must be positive, got {rebalance_months}")
+    return (at.value.month - 1) % rebalance_months == 0
+
+
+@dataclass(slots=True)
+class CadencedCarry:
+    """A carry variant that only looks at its signal every ``rebalance_months``.
+
+    Registered by amendment 6 for ``carry-rank90-10-quarterly`` and for nothing
+    else. The engine still reprices and still records a return every month, so the
+    return series is monthly whatever the cadence is; what changes is how often the
+    book may be *decided*.
+
+    Between rebalances
+    ------------------
+
+    The remembered target is returned unchanged, so the engine finds no difference
+    to trade and the book pays nothing. Two things can still remove a pair, and
+    neither is a cadence-specific rule:
+
+    **A sourced delisting.** The engine writes down and sells any held position
+    whose series end takes a haircut, whatever the allocation asks for. That
+    happens to every variant on the same terms.
+
+    **Leaving the carry universe.** A remembered pair whose legs are no longer in
+    the candidate set is dropped from the target here. It has to be: keeping it
+    would ask the engine to re-buy an instrument that the point-in-time universe no
+    longer admits, which is how a delisted name gets re-entered.
+
+    So the book between rebalances can only shrink, never grow, and the capital a
+    dropped pair used sits idle until the next rebalance instant. That follows from
+    the registered weighting rule rather than adding to it: the denominator is the
+    registered position count, so a pair leaving does not concentrate the rest.
+
+    Before the first rebalance instant
+    ----------------------------------
+
+    Nothing is held. Section 28.2 registers the signal as evaluated *only* at
+    quarterly instants, so a run whose first month is not one of them starts in
+    cash rather than taking an extra rebalance the registration does not grant.
+    The months this affects are reported.
+    """
+
+    inner: CashAndCarry
+    rebalance_months: int
+    _target: tuple[tuple[InstrumentKey, Decimal], ...] | None = None
+    decided_at: list[Timestamp] = field(default_factory=list)
+    carried_at: list[Timestamp] = field(default_factory=list)
+    idle_before_first: list[Timestamp] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.rebalance_months <= 0:
+            raise CarryError(
+                f"{self.inner.label}: rebalance_months must be positive, "
+                f"got {self.rebalance_months}"
+            )
+
+    @property
+    def label(self) -> str:
+        """The registered variant id, which already names the cadence."""
+        return self.inner.label
+
+    @property
+    def name(self) -> str:
+        return self.inner.label
+
+    @property
+    def parameter_set_id(self) -> str:
+        """The wrapped parameters plus the cadence, for the trial registry.
+
+        The cadence is in the identifier because two trials that differ only in it
+        are two trials, and a registry that could not tell them apart would be
+        counting one where the Deflated Sharpe Ratio needs two.
+        """
+        return f"{self.inner.parameter_set_id};rebalance_months={self.rebalance_months}"
+
+    @property
+    def is_cross_sectional(self) -> bool:
+        return self.inner.is_cross_sectional
+
+    @property
+    def rebalance_count(self) -> int:
+        """How many times the signal was actually consulted.
+
+        Printed beside this variant's result everywhere it appears, per section
+        28.3: roughly a third of its siblings' count on the same window is thinner
+        evidence, and a reader must see that where the number is.
+        """
+        return len(self.decided_at)
+
+    def allocate(
+        self,
+        candidates: Sequence[Instrument],
+        at: Timestamp,
+        view: PointInTimeView,
+    ) -> LongShortAllocation:
+        """Decide on a rebalance instant; otherwise carry what is already held."""
+        pairs = pairs_from(candidates, perpetual_venue=self.inner.perpetual_venue)
+        if is_rebalance_month(at, self.rebalance_months):
+            allocation = self.inner.allocate(candidates, at, view)
+            self._target = allocation.weights
+            self.decided_at.append(at)
+            return allocation
+        if self._target is None:
+            self.idle_before_first.append(at)
+            return build_pair_allocation(
+                (),
+                at,
+                candidates_considered=len(pairs),
+                positions=self.inner.positions,
+                margin_fraction=self.inner.margin_fraction,
+                note=(
+                    "no rebalance instant has been reached yet, so nothing is held; "
+                    f"{len(pairs)} pairs in the carry universe"
+                ),
+            )
+        self.carried_at.append(at)
+        available = {instrument.key for instrument in candidates}
+        kept = tuple((key, weight) for key, weight in self._target if key in available)
+        dropped = (len(self._target) - len(kept)) // 2
+        return LongShortAllocation(
+            weights=kept,
+            at=at,
+            candidates_considered=len(pairs),
+            gross_limit=self.inner.gross_limit,
+            note=(
+                f"carried between rebalances: {len(kept) // 2} pairs held, "
+                f"{dropped} dropped for leaving the carry universe"
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
 # The constructs the nulls and the decomposition need
 # ---------------------------------------------------------------------------
 
@@ -354,7 +531,12 @@ class RecordingCarry:
     drift from the thing the variant actually did.
     """
 
-    inner: CashAndCarry
+    inner: CarryAllocator
+    """Either a variant or a cadenced variant. The record must describe what the
+    account actually did at every monthly instant, so a cadence wrapper belongs
+    inside the recorder rather than outside it: the exposure-matched null draws
+    against the pair count the variant was really holding that month, which
+    between rebalances is a carried count and not a fresh decision."""
     chosen: dict[Timestamp, tuple[str, ...]] = field(default_factory=dict)
     held: dict[Timestamp, int] = field(default_factory=dict)
     universe: dict[Timestamp, int] = field(default_factory=dict)

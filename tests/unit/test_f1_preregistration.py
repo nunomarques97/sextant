@@ -89,7 +89,7 @@ def _alter(payload: dict[str, object], path: tuple[str | int, ...], value: objec
 def test_the_committed_specification_agrees_with_the_code() -> None:
     """If this fails, no F1 result may be produced."""
     registered = assert_no_drift()
-    assert str(registered["version"]) == "v1.7"
+    assert str(registered["version"]) == "v1.7.1"
     assert str(registered["family"]) == FAMILY
 
 

@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.7
+version: v1.7.1
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,6 +63,16 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-6.1
+    document_section: "28.6"
+    subject: >
+      What happens between quarterly rebalances and before the first one, stated so a
+      competent stranger reproduces the same numbers. A sourced delisting still forces
+      an exit; a pair leaving the carry universe is dropped and never re-bought; the
+      freed capital sits idle rather than concentrating the rest; nothing is held before
+      the first rebalance instant and the affected months are reported. Resolves what
+      28.2 left implicit, changes no registered choice, adds no variant, committed
+      before the runner produced a number.
   - id: amendment-6
     document_section: "28"
     subject: >
@@ -494,6 +504,23 @@ variants:
       field. Whatever separates their results is cadence, which is what the amendment
       exists to measure. Neither member may be altered, because a one-factor comparison
       is only one-factor if neither member is quietly re-specified.
+  between_rebalances:
+    applies_to: carry-rank90-10-quarterly
+    sourced_delisting: >
+      still forces an exit. Section 7's haircut rule applies to every variant on the
+      same terms; cadence does not buy a pair the right to stay.
+    left_the_carry_universe: >
+      dropped from the target and never re-bought. Forced rather than chosen: keeping it
+      would ask the engine to re-buy an instrument the point-in-time universe no longer
+      admits, which is how a delisted name gets re-entered.
+    freed_capital: >
+      sits idle until the next rebalance instant. Section 9.1's denominator is the
+      registered position count, so a pair leaving does not concentrate the others. The
+      book between rebalances can only shrink, never grow.
+    before_the_first_rebalance_instant: >
+      nothing is held. 28.2 grants quarterly instants and no others, so a run whose
+      first out-of-sample month is not one of them starts in cash rather than taking an
+      unregistered rebalance. The affected months are reported beside the result.
   rebalance_count_reporting:
     applies_to: carry-rank90-10-quarterly
     requirement: >

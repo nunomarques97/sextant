@@ -486,6 +486,7 @@ def _cadence_checks(variants: Mapping[str, object]) -> list[tuple[str, object, o
     reporting = _mapping(
         variants["rebalance_count_reporting"], "variants.rebalance_count_reporting"
     )
+    between = _mapping(variants["between_rebalances"], "variants.between_rebalances")
     registered_pair = _sequence(pair["pair"], "variants.one_factor_comparison.pair")
     differs = _sequence(pair["differs_in"], "variants.one_factor_comparison.differs_in")
     return [
@@ -502,6 +503,11 @@ def _cadence_checks(variants: Mapping[str, object]) -> list[tuple[str, object, o
         (
             "variants.rebalance_count_reporting.applies_to",
             _text(reporting["applies_to"]),
+            THINNER_EVIDENCE_VARIANT,
+        ),
+        (
+            "variants.between_rebalances.applies_to",
+            _text(between["applies_to"]),
             THINNER_EVIDENCE_VARIANT,
         ),
     ]

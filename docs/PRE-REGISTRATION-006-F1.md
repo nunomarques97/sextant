@@ -1,12 +1,14 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.7`. Part 1, the specification, committed before any funding number was
+**Version `v1.7.1`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
 and why. Amendments 4, 5 and 6 were written after part 2 and change nothing part 2 measured.
 Amendment 6 is the only one that changes the grid, and it is the last: the grid closed when the
-runner started.**
+runner started. `v1.7.1` adds section 28.6, which resolves what 28.2 left implicit about the months
+between quarterly rebalances. It changes no registered choice, adds no variant and was committed
+before the runner produced a number.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -1574,6 +1576,41 @@ field.
 > **9.2's closing paragraph is amended here.** "Three questions and no more" is now four: cadence
 > is the fourth, asked at exactly one point, against exactly one sibling. The original reasoning
 > stands unedited and the three questions it describes are unchanged.
+
+### 28.6 What happens between rebalances, and before the first one
+
+**Added as `v1.7.1`, before the runner produced a single number, and it changes no
+registered choice.** 28.2 said the book is "held unchanged in between". Three things follow from
+that plus the rules already registered elsewhere, and they are written down here because they
+change the numbers and a competent stranger would otherwise have to guess.
+
+**A sourced delisting still forces an exit.** The engine writes down and sells any held position
+whose series end takes a haircut, whatever the allocation asks for. That is section 7's rule and it
+applies to every variant on the same terms; cadence does not buy a pair the right to stay.
+
+**A pair that leaves the carry universe is dropped, and not re-bought.** A remembered target whose
+legs are no longer in the point-in-time candidate set is removed from the target. This is forced
+rather than chosen: keeping it would ask the engine to re-buy an instrument the point-in-time
+universe no longer admits, which is precisely how a delisted name gets re-entered and a
+survivorship bias gets built.
+
+**So the book between rebalances can only shrink, never grow, and the freed capital sits idle until
+the next rebalance instant.** That follows from section 9.1's weighting rule rather than adding to
+it: the denominator is the registered position count, so a pair leaving does not concentrate the
+others. It is also the conservative direction — the variant is never handed an extra selection
+decision between the rebalances it was granted.
+
+**Before the first rebalance instant, nothing is held.** 28.2 registers the signal as evaluated
+*only* at quarterly instants, so if the first out-of-sample month is not one of them the variant
+starts in cash rather than taking a rebalance the registration does not grant. **The affected
+months are reported beside the variant's result**, because they are an asymmetry against its
+siblings and not a rounding detail.
+
+**None of this is a new degree of freedom.** Each item resolves what the registered text left
+implicit, in the only direction that does not either invent a rule or reintroduce a bias, and each
+is asserted by a test rather than described.
+
+### 28.7 The grid closing
 
 **The grid is now closed.** Nine variants, four cells, 36 trials. On exhaustion F1 is closed: no
 tenth variant, no adjusted parameter, no additional lookback, no further cell and no further
