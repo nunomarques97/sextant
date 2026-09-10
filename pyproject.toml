@@ -110,6 +110,7 @@ ignore = [
 "src/sextant/app/spike_005_run.py" = ["T20"]
 "src/sextant/app/spike_006_f1_run.py" = ["T20"]
 "src/sextant/app/spike_005_report.py" = ["T20"]
+"src/sextant/app/spike_006_f1_report.py" = ["T20"]
 # S311 flags `random` as unsuitable for cryptography, which is true and
 # irrelevant: this is a reproducible simulation and a cryptographic generator
 # would be the defect. The generator is explicitly constructed and seeded per

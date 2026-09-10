@@ -30,12 +30,16 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from sextant.app.spike_006_f1 import (
+    ACCOUNT_EQUITY,
+    EXECUTION_FEE_OF_EQUITY_BPS,
     MINIMUM_MONTHS_TO_PROCEED,
     RECENT_WINDOW_MONTHS,
     REGISTERED_VARIANTS,
+    RESEARCH_FEE_OF_EQUITY_BPS,
 )
 from sextant.app.spike_006_f1_engine import recent_window, statistics_of
 from sextant.domain.time import Timestamp
+from sextant.engine.execution.breakeven import BreakEven, BreakEvenUndefined
 from sextant.engine.regime.segmentation import Regime, conclusive
 from sextant.engine.statistics.dsr import DeflatedSharpeResult, deflated_sharpe_ratio
 from sextant.engine.statistics.independence import (
@@ -248,6 +252,7 @@ class VariantRow:
     deflated: DeflatedSharpeResult | None
     decomposition: Decomposition
     regime_returns: Mapping[str, tuple[Decimal, int]]
+    break_even: BreakEven | None
     criteria: Criteria
 
     @property
@@ -284,6 +289,7 @@ class VariantRow:
                 label: {"net_return": str(value), "months": months}
                 for label, (value, months) in sorted(self.regime_returns.items())
             },
+            "break_even": None if self.break_even is None else self.break_even.as_json(),
             "criteria": self.criteria.as_json(),
         }
         if self.rebalances is not None:
@@ -351,20 +357,97 @@ def _variance(row: Mapping[str, object] | None) -> float | None:
     return _optional_float(sharpe.get("variance"))
 
 
-def _costs_of(row: Mapping[str, object]) -> tuple[Decimal, Decimal, Decimal]:
-    """The gross, the funding line and the total cost of one run.
+@dataclass(frozen=True, slots=True)
+class CostLines:
+    """One run's cost breakdown, as the break-even arithmetic needs to see it."""
 
-    Funding is returned as a *receipt*: the ledger records a positive funding cost
-    when the book paid and a negative one when it was paid, so the sign is flipped
-    here and the field is named for what it is.
-    """
+    market_gain: Decimal
+    """The ledger's gross PnL: the market move on what was held, funding aside."""
+    funding_received: Decimal
+    """The funding stream as a receipt. The ledger records a positive cost when the
+    book paid and a negative one when it was paid, so the sign is flipped here and
+    the field is named for what it actually is."""
+    fees: Decimal
+    """Exchange fees alone. What amendment 27's turnover figure inverts."""
+    spread: Decimal
+    slippage: Decimal
+    conversion: Decimal
+    delisting: Decimal
+    total: Decimal
+
+    @property
+    def gross_before_costs(self) -> Decimal:
+        """The carry, before every charge: the market move plus the funding stream.
+
+        Funding belongs on this side of the line because it is the return this
+        family exists to harvest, not a cost. Amendment 27's numerator.
+        """
+        return self.market_gain + self.funding_received
+
+
+def _costs_of(row: Mapping[str, object]) -> CostLines:
+    """One run's cost breakdown, itemised, never collapsed to a total."""
     costs = row.get("costs")
     if not isinstance(costs, dict):
         raise ResultsIncomplete(f"{row.get('construct')} carries no cost breakdown.")
-    funding_paid = _decimal(costs.get("funding", "0"))
-    total = _decimal(costs.get("total", "0"))
-    gross = _decimal(row.get("gross_pnl", "0"))
-    return gross, -funding_paid, total
+    return CostLines(
+        market_gain=_decimal(row.get("gross_pnl", "0")),
+        funding_received=-_decimal(costs.get("funding", "0")),
+        fees=_decimal(costs.get("fees", "0")),
+        spread=_decimal(costs.get("spread", "0")),
+        slippage=_decimal(costs.get("slippage", "0")),
+        conversion=_decimal(costs.get("fx_conversion", "0")),
+        delisting=_decimal(costs.get("delisting", "0")),
+        total=_decimal(costs.get("total", "0")),
+    )
+
+
+def break_even_of(lines: CostLines, months: int) -> BreakEven | None:
+    """Amendment 27's three numbers for one run, or None where they cannot form.
+
+    **The numerator is compounded**, as 27.2 registers it: the gross carry as a
+    fraction of starting equity, raised to the reciprocal of the years scored.
+    **The fee line is annualised arithmetically**, because fees are an additive flow
+    per round trip rather than a compounding return, and dividing them by the years
+    is what makes the quotient a count of round trips.
+
+    **Only the fee line is charged here.** Spread and slippage also scale with
+    turnover and are excluded, which is exactly why the resulting figures are upper
+    bounds; the conversion leg is excluded because it is charged twice for a whole
+    run rather than per rebalance.
+    """
+    if months < 1:
+        return None
+    years = Decimal(months) / Decimal(12)
+    equity = ACCOUNT_EQUITY.amount
+    growth = Decimal(1) + lines.gross_before_costs / equity
+    if growth <= 0:
+        gross_bps = Decimal(-10000)
+    else:
+        gross_bps = (_root(growth, years) - Decimal(1)) * Decimal(10000)
+    fees_bps = lines.fees / equity * Decimal(10000) / years
+    try:
+        return BreakEven(
+            gross_return_bps_per_year=gross_bps,
+            research_fee_of_equity_bps=RESEARCH_FEE_OF_EQUITY_BPS,
+            execution_fee_of_equity_bps=EXECUTION_FEE_OF_EQUITY_BPS,
+            realised_fees_bps_per_year=max(fees_bps, Decimal(0)),
+        )
+    except BreakEvenUndefined:
+        return None
+
+
+def _root(value: Decimal, years: Decimal) -> Decimal:
+    """``value ** (1 / years)`` in Decimal, for a positive base.
+
+    Through ``ln`` and ``exp`` rather than ``**`` because Decimal's power operator
+    refuses a non-integral exponent, and because the money boundary is deliberate:
+    this is a reporting conversion, not an accounting one, and it stays in Decimal
+    rather than crossing to float for a fractional power.
+    """
+    if years <= 0:
+        raise ResultsIncomplete("A compounded annual rate needs a positive span of years.")
+    return (value.ln() / years).exp()
 
 
 def _regime_returns(
@@ -484,16 +567,16 @@ def analyse(payload: Mapping[str, object]) -> tuple[VariantRow, ...]:
             if statistics is not None and variance is not None
             else None
         )
-        gross, funding, costs = _costs_of(row)
+        lines = _costs_of(row)
         selection = by_key.get((f"{variant}/{SELECTION_ONLY}", cell))
         timing = by_key.get((f"{variant}/{TIMING_NULL}", cell))
         decomposition = Decomposition(
             combined=_decimal(row["terminal_return"]),
             timing_effect=None if timing is None else _decimal(timing["terminal_return"]),
             selection_effect=None if selection is None else _decimal(selection["terminal_return"]),
-            funding=funding,
-            gross=gross,
-            costs=costs,
+            funding=lines.funding_received,
+            gross=lines.gross_before_costs,
+            costs=lines.total,
         )
         passive = by_key.get((EQUAL_WEIGHT_PASSIVE, cell))
         regimes = _regime_returns(monthly, labels)
@@ -519,6 +602,9 @@ def analyse(payload: Mapping[str, object]) -> tuple[VariantRow, ...]:
                 deflated=deflated,
                 decomposition=decomposition,
                 regime_returns=regimes,
+                break_even=break_even_of(
+                    lines, 0 if statistics is None else statistics.observations
+                ),
                 criteria=_criteria(
                     statistics=statistics,
                     net_return=_decimal(row["terminal_return"]),
@@ -679,12 +765,14 @@ __all__ = [
     "MINIMUM_MONTHS_PER_REGIME",
     "MINIMUM_REGIMES",
     "SELECTION_SHARE",
+    "CostLines",
     "Criteria",
     "Decomposition",
     "ResultsIncomplete",
     "VariantRow",
     "Verdict",
     "analyse",
+    "break_even_of",
     "monthly_of",
     "opening_instants",
     "regime_labels",
