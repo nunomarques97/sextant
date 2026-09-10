@@ -11,6 +11,7 @@ This software does not place real orders in its current state.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from collections.abc import Sequence
@@ -135,9 +136,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     f1.add_argument(
         "stage",
-        choices=("verify", "ordering"),
+        choices=("verify", "ordering", "dataset"),
         help="`verify` runs the drift guard and the commit gate; `ordering` prints the "
-        "audit lines the report quotes, and is rerun after the results are committed.",
+        "audit lines the report quotes, and is rerun after the results are committed; "
+        "`dataset` measures the acquisition and writes pre-registration part 2.",
     )
     subparsers.add_parser(
         "snapshot-universe",
@@ -323,6 +325,14 @@ def _command_spike_006_f1(stage: str) -> int:
             f"  trial budget:  {budget.maximum_trials} trials "
             f"({len(budget.variants)} variants over {len(budget.cost_cells)} cells), enforced"
         )
+        return EXIT_OK
+    if stage == "dataset":
+        from sextant.app import spike_006_f1_dataset
+
+        written = spike_006_f1_dataset.write_manifest(path=spike_006_f1_dataset.DATASET_PATH)
+        payload = json.loads(written.read_text(encoding="utf-8"))
+        print(f"  written: {written.as_posix()}")
+        print(spike_006_f1_dataset.render_summary(payload))
         return EXIT_OK
     audit = spike_006_f1.ordering_audit(root=root)
     for line in audit.lines():

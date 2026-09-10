@@ -1,0 +1,248 @@
+{
+  "acquisition": {
+    "bytes_written": 83402970,
+    "dataset_fingerprint": "0e9582ac0e9e299161be6f4984437c83c4726fb906437ca2cf9a8174a030ed6f",
+    "failure_count": 0,
+    "failures": {},
+    "fingerprint_basis": "SHA-256 over the sorted set of every downloaded object's own digest, so a changed dataset is a different trial rather than the same one with different data. Recorded on every registry row this family writes.",
+    "megabytes_written": 83.4,
+    "minutes": 83.8,
+    "objects_downloaded": 67496,
+    "publisher_checksum_absent": 0,
+    "publisher_checksum_verified": 67496
+  },
+  "coverage": {
+    "contracts_that_stopped_publishing_before_the_last_month": 73,
+    "kline_months_with_no_funding_object": 1135,
+    "kline_months_with_no_funding_object_note": "The listing calendar is built from KLINE presence, not funding presence. Using funding presence would delist a contract on a missing cash-flow file, which is a fact about the archive rather than about the venue.",
+    "months_by_tree": {
+      "fundingRate": {
+        "first": "2020-01",
+        "last": "2026-08",
+        "months": 80
+      },
+      "klines": {
+        "first": "2020-01",
+        "last": "2026-08",
+        "months": 80
+      },
+      "premiumIndexKlines": {
+        "first": "2020-01",
+        "last": "2026-08",
+        "months": 80
+      }
+    },
+    "symbols_with_funding_and_no_klines": [
+      "GAIBUSDT"
+    ],
+    "symbols_with_funding_and_no_klines_note": "No kline series means no calendar entry, so these cannot enter the universe. Counted because silently dropping a contract the venue published cash flows for is the quiet kind of exclusion invariant 9 exists to make visible.",
+    "symbols_with_klines_and_no_premium": [
+      "\u5e01\u5b89\u4eba\u751fUSDT",
+      "\u6211\u8e0f\u9a6c\u6765\u4e86USDT",
+      "\u725b\u6765USDT",
+      "\u9f99\u867eUSDT"
+    ],
+    "symbols_with_klines_and_no_premium_note": "Unrankable by carry-premium-10 and counted as not-evaluable there. NOT excluded from the universe: the other seven variants do not read the premium index, and dropping an asset because one variant cannot score it would make the universe depend on which variants exist."
+  },
+  "family": "F1",
+  "funding_gaps": {
+    "how_a_gap_is_detected": "Consecutive published settlements more than one of the venue's own stated funding intervals apart. The interval is the venue's `funding_interval_hours` column and is never inferred from the gaps themselves: a hole would redefine an inferred cadence and declare the series complete.",
+    "instants_with_the_most_symbols_missing": [
+      {
+        "settled_at": "2026-06-24T04:00",
+        "symbols_missing_it": 423
+      },
+      {
+        "settled_at": "2026-01-02T13:00",
+        "symbols_missing_it": 17
+      },
+      {
+        "settled_at": "2026-01-02T14:00",
+        "symbols_missing_it": 17
+      },
+      {
+        "settled_at": "2026-01-02T15:00",
+        "symbols_missing_it": 17
+      },
+      {
+        "settled_at": "2025-07-18T17:00",
+        "symbols_missing_it": 7
+      }
+    ],
+    "symbols_scanned": 952,
+    "symbols_with_at_least_one_gap": 492,
+    "total_missing_settlements": 5661,
+    "what_the_registered_rule_does": "Section 6 rule 4 disqualifies an asset whose trailing 30 days contains a gap, for that rebalance only. It leaves the universe and returns the next month. The alternative - summing whatever is on file - ranks a partial sum against whole ones and understates it every time, always in the same direction."
+  },
+  "part": 2,
+  "perpetual_archive_root": "data/binance-futures",
+  "spot_archive_root": "data/binance-archive",
+  "universe": {
+    "census": {
+      "bases_admitted_on_the_perpetual_leg_with_no_spot_leg": 1463,
+      "bases_admitted_on_the_spot_leg_with_no_perpetual_leg": 10369,
+      "perpetual_not_evaluable_by_rule": {
+        "asset_class": 0,
+        "bar_coverage": 0,
+        "funding_evaluability": 0,
+        "listing_age": 0,
+        "median_quote_volume": 40017,
+        "quote_currency": 0,
+        "sourced_membership": 0
+      },
+      "perpetual_rejections_by_rule": {
+        "asset_class": 210,
+        "bar_coverage": 41489,
+        "funding_evaluability": 41765,
+        "listing_age": 42643,
+        "median_quote_volume": 1604,
+        "quote_currency": 0,
+        "sourced_membership": 39534
+      },
+      "perpetual_symbols_seen": 864,
+      "perpetuals_without_bar_series": [
+        "GAIBUSDT"
+      ],
+      "perpetuals_without_premium_series": [
+        "\u5e01\u5b89\u4eba\u751fUSDT",
+        "\u6211\u8e0f\u9a6c\u6765\u4e86USDT",
+        "\u725b\u6765USDT",
+        "\u9f99\u867eUSDT"
+      ],
+      "scaled_unit_symbols_excluded": [
+        "1000000BOBUSDT",
+        "1000000MOGUSDT",
+        "1000BONKUSDT",
+        "1000BTTCUSDT",
+        "1000CATUSDT",
+        "1000CHEEMSUSDT",
+        "1000FLOKIUSDT",
+        "1000LUNCUSDT",
+        "1000PEPEUSDT",
+        "1000RATSUSDT",
+        "1000SATSUSDT",
+        "1000SHIBUSDT",
+        "1000WHYUSDT",
+        "1000XECUSDT",
+        "1000XUSDT"
+      ],
+      "spot_not_evaluable_by_rule": {
+        "asset_class": 0,
+        "bar_coverage": 0,
+        "quote_currency": 0,
+        "sourced_membership": 0
+      },
+      "spot_rejections_by_rule": {
+        "asset_class": 1050,
+        "bar_coverage": 27346,
+        "quote_currency": 5110,
+        "sourced_membership": 25736
+      },
+      "undetermined_membership_observations": 0
+    },
+    "largest_month_on_month_contraction": {
+      "at": "2026-07-01",
+      "note": "A large single-month contraction is worth explaining rather than absorbing. Check it against the funding_gaps block: a settlement instant the venue did not publish disqualifies every asset whose trailing 30 days contains it, for that rebalance only.",
+      "pairs_after": 108,
+      "pairs_before": 339
+    },
+    "pairs_by_rebalance": {
+      "2020-11-01": 24,
+      "2020-12-01": 25,
+      "2021-01-01": 30,
+      "2021-02-01": 36,
+      "2021-03-01": 41,
+      "2021-04-01": 60,
+      "2021-05-01": 69,
+      "2021-06-01": 76,
+      "2021-07-01": 79,
+      "2021-08-01": 84,
+      "2021-09-01": 91,
+      "2021-10-01": 104,
+      "2021-11-01": 109,
+      "2021-12-01": 109,
+      "2022-01-01": 111,
+      "2022-02-01": 110,
+      "2022-03-01": 115,
+      "2022-04-01": 119,
+      "2022-05-01": 121,
+      "2022-06-01": 120,
+      "2022-07-01": 123,
+      "2022-08-01": 123,
+      "2022-09-01": 126,
+      "2022-10-01": 127,
+      "2022-11-01": 130,
+      "2022-12-01": 129,
+      "2023-01-01": 129,
+      "2023-02-01": 129,
+      "2023-03-01": 131,
+      "2023-04-01": 134,
+      "2023-05-01": 136,
+      "2023-06-01": 137,
+      "2023-07-01": 138,
+      "2023-08-01": 142,
+      "2023-09-01": 155,
+      "2023-10-01": 162,
+      "2023-11-01": 167,
+      "2023-12-01": 171,
+      "2024-01-01": 175,
+      "2024-02-01": 179,
+      "2024-03-01": 186,
+      "2024-04-01": 189,
+      "2024-05-01": 197,
+      "2024-06-01": 203,
+      "2024-07-01": 203,
+      "2024-08-01": 206,
+      "2024-09-01": 211,
+      "2024-10-01": 213,
+      "2024-11-01": 221,
+      "2024-12-01": 221,
+      "2025-01-01": 224,
+      "2025-02-01": 222,
+      "2025-03-01": 232,
+      "2025-04-01": 248,
+      "2025-05-01": 240,
+      "2025-06-01": 251,
+      "2025-07-01": 272,
+      "2025-08-01": 277,
+      "2025-09-01": 286,
+      "2025-10-01": 297,
+      "2025-11-01": 308,
+      "2025-12-01": 317,
+      "2026-01-01": 321,
+      "2026-02-01": 325,
+      "2026-03-01": 329,
+      "2026-04-01": 335,
+      "2026-05-01": 340,
+      "2026-06-01": 339,
+      "2026-07-01": 108,
+      "2026-08-01": 340
+    },
+    "pairs_maximum": 340,
+    "pairs_median": 155,
+    "pairs_minimum": 24,
+    "perpetual_candidates_with_a_priced_series": 849,
+    "rebalances": 70,
+    "rebalances_below_half_the_median": [
+      "2020-11-01",
+      "2020-12-01",
+      "2021-01-01",
+      "2021-02-01",
+      "2021-03-01",
+      "2021-04-01",
+      "2021-05-01",
+      "2021-06-01"
+    ],
+    "spot_candidates_with_a_priced_series": 754
+  },
+  "what_this_is": "The dataset section of the F1 pre-registration. Measured after acquisition and committed before any strategy result exists. Nothing here evaluates a strategy.",
+  "window": {
+    "first_usable_month": "2020-11",
+    "fx_first_day": "2020-01-03T00:00:00+00:00",
+    "last_usable_month_end": "2026-08",
+    "perpetual_archive_last_month": "2026-08",
+    "resolved_by": "the rule in pre-registration section 7, from listing metadata and FX availability only. No return was consulted.",
+    "spot_archive_last_month": "2026-08",
+    "usable_months": 69
+  }
+}

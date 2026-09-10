@@ -766,8 +766,10 @@ def instants_in(instants: Iterable[Timestamp]) -> tuple[str, ...]:
 
 __all__ = [
     "LEVERAGED_SUFFIXES",
+    "PERP_ROOT",
     "PERP_VENUE",
     "SCALED_UNIT_PREFIXES",
+    "SPOT_ROOT",
     "SPOT_VENUE",
     "CalendarSeriesEnd",
     "CarryUniverse",

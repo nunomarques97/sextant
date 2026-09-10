@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.3
+version: v1.4
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -50,6 +50,15 @@ amendments:
     subject: >
       The trial budget is enforced by the runner rather than described in prose, and
       the pre-registration ordering is auditable from the report through git.
+  - id: part-2
+    document_section: 19-25
+    subject: >
+      The dataset section: what was acquired, where the three trees disagree, the
+      holes in the published funding and what the registered rule does about them,
+      the resolved window, the carry universe per rebalance and what each rule
+      excluded. Measured after acquisition and committed before any strategy result.
+      Every figure is also in research/spike-006-f1-dataset.json, which is the single
+      copy.
 
 # ---------------------------------------------------------------------------
 # The hypothesis

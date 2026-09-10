@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.3`. Part 1, the specification, committed before any funding number was
+**Version `v1.4`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1, 2 and 3 were all added before any variant had been run and while the acquisition
 was still downloading; no strategy result of any kind existed when any of them was written.
@@ -9,8 +9,8 @@ Sections 16, 17 and 18 state what they changed and why.**
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
 can only be written once acquisition has happened. **Part 1 is below and needs no data at
-all. Part 2 is the dataset section**, filled in with the acquisition's real facts and
-committed before any strategy result exists.
+all. Part 2, sections 19 to 25, is the dataset section**, filled in with the acquisition's real
+facts and committed before any strategy result existed.
 
 `config/spike-006-f1.yaml` is the machine-readable half of this document. The runner asserts
 that the two agree with the code and refuses to start if they have drifted, the same guard
@@ -954,3 +954,220 @@ Criteria 1 to 6 of section 11, the eight variants of section 9.2, the four cost 
 8, the 32-trial allowance of section 3, the seed counts of section 10 and every threshold in
 sections 6, 7 and 14 are **unchanged**. Both parts of this amendment constrain how this family
 may be run and how its result may be reported. Neither changes what would count as an edge.
+
+---
+
+# Part 2 — the dataset
+
+**Committed after acquisition and before any strategy result exists. No variant had been run,
+no equity curve existed and no return of any construction had been computed when this was
+written.** Part 1 needed no data and was fixed before any was seen. This half can only be
+written once the archive is on disk, which is why the two are separate commits.
+
+Every figure below is **measured**, and every one of them is also written to
+`research/spike-006-f1-dataset.json` by `uv run sextant spike-006-f1 dataset`. That file is the
+single copy; this section reads it. Where a number here and a number there disagree, the file is
+right and this section is stale.
+
+## 19. What was acquired
+
+| | |
+|---|---|
+| objects downloaded | **67,496** |
+| bytes | 83.4 MB |
+| wall clock | 83.8 minutes |
+| **failures** | **0** |
+| publisher SHA-256 verified | **67,496** |
+| objects publishing no checksum | **0** |
+| dataset fingerprint | `0e9582ac0e9e2991…` |
+
+**Every object was checked twice**: the archive's own CRC inside the zip container, and then the
+publisher's separately published SHA-256. A mismatch on either raises and does not write, so no
+object reached the store unverified. That the second number equals the first, and the third is
+zero, is the strongest statement this acquisition can make: there is no object here whose
+integrity rests on the download not having gone wrong.
+
+The **fingerprint** is one SHA-256 over the sorted set of all 67,496 digests. It goes on every
+row this family writes to `research/trial-registry.jsonl`, so a changed dataset is a different
+trial rather than the same trial with different data underneath it.
+
+**The acquisition took the whole tree.** No quote filter, no window trim, no liquidity screen.
+That was registered in stage 0 and it removes a degree of freedom: nothing about which symbols
+exist in the store can have been influenced by what any of them did.
+
+## 20. What the three trees hold, and where they disagree
+
+| tree | first | last | months |
+|---|---|---|---:|
+| `fundingRate` | 2020-01 | 2026-08 | 80 |
+| `klines` | 2020-01 | 2026-08 | 80 |
+| `premiumIndexKlines` | 2020-01 | 2026-08 | 80 |
+
+Stored after ingest: **951** perpetual bar series holding 691,993 daily bars, **952** funding
+series holding 2,832,399 settlements, **947** premium series holding 650,417 rows.
+
+**The three counts differ, and the differences are named rather than rounded away.**
+
+| disagreement | symbols | what follows |
+|---|---|---|
+| funding published, no klines | **1** — `GAIBUSDT` | The listing calendar is built from **kline** presence, so this contract has no calendar entry and cannot enter the universe. Recorded because silently dropping a contract the venue published cash flows for is the quiet kind of exclusion invariant 9 exists to surface |
+| klines published, no premium index | **4** — four meme listings with non-Latin tickers | Unrankable by `carry-premium-10`, counted as not-evaluable there, and **not** excluded from the universe. The other seven variants do not read the premium index, and dropping an asset because one variant cannot score it would make the universe depend on which variants exist |
+| kline-months with no funding object | **1,135** | Why presence is taken from klines. Using funding presence would delist a contract on a missing cash-flow file, which is a fact about the archive rather than about the venue |
+
+**73 contracts stopped publishing before the archive's last month, and 0 left and returned.**
+Delistings are retained in the candidate set throughout, per the standing discipline.
+
+## 21. Holes in the published funding, and what the registered rule does about them
+
+This is the most consequential dataset fact in this section, and it was measured rather than
+noticed.
+
+| | |
+|---|---|
+| symbols scanned | 952 |
+| symbols with at least one gap | **492** |
+| missing settlements in total | **5,661** of 2,832,399, about 0.2 per cent |
+
+A gap is two consecutive published settlements more than one of **the venue's own stated funding
+intervals** apart. The interval comes from the venue's `funding_interval_hours` column and is
+never inferred from the gaps themselves: a hole would redefine an inferred cadence and then
+declare the series complete, which is precisely the defect `Settlement` carries that column to
+prevent.
+
+**The gaps are not spread evenly. One instant dominates.**
+
+| settlement instant | symbols missing it |
+|---|---:|
+| **2026-06-24T04:00** | **423** |
+| 2026-01-02T13:00 | 17 |
+| 2026-01-02T14:00 | 17 |
+| 2026-01-02T15:00 | 17 |
+| 2025-07-18T17:00 | 7 |
+
+The 2026-06-24 case was checked against the raw archive rather than assumed: the published CSV
+for an affected symbol holds five settlements that day where its own 4-hour cadence requires
+six, and 00:00, 08:00, 12:00, 16:00 and 20:00 are present while 04:00 is absent. **It is a gap
+in what the venue published, not an artefact of the parser.** Only the 4-hour-cadence contracts
+have an 04:00 settlement to miss, which is why the 8-hour majors are unaffected.
+
+**What the registered rule does, and the visible consequence.** Section 6 rule 4 disqualifies an
+asset whose trailing 30 days contains a gap, for that rebalance only. So the carry universe
+falls from **339 pairs at 2026-06-01 to 108 at 2026-07-01 and back to 340 at 2026-08-01** — the
+largest single-month contraction in the window, and it is a data artefact rather than a market
+event. It is flagged automatically in the manifest so nobody has to spot it.
+
+**The alternative was to sum whatever is on file.** That ranks a partial sum against whole ones
+and understates it, every time, always in the same direction. Disqualifying is the conservative
+choice and it was registered before this gap was known to exist.
+
+**Bias direction, stated.** Rule 4 removes assets rather than admitting them, so it shrinks the
+universe and can only reduce the opportunity set. Where it binds, the effect on a result is to
+make it *worse*, not better.
+
+## 22. The window the rule resolved to
+
+| | |
+|---|---|
+| first usable month | **2020-11** |
+| last usable month end | **2026-08** |
+| **usable months** | **69** |
+| registered floor | 36 |
+| FX first day in the archive | 2020-01-03 |
+| perpetual archive last month | 2026-08 |
+| spot archive last month | 2026-08 |
+
+Resolved from listing metadata and FX availability only. **No return was consulted.** The first
+month is the earliest month start at least 300 days after the archive's first `EURUSDT` bar, so
+the 180-day listing age, the 90-day longest lookback and the 30-day turnover window are all
+satisfiable with a ragged-edge month to spare: 2020-01-03 plus 300 days is 2020-10-29, and the
+first month start at or after that is 2020-11-01.
+
+**69 months against a floor of 36.** Section 7's stop condition does not fire, and the reason it
+does not is recorded here rather than left implicit.
+
+The window is **13 months longer than SEXTANT-005's 66**, and starts three months earlier, for
+one reason: SEXTANT-005 needed 360 days of FX warmup for a 360-day momentum lookback, and the
+longest lookback any registered carry variant reads is 90 days.
+
+## 23. The carry universe, per rebalance
+
+| | |
+|---|---|
+| rebalances | **70** |
+| pairs, minimum | **24** (2020-11-01) |
+| pairs, median | **155** |
+| pairs, maximum | **340** |
+| spot candidates with a priced daily series | 754 |
+| perpetual candidates with a priced daily series | 849 |
+
+**Non-empty at every rebalance**, which section 7 requires and which is checked rather than
+assumed: the world builder refuses to return a world with an empty instant and names the
+instants that were empty.
+
+The eight rebalances from 2020-11 to 2021-06 carry fewer than half the median. That is the
+perpetual universe growing, not a defect, and it is flagged in the manifest so a reader can see
+that the early folds are thinner than the late ones. It matters for declared expectation D1: the
+early period the Sponsor expects the edge to live in is also the period with the fewest pairs to
+choose among.
+
+**One cross-check was run and it agrees exactly.** The universe intersects two policies on base
+asset; the strategy re-derives its pairing independently from the candidate set by exact base
+match. The two produce **the same pair count at all 70 rebalances, with zero disagreements**. If
+they had ever differed, one of them was wrong and no result would have been trustworthy.
+
+## 24. What each rule excluded
+
+Counts are **independent**: an asset failing three rules appears in three counts. Attributing
+each rejection to whichever rule happened to run first would answer "which rule fired?" when the
+question worth asking is "which threshold binds?".
+
+Summed across all 70 rebalances, **perpetual leg**:
+
+| rule | rejected | not evaluable |
+|---|---:|---:|
+| `quote_currency` | 0 | 0 |
+| `sourced_membership` | 39,534 | 0 |
+| `listing_age` | 42,643 | 0 |
+| `funding_evaluability` | 41,765 | 0 |
+| `median_quote_volume` | 1,604 | **40,017** |
+| `bar_coverage` | 41,489 | 0 |
+| `asset_class` | 210 | 0 |
+
+**Spot leg**:
+
+| rule | rejected | not evaluable |
+|---|---:|---:|
+| `quote_currency` | 5,110 | 0 |
+| `sourced_membership` | 25,736 | 0 |
+| `bar_coverage` | 27,346 | 0 |
+| `asset_class` | 1,050 | 0 |
+
+**The 40,017 not-evaluable turnover observations are the largest single figure here and they are
+not rejections.** A perpetual with fewer than 20 closed daily bars in its trailing 30 days
+cannot have a median computed, so the rule declines to answer rather than guessing. Almost all of
+them are contracts that had not yet listed at that rebalance, and they are also counted by
+`listing_age` — which is exactly what independent tallies are for.
+
+**Pairing losses**, summed across rebalances: **1,463** admissions on the perpetual leg had no
+admitted spot counterpart, and **10,369** on the spot leg had no admitted perpetual. The
+asymmetry is expected and it points the right way: the spot universe is much broader than the
+perpetual one, so the binding constraint on a carry pair is whether the venue lists a perpetual
+at all. **That biases towards tradability**, which is the conservative direction, and it was
+stated in stage 0 before it was measured.
+
+**15 scaled-unit perpetuals were excluded** by section 6 rule 1 — contracts such as
+`1000PEPEUSDT` whose unit is a multiple of the underlying. Pairing one with its spot counterpart
+needs a unit-conversion rule, and a rule invented after the data was seen is a degree of freedom.
+The 15 symbols are listed in the manifest.
+
+## 25. What part 2 does not change
+
+**No criterion, no variant, no cost cell, no threshold and no trial budget.** Part 1 and its
+three amendments stand exactly as committed. Nothing measured here was used to choose anything;
+it is the description of the data the registered specification will now be run against, written
+down before it was run so that a reader can tell the difference between a fact about the dataset
+and a fact discovered while looking at a result.
+
+Two things in this section could still stop F1, and both are registered stop conditions rather
+than judgements: the window carrying fewer than 36 months, which it does not, and the carry
+universe being empty at a rebalance, which it is not.
