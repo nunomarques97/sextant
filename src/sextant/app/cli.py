@@ -136,11 +136,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     f1.add_argument(
         "stage",
-        choices=("verify", "ordering", "dataset", "run"),
+        choices=("verify", "ordering", "dataset", "run", "report"),
         help="`verify` runs the drift guard and the commit gate; `ordering` prints the "
         "audit lines the report quotes, and is rerun after the results are committed; "
         "`dataset` measures the acquisition and writes pre-registration part 2; "
-        "`run` executes the registered 36-trial grid and writes the result file.",
+        "`run` executes the registered 36-trial grid and writes the result file; "
+        "`report` renders that file as the results document.",
     )
     f1.add_argument(
         "--seeds",
@@ -346,6 +347,11 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         from sextant.app import spike_006_f1_run
 
         spike_006_f1_run.execute(repository_root=root, seed_override=seeds)
+        return EXIT_OK
+    if stage == "report":
+        from sextant.app import spike_006_f1_report
+
+        spike_006_f1_report.render()
         return EXIT_OK
     audit = spike_006_f1.ordering_audit(root=root)
     for line in audit.lines():
