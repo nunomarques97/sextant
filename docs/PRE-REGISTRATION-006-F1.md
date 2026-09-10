@@ -1,10 +1,10 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.1`. Part 1, the specification, committed before any funding number was
+**Version `v1.2`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
-Amendment 1 was added before any variant had been run and while the acquisition was still
-downloading; no strategy result of any kind existed when it was written. Section 16 states
-what it changed and why.**
+Amendments 1 and 2 were both added before any variant had been run and while the acquisition
+was still downloading; no strategy result of any kind existed when either was written.
+Sections 16 and 17 state what they changed and why.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -632,6 +632,12 @@ the window, applied to all of them.
 unmeasurable into a stated sensitivity in the direction that cannot flatter, which is what
 invariant 12 already requires of spread and slippage.
 
+> **Corrected by 17.2.** The sentence above is wrong and the original is left standing so the
+> correction is visible. At this account's size every position sits deep inside the venue's
+> first margin bracket, so 0.025 is a stress level rather than a candidate historical rate. All
+> three settings are still reported; a variant failing **only** at 0.025 is not rejected on that
+> basis. Criteria 1 to 6 are untouched by this.
+
 **The initial margin fraction of 0.20 is a different kind of number and no look-ahead arises
 from it.** It is not a venue limit read from an endpoint; it is this project's own choice of
 how much buffer to post, far inside anything the venue has ever permitted on a major. A
@@ -666,9 +672,136 @@ seventeen days, in a seventeen-month stretch of a longer window. It says nothing
 spot leg, nothing about the other years, and nothing about what would actually have filled.
 Capacity is therefore reported as a **bound with its basis stated**: the capital at which one
 rebalance's largest single order would consume a stated fraction of measured 1-per-cent depth,
-at the sampled instants. Turnover-based capacity is reported beside it, unchanged, so the two
-can be compared.
+at the sampled instants. Turnover-based capacity is reported for the whole window, as a
+separate quantity.
+
+> **Constrained by 17.1.** The depth window is seventeen months of a six-year evaluation
+> window, and declared expectation D1 predicts the edge sits mostly outside it. 17.1 fixes
+> three rules in response: a measured figure always carries its window, an extrapolation is
+> never tabulated beside a measurement, and where the variant did not earn inside the depth
+> window its capacity is reported as **unestablished**.
 
 Like the spread sample of section 12, this is a **measurement, not a trial**. It consumes no
 variant budget, and it changes no number in any result table: every variant remains costed at
 the configured assumptions of section 8.
+
+---
+
+## 17. Amendment 2 — where capacity cannot be measured, and which bracket applies
+
+**Added on the Sponsor's instruction, before the grid ran and while the acquisition was still
+downloading. No variant had been run and no equity curve existed. It changes no criterion, no
+variant, no cost cell and no trial budget: 17.1 constrains how a capacity number may be
+reported, and 17.2 corrects a sentence in 16.3 that would have misreported a stress test as a
+failure.**
+
+### 17.1 Capacity and decay collide, and the report must say so
+
+**The problem, stated before either number exists.** `bookDepth` covers **2023-01-01 to
+2024-05-17**, about seventeen months. The evaluation window of section 7 spans roughly 2020 to
+2026. Declared expectation D1 in 16.1 predicts that the carry's edge is concentrated early and
+has decayed since.
+
+**If D1 holds, then the period where the edge most likely lives is precisely the period where
+capacity cannot be measured.** Those two facts are not independent, and a report that put a
+depth-measured capacity figure next to a headline return earned mostly in 2021 would be
+implying a measurement of something nobody measured.
+
+**So capacity is reported under three rules, and none of them is a judgement call.**
+
+**Rule C1 — measured means measured inside the depth window.** Every depth-derived capacity
+figure carries the window it was measured over, in the same cell, in the same row. There is no
+capacity figure in this report that does not state its window.
+
+**Rule C2 — an extrapolation is never tabulated beside a measurement.** A capacity number for
+any period outside 2023-01-01 to 2024-05-17 is an extrapolation. It appears in its own table,
+under its own heading, labelled as an extrapolation, with the assumption that carried it
+outside the window stated. It is never placed in the same table as a measured value, and never
+in an adjacent column, because adjacency is itself a claim.
+
+**Rule C3 — when the edge sits outside the window, capacity is unestablished, in those
+words.** Two quantities decide it, both computed from series that already exist:
+
+- `depth_months` — the count of the variant's scored months whose whole holding period lies
+  inside the depth window;
+- `mean_inside` and `mean_outside` — the variant's mean monthly net return over the scored
+  months inside the depth window and over those outside it, with the difference and its
+  bootstrap interval at the seed section 14 already fixed.
+
+Then:
+
+| condition | what the report says |
+|---|---|
+| `depth_months < 12` | **capacity unestablished.** The depth window does not contain enough of this variant's scored months to measure it |
+| `mean_inside <= 0` | **capacity unestablished.** The variant did not earn over the months where depth can be measured, so there is no edge there whose capacity could be reported |
+| `mean_inside > 0` and `mean_outside > mean_inside` | capacity is reported **as measured over a period in which this variant earned less than it did overall**, and that sentence appears beside the number |
+| `mean_inside > 0` and `mean_outside <= mean_inside` | capacity is reported as measured, with its window, under rule C1 |
+
+"Unestablished" is a real answer and is not softened. It does not mean the strategy has no
+capacity; it means this dataset cannot say what it is, which is the same class of statement as
+invariant 9's *not evaluable*.
+
+**Turnover-based capacity is unaffected and is reported for the whole window**, because daily
+quote volume is in every kline row for every month. It is a different quantity from resting
+depth, it is labelled as an inference from traded notional rather than from a book, and rule
+C2 keeps it out of the depth table.
+
+### 17.2 The first bracket is the only bracket at this capital
+
+**The arithmetic, which narrows the question sharply.** A carry pair's single-leg notional at
+1x is `equity / (N * (1 + margin_fraction))`. The largest it can be under anything registered
+in this document is one pair at the thinnest buffer the stage-3 sweep reaches:
+
+```
+1,500 EUR / (1 * (1 + 0.05))  =  1,428.57 EUR  ~  1,550 USDT
+```
+
+Binance's first USD-M margin bracket for a major contract covers notional far above that —
+today's first bracket for BTCUSDT runs to 50,000 USDT, some thirty-two times the largest
+position anything here can open. **Every position in every variant, in every cell, at every
+margin-buffer setting, sits in the first bracket and is nowhere near leaving it.**
+
+That matters because bracket *assignment* is the size-dependent, genuinely hard part of a
+historical margin reconstruction, and at this capital it does not arise. **The only open
+question is what the first-bracket maintenance rate was historically**, which is a single
+number per era rather than a schedule.
+
+**Whether an archived copy of it is findable: looked for, not found, and here is where the
+search stopped.** The Internet Archive holds a snapshot of the venue's leverage-and-margin
+page at
+`https://web.archive.org/web/20211223052201/https://www.binance.com/en/futures/trading-rules/perpetual/leverage-margin`
+(2021-12-23). The page is client-rendered: the snapshot contains the page shell and its
+translation strings, and the bracket table itself was loaded by a request the archive did not
+capture. No `maintMarginRatio`, `maintenanceMarginRate` or equivalent field appears anywhere in
+the archived HTML. **The historical first-bracket rate is therefore not established.** The
+snapshot URL is recorded so that anyone continuing this does not have to rediscover where the
+trail goes cold.
+
+**What 16.3's closing rule becomes.** 16.3 registered that "a conclusion about leverage counts
+only if it holds at 0.025". **That sentence is wrong and is corrected here.** 0.025 is five
+times today's published first-bracket rate; at a position size thirty-two times below the
+first bracket's ceiling it is not a plausible historical rate, it is a stress level. Requiring
+a conclusion to survive it would report a stress failure as a real one, which is a different
+kind of dishonesty from the one 16.3 was guarding against and no less of one.
+
+The three settings stand, unchanged, and all three are reported. What changes is what they
+mean:
+
+| setting | status |
+|---|---|
+| **0.005** | today's published first-bracket rate for majors. **The headline figure.** An assumption and a look-ahead, exactly as 16.3 says |
+| **0.010** | twice it, carried as a companion for the possibility that the first-bracket rate was higher earlier in the window. Also an assumption; nothing measured supports or contradicts it |
+| **0.025** | **a stress level, not a candidate rate.** Reported for robustness. **A variant that fails only at 0.025 is not rejected on that basis**, and the report says so where the number appears |
+
+**This is a relaxation of a bar this document set for itself, and it is recorded as one.** It
+was made before any result existed, on the arithmetic above rather than on anything observed,
+and it touches only how a leverage and probability-of-ruin conclusion is phrased. **Criteria 1
+to 6 of section 11 are untouched.** Nothing about whether a family shows an edge at 1x depends
+on the maintenance margin, because at 1x a fully-collateralised carry pair has no liquidation
+price at all.
+
+**The direction-of-bias statement in 16.3 stands, and is narrower than it was.** The concern is
+no longer that today's whole tier structure is being applied to 2020; it is only that the
+first-bracket *rate* may have been higher then than it is now. That is a smaller unmeasured
+quantity, it biases liquidation frequency and probability of ruin in the same optimistic
+direction, and the 0.010 companion is what shows how much it could matter.
