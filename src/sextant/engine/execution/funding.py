@@ -48,18 +48,42 @@ import bisect
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
+from itertools import pairwise
 from typing import Protocol, runtime_checkable
 
 from sextant.domain.instrument import InstrumentKey
 from sextant.domain.time import Timestamp
 
+#: The cadence a settlement is assumed to have run at when the source did not
+#: state one. Every symbol in this archive started on an eight-hour cycle, and a
+#: settlement whose interval is unknown is better treated as the widest ordinary
+#: one than as a gap.
+DEFAULT_INTERVAL_HOURS = 8
+
 
 @dataclass(frozen=True, slots=True)
 class Settlement:
-    """One funding payment: when it was made and at what rate."""
+    """One funding payment: when it was made, at what rate, over what interval.
+
+    ``interval_hours`` is the venue's own column and is carried rather than
+    inferred. It is not used to scale the rate - the rate published against a
+    settlement is the rate applied at it, whatever it covered - but it is what
+    says when the *next* payment fell due, which is the only way to tell a
+    complete history from one with a hole in it. Inferring the cadence from the
+    gaps between published settlements cannot do that job: a hole redefines the
+    gap it sits in, so a series with a missing payment infers a wider cadence and
+    declares itself complete.
+    """
 
     at: Timestamp
     rate: Decimal
+    interval_hours: int = DEFAULT_INTERVAL_HOURS
+
+    @property
+    def interval_millis(self) -> int:
+        """The cadence in milliseconds, as the venue stated it."""
+        hours = self.interval_hours if self.interval_hours > 0 else DEFAULT_INTERVAL_HOURS
+        return hours * 60 * 60 * 1000
 
 
 @runtime_checkable
@@ -84,6 +108,15 @@ class FundingSchedule(Protocol):
         Distinct from :meth:`settlements` returning something, because an
         instrument with three of a month's ninety payments would answer that
         question with a non-empty tuple and still be unevaluable.
+        """
+        ...
+
+    def total_rate(self, key: InstrumentKey, after: Timestamp, until: Timestamp) -> Decimal:
+        """The sum of every rate settled in ``(after, until]``.
+
+        On the protocol rather than only on the implementation because it is what
+        a variant ranks on, and a strategy must be able to ask for it without
+        knowing where the settlements came from.
         """
         ...
 
@@ -137,32 +170,27 @@ class RealisedFunding:
     def covers(self, key: InstrumentKey, after: Timestamp, until: Timestamp) -> bool:
         """Whether the published settlements span ``(after, until]`` without a hole.
 
-        The test is a cadence test rather than a count, because the cadence is
-        the only thing the data itself states. Every settlement in the span
-        carries the interval it covered, so the span is covered when the first
-        settlement is no further past ``after`` than one interval, the last is no
-        further before ``until`` than one interval, and no two consecutive
-        settlements are more than one interval apart. An instrument with no
+        Three conditions, all read off the venue's own stated cadence and none
+        of them a count:
+
+        the **first** payment in the span falls no more than one interval after
+        ``after``, so nothing is missing at the front; each **consecutive** pair
+        is no more than one interval apart, so nothing is missing in the middle;
+        and ``until`` is strictly less than one interval past the **last**
+        payment, so the next one has not yet fallen due. An instrument with no
         settlement at all in the span is not covered, which is the answer that
         keeps a symbol with no published funding out of a carry universe.
         """
         found = self.settlements(key, after, until)
         if not found:
             return False
-        held = self.by_instrument[key]
-        stamps = self._index[key]
-        first = bisect.bisect_right(stamps, after.epoch_millis)
-        interval_ms = _interval_millis(held, first)
-        if found[0].at.epoch_millis - after.epoch_millis > interval_ms:
+        if found[0].at.epoch_millis - after.epoch_millis > found[0].interval_millis:
             return False
-        if until.epoch_millis - found[-1].at.epoch_millis >= interval_ms:
+        if until.epoch_millis - found[-1].at.epoch_millis >= found[-1].interval_millis:
             return False
-        previous = found[0].at.epoch_millis
-        for index, item in enumerate(found[1:], start=first + 1):
-            step = _interval_millis(held, index)
-            if item.at.epoch_millis - previous > step:
+        for earlier, later in pairwise(found):
+            if later.at.epoch_millis - earlier.at.epoch_millis > later.interval_millis:
                 return False
-            previous = item.at.epoch_millis
         return True
 
     def total_rate(self, key: InstrumentKey, after: Timestamp, until: Timestamp) -> Decimal:
@@ -174,20 +202,3 @@ class RealisedFunding:
         makes ambiguous.
         """
         return sum((item.rate for item in self.settlements(key, after, until)), Decimal(0))
-
-
-def _interval_millis(held: Sequence[Settlement], index: int) -> int:
-    """The settlement cadence in force around position ``index``.
-
-    Read from the gap between neighbouring published settlements rather than from
-    a constant, because the venue changed the cadence on some symbols partway
-    through their history. Falls back to eight hours when there is no neighbour
-    to measure against, which is the cadence every symbol in this archive
-    started on.
-    """
-    eight_hours = 8 * 60 * 60 * 1000
-    if len(held) < 2:
-        return eight_hours
-    position = min(max(index, 1), len(held) - 1)
-    gap = held[position].at.epoch_millis - held[position - 1].at.epoch_millis
-    return gap if gap > 0 else eight_hours
