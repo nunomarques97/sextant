@@ -463,14 +463,33 @@ def test_a_run_with_no_variants_at_all_is_not_the_guard_s_business() -> None:
     _refuse_a_carry_run_without_funding(Results(deterministic=[]))
 
 
-def test_the_f1_engine_is_built_with_the_published_funding_schedule() -> None:
-    """The wiring itself, asserted, because forgetting it is what happened."""
+#: Engine parameters whose defaults are right for a long-only single-leg strategy
+#: and wrong for this family, each registered the other way. Both were verified by
+#: the drift guard and wired by nothing, which is the failure this list exists for.
+MUST_BE_WIRED = (
+    (
+        "funding=world.funding",
+        "the engine falls back to a flat rate and the carry book never receives its carry",
+    ),
+    (
+        "haircut_is_a_loss_on_either_side=HAIRCUT_ON_EITHER_SIDE",
+        "a short leg that delists is recorded as a windfall instead of a loss",
+    ),
+)
+
+
+@pytest.mark.parametrize(("keyword", "consequence"), MUST_BE_WIRED)
+def test_the_f1_engine_is_built_with_the_registered_value(keyword: str, consequence: str) -> None:
+    """The wiring itself, asserted, because forgetting it is what happened twice.
+
+    A source check rather than a behavioural one, and deliberately so: the failure
+    mode is a keyword that was never typed, not a value that behaves oddly once it
+    is. A drift guard comparing the configuration against a literal proves the
+    specification says what it says and proves nothing about whether anything read it.
+    """
     import inspect
 
     from sextant.app import spike_006_f1_engine
 
     source = inspect.getsource(spike_006_f1_engine.build_engine)
-    assert "funding=world.funding" in source, (
-        "build_engine must pass the world's funding schedule to the engine. Without it "
-        "the engine falls back to a flat rate and the carry book never receives its carry."
-    )
+    assert keyword in source, f"build_engine must pass {keyword}, or {consequence}."

@@ -116,6 +116,15 @@ FX_FIRST_MONTH_LOOKBACK_DAYS = 300
 #: past the 180-day listing age the universe rule reads.
 ENGINE_LOOKBACK_DAYS = 420
 HAIRCUT_FRACTION = Decimal("0.20")
+
+#: Section 8. A delisting is a loss whichever side of it the book was on. A short
+#: leg that delists is not a windfall: the venue settles it and the position cannot
+#: be bought back at the last observed close, which predates the news the haircut
+#: stands in for. Registered as a named constant rather than a literal because the
+#: previous shape - a drift check comparing the configuration against ``True`` while
+#: the engine ran on its own default of ``False`` - verified the number and wired
+#: none of it.
+HAIRCUT_ON_EITHER_SIDE = True
 FX_SYMBOL = "EURUSDT"
 FOREIGN_CURRENCY = "USDT"
 REGIME_SYMBOL = "BTCUSDT"
@@ -707,7 +716,7 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
         (
             "costs.haircut_is_a_loss_on_either_side",
             bool(costs["haircut_is_a_loss_on_either_side"]),
-            True,
+            HAIRCUT_ON_EITHER_SIDE,
         ),
         (
             "costs.funding_default_interval_hours",
@@ -1134,6 +1143,7 @@ __all__ = [
     "FAMILY",
     "FOLD_COUNT",
     "HAIRCUT_FRACTION",
+    "HAIRCUT_ON_EITHER_SIDE",
     "IN_SAMPLE_MONTHS",
     "MARGIN_FRACTION",
     "MINIMUM_MONTHS_FOR_A_YEAR",

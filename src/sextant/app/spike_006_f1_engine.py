@@ -6,6 +6,16 @@ in. Nothing here chooses a number: every fee, fraction, multiplier and threshold
 arrives from :mod:`sextant.app.spike_006_f1`, which reads them from a specification
 committed before the archive had finished downloading.
 
+Two registered values that the engine defaults away from
+---------------------------------------------------------
+
+The engine's ``funding`` defaults to ``None`` and its
+``haircut_is_a_loss_on_either_side`` defaults to ``False``. Both defaults are right
+for a long-only single-leg strategy and wrong for this family, and both are
+registered the other way. A drift guard that compares the configuration against a
+literal proves the specification says what it says; it proves nothing about whether
+anything read it. Both are named constants now and both are passed here.
+
 The funding schedule is not optional here
 -----------------------------------------
 
@@ -72,6 +82,7 @@ from sextant.app.spike_006_f1 import (
     ENGINE_LOOKBACK_DAYS,
     FOLD_COUNT,
     HAIRCUT_FRACTION,
+    HAIRCUT_ON_EITHER_SIDE,
     IN_SAMPLE_MONTHS,
     REGISTERED_CELLS,
     CellSpec,
@@ -245,6 +256,9 @@ def cost_model(world: World, cell: CostCell) -> ItemisedCostModel:
         SPOT_VENUE: cell.spot_schedule,
         PERP_VENUE: cell.futures_schedule,
     }
+    # funding_bps_per_day is deliberately left at its zero default. The engine reads
+    # it only when it has no FundingSchedule, and this family always has one; setting
+    # a flat rate here as well would charge the book twice for the same stream.
     return ItemisedCostModel(
         schedule=cell.spot_schedule,
         schedule_by_venue=schedules,
@@ -285,6 +299,7 @@ def build_engine(world: World, cell: CostCell) -> BacktestEngine:
         fx=conversion_leg(world),
         routing=world.routing,
         haircut=DelistingHaircut(fraction=HAIRCUT_FRACTION),
+        haircut_is_a_loss_on_either_side=HAIRCUT_ON_EITHER_SIDE,
         series_end=world.series_end,
         initial_equity=ACCOUNT_EQUITY,
         account_currency=ACCOUNT_CURRENCY,
