@@ -1,10 +1,11 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.4`. Part 1, the specification, committed before any funding number was
+**Version `v1.5`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
-Amendments 1, 2 and 3 were all added before any variant had been run and while the acquisition
-was still downloading; no strategy result of any kind existed when any of them was written.
-Sections 16, 17 and 18 state what they changed and why.**
+Amendments 1 to 4 were all added before any variant had been run; no strategy result of any kind
+existed when any of them was written. Sections 16, 17, 18 and 26 state what they changed and
+why. Amendment 4 is the only one written after part 2, and it changes nothing part 2
+measured.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -1171,3 +1172,162 @@ and a fact discovered while looking at a result.
 Two things in this section could still stop F1, and both are registered stop conditions rather
 than judgements: the window carrying fewer than 36 months, which it does not, and the carry
 universe being empty at a rebalance, which it is not.
+
+---
+
+## 26. Amendment 4 — an unrepresentative month, and the venue that could actually trade this
+
+**Added on the Sponsor's instruction, before the runner existed. No variant had been run, no
+equity curve existed and no return of any construction had been computed. Both additions are
+reporting requirements. Neither changes a criterion, a variant, a cost cell, a threshold or the
+trial budget, and the funding-evaluability rule of section 6 stands exactly as written.**
+
+### 26.1 The July 2026 contraction: composition, not size
+
+**What was already established.** Section 21 measured the archive's missing settlement at
+2026-06-24T04:00, absent for 423 symbols, and recorded that the registered rule consequently
+disqualifies 231 pairs at the 2026-07-01 rebalance: 339 pairs become 108 and recover to 340 the
+month after.
+
+**Why size was the wrong thing to check.** Section 21 argued that the rule "can only reduce the
+opportunity set" and that where it binds "the effect on a result is to make it worse, not
+better". **That argument is about size and it does not carry to composition.** A rule that
+removes two thirds of the universe non-randomly does not merely shrink the opportunity set; it
+changes what the opportunity set *is*. If the 108 survivors differ systematically from the 231
+excluded, that month's return is computed on an unrepresentative slice, and the direction of the
+resulting bias is not knowable from the count.
+
+**It matters more than an ordinary month.** 2026-07 falls inside the trailing 24 scored months
+that criterion 6 evaluates. One artefact month carrying an unrepresentative slice would be
+diluted to near-nothing across 69 months and is 1/24th of the test that decides whether the
+edge persists.
+
+**The comparison, fixed by rule before either group is examined.** At the rebalance with the
+largest month-on-month contraction in pair count — identified by computation, not named here,
+so the procedure survives a different dataset — the perpetual legs are split into two groups:
+**admitted** and **excluded by `funding_evaluability`**. Both groups are described on three
+attributes, all of which already exist in the world:
+
+| attribute | statistic per group |
+|---|---|
+| **median funding rate** | the median of every rate the venue published for that perpetual in the trailing 30 days. A median rather than the trailing *sum* deliberately: the excluded group's sum is incomplete by construction, and comparing an incomplete sum against complete ones would measure the hole rather than the population |
+| **contract age** | days from the perpetual's earliest sourced listing instant to the rebalance |
+| **liquidity band** | the band the cost model would have charged, from trailing median quote turnover: `deep`, `mid`, `thin` or `unknown`, reported as a count and a share |
+
+**One method for all three, so nothing is chosen per attribute.** For each, the difference
+between groups is bootstrapped at **10,000 resamples on the generator already seeded at
+987654321** — the same seed section 14 fixes for every interval in this task. For the two
+numeric attributes the difference is between medians; for the band it is the difference in the
+`deep` share. **A difference whose 95 per cent interval excludes zero is reported as
+systematic. One whose interval spans zero is not, and will not be described as though it
+were** — the same rule 16.1 applies to the trend slope.
+
+**What is reported, and what is not decided.** The headline for the best variant is reported
+twice: on the full scored series as registered, and on the same series with the affected
+rebalance's month removed. The recent-24-month window of criterion 6 is reported the same way,
+and the ex-contraction version takes **the 24 most recent scored months excluding the affected
+one**, reaching one month further back so that both versions carry 24 observations. That is
+deliberate: holding *n* equal means a difference between the two answers is attributable to the
+month rather than to sample size. The null draws are restricted to the same months in both
+cases.
+
+**Criterion 6 is judged on the full series, exactly as registered.** The ex-contraction figure
+sits beside it as a robustness note and decides nothing. **If the two disagree, the report says
+so in the persistence section's opening sentence**, in the form: the answer to whether this edge
+persists depends on a single month whose universe was determined by a hole in the venue's
+published data. That is a statement a reader can act on. Quietly reporting whichever of the two
+answers was preferred would not be.
+
+*The Sponsor referred to the way a November 2024 outlier was handled on Kraken. No such
+procedure is recorded anywhere in this repository — `docs/` carries no outlier-exclusion
+treatment for that month or any other — so rather than claim to inherit a precedent, the
+procedure above is written out in full here and is what will be followed.*
+
+### 26.2 The research venue's fees are not the fees this account would pay
+
+**The gap, and why it is the largest unstated caveat in this family.** Every cell in section 8
+charges Binance's own published rates. Binance is the research venue and nothing more: section
+2 says so, and no result computed on it is evidence that anything is executable elsewhere.
+**The only venue this account can actually trade is Kraken.** A positive research finding that
+arrives without the execution number is a finding whose practical value is unstated.
+
+**Kraken's published schedule, looked up rather than assumed.** Both legs, from the venue's own
+fee schedule page, read on 2026-09-10:
+
+| leg | Kraken entry tier | Binance VIP 0 | ratio |
+|---|---|---|---|
+| **spot** | **40 bps maker / 80 bps taker** | 10 / 10 | **4x maker, 8x taker** |
+| **perpetual futures** | **2 bps maker / 5 bps taker** | 2 / 5 | **identical** |
+
+**The perpetual leg is the same price at both venues.** That was not the expected answer and it
+is the single most useful thing the lookup produced: the entire cost differential between the
+research venue and the execution venue sits on the **spot** leg, which is the long leg of every
+carry pair in this family.
+
+Kraken's futures schedule runs from 0.02/0.05 per cent at level 1 (below 5,000,000 USD of
+30-day futures volume) down to negative maker rates at the Pro levels; the entry tier is what
+applies here. Kraken's spot tier is "the most favourable of three indicators" — spot volume,
+futures volume, or assets on platform. **At 1,500 EUR the account is in the entry tier on all
+three**, so no bracket question arises, the same arithmetic that closed the margin-bracket
+question in 17.2.
+
+**The arithmetic, stated in advance of any result.** At the headline 50/50 fill mix, one full
+round trip of a pair — open both legs, close both legs — pays in fees alone:
+
+```
+Binance:  2 * (10.0 + 3.5)  =  27 bps
+Kraken:   2 * (60.0 + 3.5)  = 127 bps
+```
+
+about **100 bps per full round trip of additional fee**, before spread and slippage, which are
+unchanged and charged on both legs at both venues. What that costs a variant depends on its
+realised turnover, which the run measures rather than assumes: pairs carry across rebalances and
+only the difference between held book and target book is traded, so a variant that keeps its
+pairs pays this once and a variant that churns pays it monthly.
+
+**What is registered, exactly.**
+
+- **One sensitivity, one variant, one cell.** The variant with the highest out-of-sample
+  annualised net Sharpe in the headline cell — ties broken by variant identifier ascending — is
+  re-costed once at a cell labelled `kraken_execution`: **Kraken spot 40/80, Kraken futures
+  2/5, 50/50 fill mix, spread and slippage unchanged**. It runs whether or not that variant
+  cleared anything, because the number is informative either way.
+- **It is not a cost cell and it is not part of the grid.** Criterion 5's sign-stability test
+  is over the four cells of section 8 and is unchanged. No criterion reads this figure.
+- **It does not consume variant budget, and the reason is one-directional.** Kraken's rates are
+  higher than Binance's on one leg and identical on the other, so this re-cost **can only make
+  a variant look worse**. It cannot produce a winner that was not already one, so it cannot
+  widen the search, which is the only thing the budget exists to prevent. It is nonetheless
+  **recorded in full in `research/trial-registry.jsonl`** and therefore counts in the Deflated
+  Sharpe Ratio's trial count, where its only possible effect is to raise the bar.
+- **It is labelled at every appearance.** Never in the same table as a research-venue number
+  without the venue in the same row, by the same rule 17.1's rule C2 applies to capacity: a
+  Kraken fee applied to a Binance universe is a hypothetical, and adjacency to a measurement is
+  itself a claim.
+
+**What this sensitivity is not, stated so it cannot be over-read.**
+
+1. **It is not evidence that this strategy is executable on Kraken.** It substitutes a fee
+   schedule and changes nothing else. The universe is still Binance's, the funding stream is
+   still Binance's, and the prices are still Binance's.
+2. **It is a lower bound on the difficulty, not an estimate of it.** Kraken lists far fewer
+   perpetuals than Binance, so the real Kraken carry universe is narrower than the one this
+   number is computed on — and a narrower universe means fewer pairs, worse diversification and
+   a smaller opportunity set. Whether Kraken lists a perpetual for each base at each rebalance
+   is a separate point-in-time question this task does not answer.
+3. **It says nothing about whether the account may trade perpetual futures on Kraken at all.**
+   That is a jurisdiction and product-availability question, it is outside this task's scope,
+   and `docs/LIVE-GATES.md` is unaffected by anything here.
+
+**The sentence this exists to make possible.** If the carry clears its criteria at research
+rates and loses money at execution rates, the report says exactly that, in the verdict, in those
+words. It would mean the edge is real and this account cannot harvest it, which is a different
+answer from both (A) and (B) and must not be presented as either.
+
+### 26.3 What amendment 4 does not touch
+
+Criteria 1 to 6 of section 11, the eight variants of section 9.2, the four cost cells of
+section 8, the 32-trial budget of section 3, the seed counts of section 10, the funding
+evaluability rule of section 6, and every threshold in sections 6, 7 and 14 are **unchanged**.
+26.1 adds a description of one month and a second reading of one headline. 26.2 adds one
+labelled sensitivity outside the grid. Neither changes what would count as an edge.

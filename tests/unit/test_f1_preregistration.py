@@ -87,7 +87,7 @@ def _alter(payload: dict[str, object], path: tuple[str | int, ...], value: objec
 def test_the_committed_specification_agrees_with_the_code() -> None:
     """If this fails, no F1 result may be produced."""
     registered = assert_no_drift()
-    assert str(registered["version"]) == "v1.4"
+    assert str(registered["version"]) == "v1.5"
     assert str(registered["family"]) == FAMILY
 
 
@@ -366,3 +366,75 @@ def test_every_registered_variant_has_a_distinct_label() -> None:
     """The trial registry keys on it, so a duplicate would merge two trials."""
     labels = variant_labels()
     assert len(set(labels)) == len(labels) == len(REGISTERED_VARIANTS)
+
+
+def test_a_drifted_execution_sensitivity_refuses_the_run(tmp_path: Path) -> None:
+    """The sensitivity is checked as strictly as a grid cell, though nothing reads it.
+
+    A sensitivity nobody verified is one that can quietly become the flattering number
+    instead of the honest one, and this is the number that says whether a research
+    finding could ever be harvested.
+    """
+    payload = _registered()
+    _alter(payload, ("execution_sensitivity", "spot_taker_bps"), "10")
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="spot_taker_bps"):
+        assert_no_drift(altered)
+
+
+def test_declaring_the_sensitivity_a_grid_cell_refuses_the_run(tmp_path: Path) -> None:
+    """It is outside the grid, and criterion 5 stays a four-cell test."""
+    payload = _registered()
+    _alter(payload, ("execution_sensitivity", "is_a_grid_cell"), True)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="is_a_grid_cell"):
+        assert_no_drift(altered)
+
+
+def test_declaring_that_the_sensitivity_consumes_budget_refuses_the_run(tmp_path: Path) -> None:
+    """The exemption rests on the re-cost being one-directional, not on convenience."""
+    payload = _registered()
+    _alter(payload, ("execution_sensitivity", "consumes_variant_budget"), True)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="consumes_variant_budget"):
+        assert_no_drift(altered)
+
+
+def test_hiding_the_sensitivity_from_the_registry_refuses_the_run(tmp_path: Path) -> None:
+    """It counts in the DSR trial count, where it can only raise the bar."""
+    payload = _registered()
+    _alter(payload, ("execution_sensitivity", "recorded_in_the_registry"), False)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="recorded_in_the_registry"):
+        assert_no_drift(altered)
+
+
+def test_letting_a_criterion_read_the_sensitivity_refuses_the_run(tmp_path: Path) -> None:
+    """No Binance result becomes evidence about Kraken execution, by construction."""
+    payload = _registered()
+    _alter(payload, ("execution_sensitivity", "read_by_any_criterion"), True)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="read_by_any_criterion"):
+        assert_no_drift(altered)
+
+
+def test_a_drifted_contraction_seed_refuses_the_run(tmp_path: Path) -> None:
+    """One seed for every interval in this task, and the guard holds it."""
+    payload = _registered()
+    _alter(payload, ("contraction_check", "seed"), 1)
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=r"contraction_check\.seed"):
+        assert_no_drift(altered)
+
+
+def test_a_fourth_contraction_attribute_refuses_the_run(tmp_path: Path) -> None:
+    """Three registered attributes carry an interval. A fourth would be post-hoc."""
+    payload = _registered()
+    block = payload["contraction_check"]
+    assert isinstance(block, dict)
+    attributes = block["attributes"]
+    assert isinstance(attributes, list)
+    block["attributes"] = [*attributes, {"name": "something_noticed_later"}]
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=r"contraction_check\.attributes"):
+        assert_no_drift(altered)

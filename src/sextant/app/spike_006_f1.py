@@ -44,6 +44,12 @@ from sextant.adapters.exchanges.binance.costs import (
     SPOT_FEES,
     SPREAD_ASSUMPTION,
 )
+from sextant.adapters.exchanges.kraken.costs import (
+    FUTURES_FEES as KRAKEN_FUTURES_FEES,
+)
+from sextant.adapters.exchanges.kraken.costs import (
+    SPOT_FEES as KRAKEN_SPOT_FEES,
+)
 from sextant.adapters.vcs import Commit, GitRepository
 from sextant.domain.money import Notional
 from sextant.domain.time import Timestamp
@@ -241,6 +247,52 @@ REGISTERED_CELLS: tuple[CellSpec, ...] = (
         spread_and_slippage_multiplier=Decimal(2),
     ),
 )
+
+
+#: Amendment 26.1. The contraction check compares the admitted and excluded groups
+#: on three attributes at the rebalance with the largest month-on-month fall in pair
+#: count, and every difference is bootstrapped by the same method so nothing is
+#: chosen per attribute.
+CONTRACTION_ATTRIBUTES = ("median_funding_rate", "contract_age_days", "liquidity_band")
+
+#: Amendment 26.2. The execution venue's published schedule, on the one variant that
+#: scored best. Not a grid cell, not read by any criterion, and it consumes no
+#: variant budget because it can only make a variant look worse - it cannot produce a
+#: winner that was not already one, so it cannot widen the search.
+EXECUTION_SENSITIVITY = CellSpec(
+    label="kraken_execution",
+    spot_maker_bps=KRAKEN_SPOT_FEES.maker_bps,
+    spot_taker_bps=KRAKEN_SPOT_FEES.taker_bps,
+    futures_maker_bps=KRAKEN_FUTURES_FEES.maker_bps,
+    futures_taker_bps=KRAKEN_FUTURES_FEES.taker_bps,
+    maker_fraction=Decimal("0.50"),
+    is_headline=False,
+    runs_nulls=False,
+)
+
+
+def execution_sensitivity() -> CellSpec:
+    """The one re-cost amendment 26.2 registers, and there is exactly one.
+
+    A function rather than a bare constant so the two callers - the runner and the
+    drift guard - cannot disagree about which cell it is.
+    """
+    return EXECUTION_SENSITIVITY
+
+
+def round_trip_fee_bps(cell: CellSpec) -> Decimal:
+    """Fees alone for opening and closing both legs of one pair, in basis points.
+
+    The arithmetic amendment 26.2 states in advance: two legs opened and two closed
+    at the cell's own fill mix. Spread and slippage are excluded deliberately, since
+    they are assumptions rather than published rates and are identical across the two
+    venues here. What a variant actually pays depends on its realised turnover, which
+    the run measures.
+    """
+    taker_fraction = Decimal(1) - cell.maker_fraction
+    spot = cell.maker_fraction * cell.spot_maker_bps + taker_fraction * cell.spot_taker_bps
+    futures = cell.maker_fraction * cell.futures_maker_bps + taker_fraction * cell.futures_taker_bps
+    return 2 * (spot + futures)
 
 
 def headline_cell() -> CellSpec:
@@ -658,6 +710,8 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
         ("statistics.periods_per_year", _text(statistics["periods_per_year"]), "12"),
     ]
     checks.extend(_capacity_rule_checks(capacity))
+    checks.extend(_contraction_checks(raw))
+    checks.extend(_sensitivity_checks(raw))
     checks.extend(_budget_checks(raw))
     checks.extend(_variant_checks(_sequence(variants["registered"], "variants.registered")))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
@@ -692,6 +746,92 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     version = _text(raw["version"])
     print(f"[f1] pre-registration {version} verified against the code: {len(checks)} numbers")
     return raw
+
+
+def _sensitivity_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Amendment 26.2's registered schedule against the constant the runner uses.
+
+    Checked as strictly as a grid cell even though no criterion reads it. A
+    sensitivity nobody verified is a sensitivity that can quietly become the
+    flattering number instead of the honest one.
+    """
+    block = _mapping(raw["execution_sensitivity"], "execution_sensitivity")
+    cell = execution_sensitivity()
+    where = "execution_sensitivity"
+    return [
+        (f"{where}.label", _text(block["label"]), cell.label),
+        (
+            f"{where}.spot_maker_bps",
+            Decimal(_text(block["spot_maker_bps"])),
+            cell.spot_maker_bps,
+        ),
+        (
+            f"{where}.spot_taker_bps",
+            Decimal(_text(block["spot_taker_bps"])),
+            cell.spot_taker_bps,
+        ),
+        (
+            f"{where}.futures_maker_bps",
+            Decimal(_text(block["futures_maker_bps"])),
+            cell.futures_maker_bps,
+        ),
+        (
+            f"{where}.futures_taker_bps",
+            Decimal(_text(block["futures_taker_bps"])),
+            cell.futures_taker_bps,
+        ),
+        (
+            f"{where}.maker_fraction",
+            Decimal(_text(block["maker_fraction"])),
+            cell.maker_fraction,
+        ),
+        (f"{where}.is_a_grid_cell", bool(block["is_a_grid_cell"]), False),
+        (f"{where}.consumes_variant_budget", bool(block["consumes_variant_budget"]), False),
+        (f"{where}.recorded_in_the_registry", bool(block["recorded_in_the_registry"]), True),
+        (f"{where}.read_by_any_criterion", bool(block["read_by_any_criterion"]), False),
+        (
+            f"{where}.round_trip_fee_arithmetic.execution_venue_bps",
+            Decimal(
+                _text(
+                    _mapping(block["round_trip_fee_arithmetic"], f"{where}.round_trip")[
+                        "execution_venue_bps"
+                    ]
+                )
+            ),
+            round_trip_fee_bps(cell),
+        ),
+        (
+            f"{where}.round_trip_fee_arithmetic.research_venue_bps",
+            Decimal(
+                _text(
+                    _mapping(block["round_trip_fee_arithmetic"], f"{where}.round_trip")[
+                        "research_venue_bps"
+                    ]
+                )
+            ),
+            round_trip_fee_bps(headline_cell()),
+        ),
+        (
+            f"{where}.is_not_in_the_grid",
+            cell.label in cell_labels(),
+            False,
+        ),
+    ]
+
+
+def _contraction_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Amendment 26.1's registered method, which must be one method for all three."""
+    block = _mapping(raw["contraction_check"], "contraction_check")
+    attributes = tuple(
+        _text(_mapping(entry, "contraction_check.attributes entry")["name"])
+        for entry in _sequence(block["attributes"], "contraction_check.attributes")
+    )
+    return [
+        ("contraction_check.attributes", attributes, CONTRACTION_ATTRIBUTES),
+        ("contraction_check.resamples", _text(block["resamples"]), str(RESAMPLES)),
+        ("contraction_check.seed", _text(block["seed"]), str(BOOTSTRAP_SEED)),
+        ("contraction_check.difference_method", _text(block["difference_method"]), "bootstrap"),
+    ]
 
 
 def _capacity_rule_checks(capacity: Mapping[str, object]) -> list[tuple[str, object, object]]:
@@ -856,9 +996,13 @@ def registered_grid() -> Iterable[tuple[str, str]]:
 
 
 __all__ = [
+    "BOOTSTRAP_SEED",
     "CONFIG_PATH",
     "ENGINE_VERSION",
     "FAMILY",
+    "MINIMUM_MONTHS_FOR_A_YEAR",
+    "RECENT_WINDOW_MONTHS",
+    "RESAMPLES",
     "RESULTS_PATH",
     "CellSpec",
     "DriftedFromPreRegistration",
@@ -868,9 +1012,11 @@ __all__ = [
     "assert_no_drift",
     "budget",
     "cell_labels",
+    "execution_sensitivity",
     "headline_cell",
     "ordering_audit",
     "registered_grid",
     "registration_provenance",
+    "round_trip_fee_bps",
     "variant_labels",
 ]

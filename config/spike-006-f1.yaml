@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.4
+version: v1.5
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -50,6 +50,13 @@ amendments:
     subject: >
       The trial budget is enforced by the runner rather than described in prose, and
       the pre-registration ordering is auditable from the report through git.
+  - id: amendment-4
+    document_section: "26"
+    subject: >
+      The July 2026 contraction is described by composition and not only by size, and
+      the best variant is re-costed once at the execution venue's published fee
+      schedule. Both are reporting additions; no criterion, variant, cell, threshold
+      or budget changes.
   - id: part-2
     document_section: 19-25
     subject: >
@@ -727,6 +734,143 @@ maintenance_margin:
     sentence was wrong and 17.2 corrected it, before any result existed, on the
     arithmetic above rather than on anything observed. It touches only how a leverage
     and probability-of-ruin conclusion is phrased. Criteria 1 to 6 are untouched.
+
+# ---------------------------------------------------------------------------
+# The contraction check: composition, not size (amendment 26.1)
+# ---------------------------------------------------------------------------
+#
+# The registered funding-evaluability rule disqualifies 231 of 339 pairs at one
+# rebalance, because the venue did not publish one settlement instant. Section 21
+# argued that the rule can only shrink the opportunity set, which is true of SIZE
+# and does not carry to COMPOSITION: a rule that removes two thirds of a universe
+# non-randomly changes what the universe is, and the direction of that bias is not
+# knowable from the count.
+contraction_check:
+  runs_at: >
+    The rebalance with the largest month-on-month contraction in pair count,
+    identified by computation rather than named here, so the procedure survives a
+    different dataset.
+  groups: [admitted, excluded by funding_evaluability]
+  attributes:
+    - name: median_funding_rate
+      statistic: >
+        the median of every rate the venue published for that perpetual in the
+        trailing 30 days
+      why_a_median_not_a_sum: >
+        The excluded group's trailing SUM is incomplete by construction, so comparing
+        it against complete sums would measure the hole rather than the population.
+    - name: contract_age_days
+      statistic: >
+        days from the perpetual's earliest sourced listing instant to the rebalance
+    - name: liquidity_band
+      statistic: >
+        the band the cost model would charge, from trailing median quote turnover,
+        reported as a count and a share per band; the tested difference is the deep
+        share
+  difference_method: bootstrap
+  resamples: 10000
+  seed: 987654321
+  systematic_when: >
+    The 95 per cent interval on the difference excludes zero. An interval that spans
+    zero is not systematic and will not be described as though it were, the same rule
+    16.1 applies to the trend slope.
+  headline_reported_twice:
+    full: the whole scored series, as registered
+    ex_contraction: the same series with the affected rebalance's month removed
+  recent_window_ex_contraction: >
+    The 24 most recent scored months EXCLUDING the affected one, reaching one month
+    further back so both versions carry 24 observations. Holding n equal means a
+    difference between the two answers is attributable to the month rather than to
+    sample size. Null draws are restricted to the same months in both cases.
+  criterion_6_is_judged_on: >
+    the full series, exactly as registered. The ex-contraction figure sits beside it
+    as a robustness note and decides nothing.
+  if_they_disagree: >
+    The persistence section's opening sentence says so: the answer to whether this
+    edge persists depends on a single month whose universe was determined by a hole
+    in the venue's published data. Reporting whichever answer was preferred, without
+    saying the two differ, would not be reporting.
+  the_rule_itself_is_unchanged: >
+    Section 6 rule 4 stands exactly as written. This block adds a description and a
+    second reading of one headline. It changes no criterion.
+
+# ---------------------------------------------------------------------------
+# The execution-venue sensitivity (amendment 26.2)
+# ---------------------------------------------------------------------------
+#
+# Every grid cell charges the research venue's rates. The only venue this account can
+# trade is the execution venue, whose SPOT schedule is four to eight times higher on
+# the long leg of every carry pair. A positive research finding that arrives without
+# this number is a finding whose practical value is unstated.
+execution_sensitivity:
+  label: kraken_execution
+  looked_up_not_assumed: >
+    Both legs read from the execution venue's own published fee schedule page on
+    2026-09-10, because the brief required a lookup rather than an assumption.
+  spot_maker_bps: "40"
+  spot_taker_bps: "80"
+  futures_maker_bps: "2"
+  futures_taker_bps: "5"
+  maker_fraction: "0.50"
+  spread_and_slippage: unchanged from section 8, charged on both legs
+  the_finding_from_the_lookup: >
+    The PERPETUAL leg is the same price at both venues, 2 and 5 basis points. That was
+    not the expected answer. The entire cost differential sits on the SPOT leg: 40/80
+    against 10/10, four times on maker and eight on taker.
+  tier_question_does_not_arise: >
+    The execution venue's tier is the most favourable of spot volume, futures volume
+    and assets on platform. At 1,500 EUR the account is in the entry tier on all
+    three, so no bracket question arises - the same arithmetic that closed the
+    margin-bracket question in 17.2.
+  round_trip_fee_arithmetic:
+    research_venue_bps: "27"
+    execution_venue_bps: "127"
+    basis: >
+      Two legs opened and two closed at the headline 50/50 mix: 2 * (10.0 + 3.5)
+      against 2 * (60.0 + 3.5). Fees only, before spread and slippage. What it costs a
+      variant depends on realised turnover, which the run measures rather than
+      assumes.
+  applies_to: >
+    The single variant with the highest out-of-sample annualised net Sharpe in the
+    headline cell, ties broken by variant identifier ascending. It runs whether or not
+    that variant cleared anything.
+  is_a_grid_cell: false
+  consumes_variant_budget: false
+  budget_reasoning: >
+    The execution venue's rates are higher on one leg and identical on the other, so
+    this re-cost can only make a variant look WORSE. It cannot produce a winner that
+    was not already one, so it cannot widen the search, which is the only thing the
+    budget exists to prevent.
+  recorded_in_the_registry: true
+  registry_reasoning: >
+    Counted in full, so it enters the Deflated Sharpe Ratio's trial count, where its
+    only possible effect is to raise the bar.
+  read_by_any_criterion: false
+  labelling: >
+    Never in the same table as a research-venue number without the venue in the same
+    row. An execution-venue fee applied to a research-venue universe is a
+    hypothetical, and adjacency to a measurement is itself a claim - the same rule C2
+    states for capacity.
+  what_it_is_not:
+    - >
+      NOT evidence that this strategy is executable at the execution venue. It
+      substitutes a fee schedule and changes nothing else: the universe, the funding
+      stream and the prices are all still the research venue's.
+    - >
+      A LOWER BOUND on the difficulty, not an estimate of it. The execution venue
+      lists far fewer perpetuals, so its real carry universe is narrower than the one
+      this number is computed on, which means fewer pairs and a smaller opportunity
+      set. Whether it lists a perpetual for each base at each rebalance is a separate
+      point-in-time question this task does not answer.
+    - >
+      SILENT on whether the account may trade perpetual futures at the execution venue
+      at all. That is a jurisdiction and product-availability question, outside this
+      task's scope, and docs/LIVE-GATES.md is unaffected.
+  the_sentence_this_makes_possible: >
+    If the carry clears its criteria at research rates and loses money at execution
+    rates, the report says exactly that, in the verdict, in those words. It would mean
+    the edge is real and this account cannot harvest it, which is a different answer
+    from both (A) and (B) and must not be presented as either.
 
 # ---------------------------------------------------------------------------
 # Capacity: measured only inside the depth window
