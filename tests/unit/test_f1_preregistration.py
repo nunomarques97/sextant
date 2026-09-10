@@ -21,6 +21,7 @@ import yaml
 
 from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
+    CADENCE_PAIR,
     CONFIG_PATH,
     ENGINE_VERSION,
     FAMILY,
@@ -31,6 +32,7 @@ from sextant.app.spike_006_f1 import (
     MINIMUM_DEPTH_MONTHS,
     REGISTERED_CELLS,
     REGISTERED_VARIANTS,
+    THINNER_EVIDENCE_VARIANT,
     DriftedFromPreRegistration,
     assert_no_drift,
     budget,
@@ -87,7 +89,7 @@ def _alter(payload: dict[str, object], path: tuple[str | int, ...], value: objec
 def test_the_committed_specification_agrees_with_the_code() -> None:
     """If this fails, no F1 result may be produced."""
     registered = assert_no_drift()
-    assert str(registered["version"]) == "v1.6"
+    assert str(registered["version"]) == "v1.7"
     assert str(registered["family"]) == FAMILY
 
 
@@ -194,11 +196,11 @@ def test_capacity_rule_c3_removed_is_refused(tmp_path: Path) -> None:
 
 
 def test_the_registered_budget_is_the_budget_the_runner_enforces() -> None:
-    """The declaration and the enforced grid are the same 32 trials."""
+    """The declaration and the enforced grid are the same 36 trials."""
     declared = budget()
     assert declared.family == FAMILY
     assert declared.engine_version == ENGINE_VERSION
-    assert declared.maximum_trials == 32
+    assert declared.maximum_trials == 36
     assert declared.variants == variant_labels()
     assert declared.cost_cells == cell_labels()
     assert len(list(registered_grid())) == declared.maximum_trials
@@ -245,7 +247,7 @@ def test_the_whole_registered_grid_fits_the_budget_exactly() -> None:
     ledger = BudgetLedger(budget=budget())
     for variant, cell in registered_grid():
         ledger.charge(variant, cell)
-    assert ledger.spent == 32
+    assert ledger.spent == 36
     assert ledger.remaining == 0
 
 
@@ -438,3 +440,102 @@ def test_a_fourth_contraction_attribute_refuses_the_run(tmp_path: Path) -> None:
     altered = _write(payload, tmp_path / "spike-006-f1.yaml")
     with pytest.raises(DriftedFromPreRegistration, match=r"contraction_check\.attributes"):
         assert_no_drift(altered)
+
+
+# ---------------------------------------------------------------------------
+# Amendment 6: the ninth variant, its cadence, and the pair it belongs to
+# ---------------------------------------------------------------------------
+
+
+def test_the_grid_has_a_point_slower_than_monthly() -> None:
+    """The gap amendment 6 exists to close, asserted rather than described.
+
+    Without a variant at a cadence slower than monthly the family would have been
+    tested only in the turnover region the execution fee schedule already rules out,
+    and a failure there would have been about the grid's design rather than the market.
+    """
+    cadences = {variant.rebalance_months for variant in REGISTERED_VARIANTS}
+    assert cadences == {1, 3}
+    slower = [v.label for v in REGISTERED_VARIANTS if v.rebalance_months > 1]
+    assert slower == [THINNER_EVIDENCE_VARIANT]
+
+
+def test_the_cadence_pair_differs_in_cadence_and_in_nothing_else() -> None:
+    """A one-factor comparison is only one-factor if exactly one field differs."""
+    by_label = {variant.label: variant for variant in REGISTERED_VARIANTS}
+    monthly, quarterly = (by_label[label] for label in CADENCE_PAIR)
+    assert monthly.signal == quarterly.signal
+    assert monthly.positions == quarterly.positions
+    assert monthly.require_positive == quarterly.require_positive
+    assert (monthly.rebalance_months, quarterly.rebalance_months) == (1, 3)
+
+
+def test_the_pair_is_named_in_the_registration_rather_than_inferred() -> None:
+    """The reporter reads the pair from here, so it cannot pair the wrong two rows."""
+    variants = _registered()["variants"]
+    assert isinstance(variants, dict)
+    pair = variants["one_factor_comparison"]
+    assert isinstance(pair, dict)
+    assert tuple(str(item) for item in pair["pair"]) == CADENCE_PAIR
+
+
+def test_repairing_the_comparison_against_a_different_sibling_refuses_the_run(
+    tmp_path: Path,
+) -> None:
+    """Swapping in a flattering sibling would silently make it a two-factor comparison."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("variants", "one_factor_comparison", "pair"),
+        ["carry-rank30-10", *CADENCE_PAIR[1:]],
+    )
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="one_factor_comparison"):
+        assert_no_drift(altered)
+
+
+def test_claiming_a_second_difference_refuses_the_run(tmp_path: Path) -> None:
+    """ "Cadence and lookback" is not the comparison that was registered."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("variants", "one_factor_comparison", "differs_in"),
+        ["rebalance_months", "signal"],
+    )
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="differs_in"):
+        assert_no_drift(altered)
+
+
+def test_moving_the_rebalance_count_requirement_to_another_variant_refuses_the_run(
+    tmp_path: Path,
+) -> None:
+    """The thin-evidence warning is worthless if the name it applies to can drift."""
+    payload = _registered()
+    _alter(payload, ("variants", "rebalance_count_reporting", "applies_to"), "carry-basket-5")
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="rebalance_count_reporting"):
+        assert_no_drift(altered)
+
+
+def test_quietly_speeding_the_quarterly_variant_up_refuses_the_run(tmp_path: Path) -> None:
+    """The one number the whole amendment turns on."""
+    payload = _registered()
+    variants = payload["variants"]
+    assert isinstance(variants, dict)
+    registered = variants["registered"]
+    assert isinstance(registered, list)
+    ninth = registered[-1]
+    assert isinstance(ninth, dict)
+    assert ninth["id"] == THINNER_EVIDENCE_VARIANT
+    ninth["rebalance_months"] = 1
+    altered = _write(payload, tmp_path / "spike-006-f1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="rebalance_months"):
+        assert_no_drift(altered)
+
+
+def test_the_ninth_variant_costs_four_more_trials_and_no_more() -> None:
+    """One variant, the same four cells, and no reserve behind the allowance."""
+    declared = budget()
+    assert declared.maximum_trials == len(REGISTERED_VARIANTS) * len(REGISTERED_CELLS) == 36
+    assert THINNER_EVIDENCE_VARIANT in declared.variants

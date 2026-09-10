@@ -1,10 +1,12 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.6`. Part 1, the specification, committed before any funding number was
+**Version `v1.7`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
-Amendments 1 to 5 were all added before any variant had been run; no strategy result of any kind
-existed when any of them was written. Sections 16, 17, 18, 26 and 27 state what they changed and
-why. Amendments 4 and 5 were written after part 2 and change nothing part 2 measured.**
+Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
+existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
+and why. Amendments 4, 5 and 6 were written after part 2 and change nothing part 2 measured.
+Amendment 6 is the only one that changes the grid, and it is the last: the grid closed when the
+runner started.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -308,7 +310,7 @@ section 5 defines it.
 | signal inputs | funding settled **at or before** *R*; daily closes whose `close_time ≤ R` |
 | entry price, both legs | each leg's last daily close that had finished forming at or before *R* |
 | exit price | the same rule at the next rebalance |
-| rebalance frequency | monthly |
+| rebalance frequency | monthly for the eight variants of 9.2; **quarterly** for `carry-rank90-10-quarterly` (amendment 6, section 28) |
 | sizing | equal capital across the selected pairs, each leg `equity / (1.20 · N)` in notional |
 | tie handling | ranks descending; ties broken by base asset ascending, byte-wise |
 | insufficient data | any rule in section 6 failing means the asset is not in the universe; counted and reported as not-evaluable, never silently dropped |
@@ -323,24 +325,30 @@ interval makes ambiguous.
 
 #### 9.2 The variants
 
-| id | selection rule | N |
-|---|---|---:|
-| `carry-basket-5` | the 5 assets in the carry universe with the largest trailing 30-day median quote turnover | 5 |
-| `carry-basket-10` | the 10 assets with the largest trailing 30-day median quote turnover | 10 |
-| `carry-rank30-5` | the 5 assets with the largest `trailing_funding(A, R, 30)` | 5 |
-| `carry-rank30-10` | the 10 assets with the largest `trailing_funding(A, R, 30)` | 10 |
-| `carry-rank90-5` | the 5 assets with the largest `trailing_funding(A, R, 90)` | 5 |
-| `carry-rank90-10` | the 10 assets with the largest `trailing_funding(A, R, 90)` | 10 |
-| `carry-premium-10` | the 10 assets with the largest `premium(A, R)` | 10 |
-| `carry-positive-10` | the assets with `trailing_funding(A, R, 30) > 0`, the 10 largest of them; **if fewer than 10 qualify, hold only those and leave the rest in cash** | ≤ 10 |
+| id | selection rule | N | rebalance months |
+|---|---|---:|---:|
+| `carry-basket-5` | the 5 assets in the carry universe with the largest trailing 30-day median quote turnover | 5 | 1 |
+| `carry-basket-10` | the 10 assets with the largest trailing 30-day median quote turnover | 10 | 1 |
+| `carry-rank30-5` | the 5 assets with the largest `trailing_funding(A, R, 30)` | 5 | 1 |
+| `carry-rank30-10` | the 10 assets with the largest `trailing_funding(A, R, 30)` | 10 | 1 |
+| `carry-rank90-5` | the 5 assets with the largest `trailing_funding(A, R, 90)` | 5 | 1 |
+| `carry-rank90-10` | the 10 assets with the largest `trailing_funding(A, R, 90)` | 10 | 1 |
+| `carry-premium-10` | the 10 assets with the largest `premium(A, R)` | 10 | 1 |
+| `carry-positive-10` | the assets with `trailing_funding(A, R, 30) > 0`, the 10 largest of them; **if fewer than 10 qualify, hold only those and leave the rest in cash** | ≤ 10 | 1 |
+| `carry-rank90-10-quarterly` | the 10 assets with the largest `trailing_funding(A, R, 90)`, at quarterly rebalance instants only — **amendment 6, section 28** | 10 | 3 |
 
-The eight are three questions and no more. `basket` asks whether carry pays at all, with no
+The first eight are three questions and no more. `basket` asks whether carry pays at all, with no
 selection: it holds the most liquid assets and would hold them whatever funding did.
 `rank30`, `rank90` and `premium` ask whether choosing *which* assets to carry adds anything,
 on three different signals of the same underlying quantity. `positive` is the only variant
 whose exposure varies, and it exists so that the decomposition in section 10 has something to
 decompose: it is the one that can stand aside, and it is therefore the one that must beat its
 own timing null.
+
+**`carry-rank90-10-quarterly` is the fourth question, added by amendment 6 and asked at exactly
+one point: does cadence matter?** It is `carry-rank90-10` with a quarterly rebalance and nothing
+else changed, so the two form a one-factor comparison and are reported as a pair. Section 28 states
+why the question could not be left out and what the addition costs.
 
 There is no threshold sweep, no lookback ladder beyond two points, and no weighting scheme
 other than equal. Each of those would be a plausible thing to try and each would spend budget
@@ -1448,3 +1456,125 @@ three numbers and a sentence instead of a verdict.**
 > *conclusion* of a break-even statement rather than the whole of it, and where the two
 > break-evens straddle realised turnover the report gives the numbers rather than the word. The
 > rest of 26.2 stands unedited.
+
+---
+
+## 28. Amendment 6 — one variant at a slower cadence, and the one-factor comparison it exists for
+
+**Added on the Sponsor's instruction, before the runner existed. No variant had been run, no equity
+curve existed and no return, Sharpe or turnover of any kind had been computed for any variant. It
+is the only amendment that changes the grid, and it is the last amendment: once the runner starts,
+nothing further is added, and any idea arriving after a number exists is post-hoc, counted in full
+in the registry and labelled as such in its own section.**
+
+### 28.1 The gap it closes
+
+Section 9.1 fixed the rebalance frequency at monthly for every variant. Cadence was therefore a
+single point rather than a range, and the eight variants differed only in signal and position
+count.
+
+That was defensible while the fee schedule was the research one. Amendment 5 makes it indefensible.
+At the execution venue one full-book round trip costs 105.83 basis points of equity, so the
+turnover a given gross carry can pay for is small:
+
+| gross carry, bps/yr | break-even round trips/yr | share of book replaceable, monthly | quarterly |
+|---:|---:|---:|---:|
+| 200 | 1.89 | 16% | 47% |
+| 300 | 2.83 | 24% | 71% |
+| 400 | 3.78 | 31% | 94% |
+| 600 | 5.67 | 47% | 142% |
+| 800 | 7.56 | 63% | 189% |
+
+**Cadence is not turnover, and the difference is why the eight were not simply wrong.** Section 9.1
+registers that pairs carry across rebalances and that only the difference between held book and
+target book trades. Monthly cadence is therefore an *upper bound* of twelve round trips a year, not
+a value, and the eight do span realised turnover — from near buy-and-hold, where a liquidity
+ranking barely changes, to near-full rotation, where a 30-day funding ranking does.
+
+**But they span it as a consequence of signal persistence, not as a designed axis, and the slow end
+of that span is occupied only by the two variants that have no view of funding at all.** The cell
+that is empty is *slow and funding-aware*: the one place this family could work at the venue this
+account can actually trade. `carry-rank90-10` is the closest registered point, because a 90-day
+trailing sum is smoother than a 30-day one, but it still re-ranks every month.
+
+**No churn was measured before this amendment was written.** Measuring the realised turnover of the
+registered selection rules and then choosing the grid on the answer would be selecting the design
+on data, which is the thing the trial budget exists to prevent. The gap above is an argument from
+the registered specification and from the published fee schedule, and from nothing else.
+
+### 28.2 The variant
+
+| id | signal | N | rebalance months | require positive |
+|---|---|---:|---:|---|
+| `carry-rank90-10-quarterly` | `funding_90` | 10 | 3 | no |
+
+Every other choice in section 9.1 is unchanged: the same signal instant rule, the same entry and
+exit prices, the same equal-capital sizing, the same tie handling, the same carrying rule. The
+signal is evaluated, and the book is changed, only at rebalance instants three months apart —
+00:00 UTC on the first of January, April, July and October — and the return series remains monthly.
+
+**Why `funding_90` and not `funding_30`.** A 90-day trailing sum sampled quarterly reads
+non-overlapping windows, so the lookback matches the holding period. A 30-day signal sampled
+quarterly would act for three months on a one-month reading, which is a different and worse
+hypothesis.
+
+**Why quarterly and not slower.** The table in 28.1 answers it: at a 4 per cent gross carry,
+quarterly cadence pays for replacing 94 per cent of the book at every rebalance, so quarterly
+already sits inside the survivable region and nothing slower is needed to reach it. One cadence
+point, not a ladder.
+
+### 28.3 The one-factor comparison, and the reporting requirement
+
+**`carry-rank90-10` and `carry-rank90-10-quarterly` are reported as a pair.** Same signal, same
+lookback, same position count, same universe, same cost cells; cadence is the only difference
+between them. Whatever separates their results is cadence, and that is the quantity this amendment
+exists to measure. The report states the pair explicitly rather than leaving a reader to notice
+that two rows differ in one field.
+
+**Registered against a straightforward abuse.** A one-factor comparison is only one-factor if
+neither member is quietly re-specified, so both members are named here and neither may be altered.
+
+**Its rebalance count is printed beside its result every time it appears.** Twenty-three quarterly
+rebalances against roughly seventy monthly ones for its siblings, on the same window, so its
+evidence is thinner by construction. A reader must see that where the number is, not by looking it
+up: a variant whose result rests on a third as many decisions is not comparable to its siblings on
+the strength of the number alone. This applies to every table, every JSON record and every
+sentence in which the variant's result appears.
+
+### 28.4 What it costs
+
+**The trial budget goes from 32 to 36**: nine variants across the same four cost cells. The
+allowance remains the exact product, with no reserve, and the runner still refuses an unregistered
+variant, an unregistered cell and any charge past the allowance.
+
+**The deflation cost is small, and it is small for a reportable reason.** The registry the Deflated
+Sharpe Ratio reads is dominated by null draws, not by grid trials:
+
+| grid | projected registry trials | expected-maximum-Sharpe factor |
+|---|---:|---:|
+| 8 variants | 12,303 | 3.9110 |
+| 9 variants | 13,309 | 3.9300 |
+
+A 0.48 per cent higher deflation benchmark. Counted against the grid alone it would have been 4.27
+per cent; the honest registry count is what makes the marginal variant cheap, which is the opposite
+of the usual direction and worth stating plainly.
+
+### 28.5 What it does not touch, and the grid closing
+
+Criteria 1 to 6, the four cost cells, the seed counts, the funding-evaluability rule, the universe
+rules, every threshold in sections 6, 7 and 14, declared expectations D1 and D2, and amendment 5's
+break-even definitions are all **unchanged**. The eight existing variants are unchanged in every
+field.
+
+> **9.1 is amended here.** Its table row `rebalance frequency | monthly` now reads *monthly for the
+> eight variants of 9.2; quarterly for `carry-rank90-10-quarterly`*. The per-variant field
+> `rebalance_months` carries it, and the drift guard compares it for every variant. Nothing else in
+> 9.1 changes.
+
+> **9.2's closing paragraph is amended here.** "Three questions and no more" is now four: cadence
+> is the fourth, asked at exactly one point, against exactly one sibling. The original reasoning
+> stands unedited and the three questions it describes are unchanged.
+
+**The grid is now closed.** Nine variants, four cells, 36 trials. On exhaustion F1 is closed: no
+tenth variant, no adjusted parameter, no additional lookback, no further cell and no further
+cadence. If the nine do not clear the criteria, that is the answer.

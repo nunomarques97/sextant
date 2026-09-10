@@ -167,6 +167,11 @@ class VariantSpec:
     signal: CarrySignal
     positions: int
     require_positive: bool = False
+    rebalance_months: int = 1
+    """Months between rebalance instants, amendment 6. One for every variant
+    registered before it; three for ``carry-rank90-10-quarterly``. Explicit rather
+    than implied by the label, because a cadence a reader has to infer from a name
+    is a cadence a reimplementation can get wrong."""
 
 
 REGISTERED_VARIANTS: tuple[VariantSpec, ...] = (
@@ -183,7 +188,23 @@ REGISTERED_VARIANTS: tuple[VariantSpec, ...] = (
         positions=10,
         require_positive=True,
     ),
+    VariantSpec(
+        label="carry-rank90-10-quarterly",
+        signal=CarrySignal.FUNDING_90,
+        positions=10,
+        rebalance_months=3,
+    ),
 )
+
+#: Amendment 28.3's one-factor comparison: same signal, same lookback, same position
+#: count, cadence the only difference. Held here so the reporter cannot pair the
+#: wrong two rows, and checked against the registered pair by the drift guard.
+CADENCE_PAIR: tuple[str, str] = ("carry-rank90-10", "carry-rank90-10-quarterly")
+
+#: The variant whose rebalance count is printed beside its result everywhere it
+#: appears, because roughly 23 rebalances against roughly 70 is thinner evidence and
+#: a reader must see that where the number is.
+THINNER_EVIDENCE_VARIANT = "carry-rank90-10-quarterly"
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,7 +345,7 @@ D2B_THRESHOLD_ROUND_TRIPS = MONTHLY_ROUND_TRIPS
 
 
 def budget() -> TrialBudget:
-    """F1's declared allowance: the eight variants across the four cells.
+    """F1's declared allowance: the nine variants across the four cells.
 
     Built from the same tuples the runner iterates, so the budget cannot describe
     a grid different from the one that runs. The type refuses a maximum that
@@ -443,7 +464,47 @@ def _variant_checks(registered: Sequence[object]) -> list[tuple[str, object, obj
                 spec.require_positive,
             )
         )
+        checks.append(
+            (
+                f"variants.registered[{position}].rebalance_months",
+                _text(block["rebalance_months"]),
+                str(spec.rebalance_months),
+            )
+        )
     return checks
+
+
+def _cadence_checks(variants: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Amendment 28.3's pairing and its reporting requirement.
+
+    The pair is compared because a one-factor comparison is only one-factor if both
+    members are the ones registered, and the thinner-evidence variant is compared
+    because a requirement to print a rebalance count everywhere is worth nothing if
+    the name it applies to can drift.
+    """
+    pair = _mapping(variants["one_factor_comparison"], "variants.one_factor_comparison")
+    reporting = _mapping(
+        variants["rebalance_count_reporting"], "variants.rebalance_count_reporting"
+    )
+    registered_pair = _sequence(pair["pair"], "variants.one_factor_comparison.pair")
+    differs = _sequence(pair["differs_in"], "variants.one_factor_comparison.differs_in")
+    return [
+        (
+            "variants.one_factor_comparison.pair",
+            tuple(_text(item) for item in registered_pair),
+            CADENCE_PAIR,
+        ),
+        (
+            "variants.one_factor_comparison.differs_in",
+            tuple(_text(item) for item in differs),
+            ("rebalance_months",),
+        ),
+        (
+            "variants.rebalance_count_reporting.applies_to",
+            _text(reporting["applies_to"]),
+            THINNER_EVIDENCE_VARIANT,
+        ),
+    ]
 
 
 def _cell_checks(registered: Sequence[object]) -> list[tuple[str, object, object]]:
@@ -728,6 +789,7 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.extend(_sensitivity_checks(raw))
     checks.extend(_budget_checks(raw))
     checks.extend(_variant_checks(_sequence(variants["registered"], "variants.registered")))
+    checks.extend(_cadence_checks(variants))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
     for band in ("deep", "mid", "thin", "unknown"):
         checks.append(
@@ -1055,6 +1117,7 @@ def registered_grid() -> Iterable[tuple[str, str]]:
 
 __all__ = [
     "BOOTSTRAP_SEED",
+    "CADENCE_PAIR",
     "CONFIG_PATH",
     "D2B_THRESHOLD_ROUND_TRIPS",
     "ENGINE_VERSION",
@@ -1065,6 +1128,7 @@ __all__ = [
     "RESAMPLES",
     "RESEARCH_FEE_OF_EQUITY_BPS",
     "RESULTS_PATH",
+    "THINNER_EVIDENCE_VARIANT",
     "CellSpec",
     "DriftedFromPreRegistration",
     "OrderingAudit",

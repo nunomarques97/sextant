@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.6
+version: v1.7
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,6 +63,14 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-6
+    document_section: "28"
+    subject: >
+      One added variant, carry-rank90-10-quarterly: the same signal and position count
+      at a quarterly cadence, filling the slow-and-funding-aware cell the eight left
+      empty. The budget goes from 32 to 36. Written before the runner existed, with no
+      variant's return, Sharpe or turnover computed. The last amendment: the grid closed
+      when the runner started.
   - id: part-2
     document_section: 19-25
     subject: >
@@ -121,7 +129,7 @@ venue:
 trial_budget:
   family: F1
   engine_version: sextant-006-f1
-  maximum_trials: 32
+  maximum_trials: 36
   charged_per: one strategy trial per registered variant per registered cost cell
   variants:
     - carry-basket-5
@@ -132,6 +140,7 @@ trial_budget:
     - carry-rank90-10
     - carry-premium-10
     - carry-positive-10
+    - carry-rank90-10-quarterly
   cost_cells:
     - vip0_maker
     - vip0_even
@@ -148,8 +157,8 @@ trial_budget:
       spends the allowance once rather than twice. A budget that broke on a rerun
       would be a budget that discouraged reproducing a result.
   on_exhaustion: >
-    F1 is closed. No ninth variant, no adjusted parameter, no additional lookback,
-    no further cell. If the eight did not clear the criteria, that is the answer.
+    F1 is closed. No tenth variant, no adjusted parameter, no additional lookback,
+    no further cell, no further cadence. If the eight did not clear the criteria, that is the answer.
   post_hoc_policy: >
     Anything tested in this family beyond the eight is post-hoc by construction. It
     requires a new pre-registered version committed before it is considered, counts
@@ -384,7 +393,10 @@ variants:
       funding settled at or before R; daily closes whose close_time is at or before R
     entry_price: each leg's last daily close that had finished forming at or before R
     exit_price: the same rule at the next rebalance
-    rebalance_frequency: monthly
+    rebalance_frequency: >
+      monthly for the eight variants registered before amendment 6; quarterly for
+      carry-rank90-10-quarterly. Carried per variant as rebalance_months, so the grid
+      cannot hold a cadence the drift guard has not compared.
     sizing: equal capital across the selected pairs
     tie_handling: ranks descending, ties broken by base asset ascending, byte-wise
     insufficient_data: >
@@ -402,41 +414,49 @@ variants:
     turnover_days: 30
   registered:
     - id: carry-basket-5
+      rebalance_months: 1
       signal: turnover
       positions: 5
       require_positive: false
       selection_rule: the 5 assets with the largest trailing 30-day median quote turnover
     - id: carry-basket-10
+      rebalance_months: 1
       signal: turnover
       positions: 10
       require_positive: false
       selection_rule: the 10 assets with the largest trailing 30-day median quote turnover
     - id: carry-rank30-5
+      rebalance_months: 1
       signal: funding_30
       positions: 5
       require_positive: false
       selection_rule: the 5 assets with the largest trailing_funding(A, R, 30)
     - id: carry-rank30-10
+      rebalance_months: 1
       signal: funding_30
       positions: 10
       require_positive: false
       selection_rule: the 10 assets with the largest trailing_funding(A, R, 30)
     - id: carry-rank90-5
+      rebalance_months: 1
       signal: funding_90
       positions: 5
       require_positive: false
       selection_rule: the 5 assets with the largest trailing_funding(A, R, 90)
     - id: carry-rank90-10
+      rebalance_months: 1
       signal: funding_90
       positions: 10
       require_positive: false
       selection_rule: the 10 assets with the largest trailing_funding(A, R, 90)
     - id: carry-premium-10
+      rebalance_months: 1
       signal: premium
       positions: 10
       require_positive: false
       selection_rule: the 10 assets with the largest premium(A, R)
     - id: carry-positive-10
+      rebalance_months: 1
       signal: funding_30
       positions: 10
       require_positive: true
@@ -444,6 +464,44 @@ variants:
         the assets with trailing_funding(A, R, 30) strictly greater than zero, the 10
         largest of them; if fewer than 10 qualify, hold only those and leave the rest
         in cash
+    - id: carry-rank90-10-quarterly
+      rebalance_months: 3
+      signal: funding_90
+      positions: 10
+      require_positive: false
+      selection_rule: >
+        the 10 assets with the largest trailing_funding(A, R, 90), evaluated only at
+        quarterly rebalance instants - 00:00 UTC on the first of January, April, July
+        and October - and held unchanged in between. Every other choice in section 9.1
+        is identical to carry-rank90-10.
+      added_by: amendment-6
+  why_a_ninth: >
+    Cadence was a single point. At the execution venue one full-book round trip costs
+    105.83 basis points of equity, so a single-digit carry pays for fewer than four
+    round trips a year and the only survivable region is a slow one. The eight do span
+    realised turnover, because pairs carry and only the difference trades, but they
+    span it as a consequence of signal persistence rather than as a designed axis, and
+    the slow end of that span holds only the two variants with no view of funding at
+    all. This is the one point that is both slow and funding-aware. No churn was
+    measured before it was registered: measuring the selection rules' turnover and then
+    choosing the grid on the answer would be selecting the design on data.
+  one_factor_comparison:
+    pair: [carry-rank90-10, carry-rank90-10-quarterly]
+    identical_in: [signal, lookback, positions, universe, cost cells, sizing, tie handling]
+    differs_in: [rebalance_months]
+    reported_as: >
+      an explicit pair, so a reader is not left to notice that two rows differ in one
+      field. Whatever separates their results is cadence, which is what the amendment
+      exists to measure. Neither member may be altered, because a one-factor comparison
+      is only one-factor if neither member is quietly re-specified.
+  rebalance_count_reporting:
+    applies_to: carry-rank90-10-quarterly
+    requirement: >
+      its rebalance count is printed beside its result EVERY time the result appears -
+      every table, every JSON record, every sentence. Roughly 23 quarterly rebalances
+      against roughly 70 monthly ones for its siblings on the same window, so its
+      evidence is thinner by construction and a reader must see that where the number
+      is rather than by looking it up.
   why_these_eight: >
     Three questions and no more. `basket` asks whether carry pays at all, with no
     selection. `rank30`, `rank90` and `premium` ask whether choosing which assets to
