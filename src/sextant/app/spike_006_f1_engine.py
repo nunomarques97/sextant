@@ -6,6 +6,15 @@ in. Nothing here chooses a number: every fee, fraction, multiplier and threshold
 arrives from :mod:`sextant.app.spike_006_f1`, which reads them from a specification
 committed before the archive had finished downloading.
 
+The funding schedule is not optional here
+-----------------------------------------
+
+The engine accepts ``funding=None`` and falls back to a flat rate, which is right
+for every family whose return has no funding term. For this one the funding stream
+**is** the return, so an engine built without it computes a carry book that never
+receives its carry. It is passed here and asserted by a test, and the runner refuses
+to write a result file in which every variant's funding line is exactly zero.
+
 Two legs, two fee schedules
 ---------------------------
 
@@ -281,6 +290,7 @@ def build_engine(world: World, cell: CostCell) -> BacktestEngine:
         account_currency=ACCOUNT_CURRENCY,
         lookback_days=ENGINE_LOOKBACK_DAYS,
         record_decisions=False,
+        funding=world.funding,
     )
 
 

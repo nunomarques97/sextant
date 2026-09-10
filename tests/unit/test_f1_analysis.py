@@ -36,7 +36,16 @@ from sextant.app.spike_006_f1_analysis import (
     opening_instants,
     verdict,
 )
+from sextant.app.spike_006_f1_run import (
+    CarryWithoutFunding,
+    Deterministic,
+    Results,
+    _refuse_a_carry_run_without_funding,
+)
+from sextant.domain.money import Notional
 from sextant.domain.time import Timestamp
+from sextant.engine.backtest.ledger import CostLines as LedgerCostLines
+from sextant.engine.backtest.ledger import LedgerBuilder, RebalanceOutcome
 from sextant.engine.execution.breakeven import MONTHLY_ROUND_TRIPS
 
 HEADLINE = "vip0_even"
@@ -392,3 +401,76 @@ def test_a_month_is_attributed_to_the_regime_of_its_opening_instant() -> None:
     assert len(openings) == 2
     for closed_at, opened_at in openings.items():
         assert opened_at < closed_at
+
+
+def _run_with_funding(funding: str) -> Deterministic:
+    """One deterministic variant result carrying a given funding line."""
+    opened = Timestamp.parse("2022-01-01T00:00:00+00:00")
+    closed = Timestamp.parse("2022-02-01T00:00:00+00:00")
+    equity = Notional(Decimal(1500))
+    builder = LedgerBuilder(account_currency="EUR", initial_equity=equity)
+    builder.open(opened)
+    builder.record(
+        RebalanceOutcome(
+            opened_at=opened,
+            closed_at=closed,
+            equity_before=equity,
+            equity_after=equity,
+            trades=(),
+            holdings=(),
+            market_gain=Notional(Decimal(0)),
+            financing=LedgerCostLines(funding=Notional(Decimal(funding))),
+            cash=equity,
+            candidates_considered=0,
+            turnover=Notional(Decimal(0)),
+        )
+    )
+    return Deterministic(
+        construct="v",
+        kind="variant",
+        cell_id=HEADLINE,
+        fill_mix="half-and-half",
+        ledger=builder.build(),
+        monthly=(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# The defect that produced a complete, plausible and wrong result file
+# ---------------------------------------------------------------------------
+
+
+def test_the_runner_refuses_a_carry_result_whose_funding_was_never_applied() -> None:
+    """The guard that would have caught a whole grid run computed without its return.
+
+    A cash-and-carry book holds the basis plus the funding stream. An engine built
+    without a funding schedule falls back to a flat rate, produces a book that never
+    receives its carry, and says nothing about it: the first execution of this grid
+    ran to completion and reached a verdict with every funding line at exactly zero.
+    """
+    with pytest.raises(CarryWithoutFunding, match="never given the published settlements"):
+        _refuse_a_carry_run_without_funding(Results(deterministic=[_run_with_funding("0")]))
+
+
+def test_a_carry_result_with_a_funding_line_is_accepted() -> None:
+    _refuse_a_carry_run_without_funding(
+        Results(deterministic=[_run_with_funding("0"), _run_with_funding("-12.5")])
+    )
+
+
+def test_a_run_with_no_variants_at_all_is_not_the_guard_s_business() -> None:
+    """Benchmarks alone are not a carry result, and the guard says nothing about them."""
+    _refuse_a_carry_run_without_funding(Results(deterministic=[]))
+
+
+def test_the_f1_engine_is_built_with_the_published_funding_schedule() -> None:
+    """The wiring itself, asserted, because forgetting it is what happened."""
+    import inspect
+
+    from sextant.app import spike_006_f1_engine
+
+    source = inspect.getsource(spike_006_f1_engine.build_engine)
+    assert "funding=world.funding" in source, (
+        "build_engine must pass the world's funding schedule to the engine. Without it "
+        "the engine falls back to a flat rate and the carry book never receives its carry."
+    )

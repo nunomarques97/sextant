@@ -656,12 +656,19 @@ def execute(
     repository_root: Path | None = None,
     null_budget_seconds: float = DEFAULT_NULL_BUDGET_SECONDS,
     seed_override: int | None = None,
+    note_suffix: str = "",
 ) -> Mapping[str, object]:
     """Run the registered grid and write the result file.
 
     ``seed_override`` exists for a smoke run and for nothing else. A published
     result uses the registered count or a rung of its registered ladder, and the
     file records which, so an override cannot pass unnoticed.
+
+    ``note_suffix`` is appended to every registry row this run writes. The registry
+    is append-only, so a grid executed twice leaves two sets of rows and the Deflated
+    Sharpe Ratio counts both. That is the conservative direction and it is the honest
+    one, but a reader needs to know *why* there are two, and a note in the rows
+    themselves is a better place to say it than a paragraph somewhere else.
     """
     started = time.monotonic()
     registered = assert_no_drift()
@@ -703,7 +710,7 @@ def execute(
             quote_policy="USDT",
             is_null_construct=null,
             seeds=seeds,
-            note=note,
+            note=f"{note}{note_suffix}",
         )
 
     cells = cost_cells()
@@ -847,6 +854,7 @@ def execute(
         "notes": results.notes,
         "seconds": time.monotonic() - started,
     }
+    _refuse_a_carry_run_without_funding(results)
     rows = analyse(payload)
     scored = payload["window"]
     months = int(str(scored["scored_months"])) if isinstance(scored, dict) else 0
@@ -858,6 +866,38 @@ def execute(
     print(f"[f1] verdict ({outcome.letter}): {outcome.reason}")
     print(f"[f1] wrote {results_path} in {(time.monotonic() - started) / 60:.1f} min")
     return payload
+
+
+class CarryWithoutFunding(RuntimeError):
+    """Every variant's funding line was zero. For this family that is a defect."""
+
+
+def _refuse_a_carry_run_without_funding(results: Results) -> None:
+    """Refuse to write a carry result whose funding stream was never applied.
+
+    A cash-and-carry book holds the basis plus the funding stream and has no term in
+    the asset's own price, so funding is not one cost line among several: it is the
+    return. An engine built without a funding schedule falls back to a flat rate and
+    silently produces a book that never receives its carry, and every figure computed
+    from it is wrong in the same direction.
+
+    This exists because it happened. The first execution of the registered grid ran
+    to completion, wrote a plausible-looking result file and reached a verdict, with
+    every funding line at exactly zero, because the runner never passed the schedule
+    to the engine. Nothing in the result file said so; the tell was a column of
+    zeroes in a table nobody had to read.
+    """
+    variants = [item for item in results.deterministic if item.kind == "variant"]
+    if not variants:
+        return
+    if any(item.ledger.costs.funding.amount != 0 for item in variants):
+        return
+    raise CarryWithoutFunding(
+        f"All {len(variants)} variant runs charged exactly zero funding. A carry book's "
+        "return IS the funding stream, so this is an engine that was never given the "
+        "published settlements rather than a market in which funding was flat. Check "
+        "that build_engine passes funding=world.funding. Nothing was written."
+    )
 
 
 def _run_sensitivity(
@@ -964,6 +1004,7 @@ __all__ = [
     "FULLY_INVESTED_NULL",
     "MAX_NULL_POSITIONS",
     "PERCENTILES",
+    "CarryWithoutFunding",
     "Deterministic",
     "NullDistribution",
     "Results",
