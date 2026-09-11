@@ -454,7 +454,19 @@ class BinanceFuturesArchive:
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.is_file() and destination.stat().st_size == item.size_bytes:
             digest = sha256_of(destination)
-            return DownloadOutcome(digest=digest, publisher_digest=None)
+            # The publisher's digest is fetched for the cached path too, and compared.
+            # Returning None here instead would make a re-run report "not verified" for
+            # bytes that are on disk and correct, which is a false statement about the
+            # evidence in whichever document quotes the count. The checksum file is a few
+            # dozen bytes; the object beside it is tens of megabytes.
+            cached = self.published_digest(item)
+            if cached is not None and cached != digest:
+                raise ArchiveError(
+                    f"{item.name}: the copy on disk hashes to {digest} and the publisher's "
+                    f"checksum says {cached}. The cached file is not what was promised and "
+                    "is not used."
+                )
+            return DownloadOutcome(digest=digest, publisher_digest=cached)
         payload = self._transport.get_bytes(item.url)
         _verify_zip(payload, item.name)
         digest = hashlib.sha256(payload).hexdigest()

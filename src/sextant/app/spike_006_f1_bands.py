@@ -282,6 +282,7 @@ class Recut:
             "band_edges_on_the_chosen_quantity": list(self.edges),
             "band_members": [list(group) for group in self.groups],
             "band_median_half_spread_bps": list(self.group_medians),
+            "symbols_ranked": len(self.measured),
             "band_count_is_limited_by_the_sample_size": self.limited_by_the_sample,
             "what_limited_it": (
                 f"{len(self.measured)} symbols are measured and rule B1 requires at least "
@@ -419,24 +420,29 @@ def _gcd(left: int, right: int) -> int:
     return abs(left)
 
 
-def candidates_for(
-    store_root: Path, symbols: Sequence[str], at: Timestamp
-) -> tuple[Candidate, ...]:
-    """Rule B1's four candidate quantities, for the sampled symbols, at one instant.
+def candidates_for(store_root: Path, instants: Mapping[str, Timestamp]) -> tuple[Candidate, ...]:
+    """Rule B1's four candidate quantities, each symbol at its own selection instant.
 
     Read from the stored bars rather than from the world's daily histories, because one of
     the four is the trade count and a history does not carry it. The turnover figure is the
     same quantity the cost model's bands are cut on - the median of close times volume over
     the trailing window - computed from the same bytes.
+
+    **Each symbol at its own instant, not all of them at one.** A band is a property of an
+    instrument at an instant, and rule M1 selects each band at its own earliest qualifying
+    instant, so the mid-band symbols were picked in 2023-07 and the thin-band ones in
+    2025-12. Asking for all of them at rule S1's 2023-05 asks for bars that do not exist
+    for half the sample, and a quantity computed where the instrument was not yet listed is
+    not that instrument's quantity.
     """
     store = ParquetBarStore(store_root)
     turnover: dict[str, float] = {}
     relative_tick: dict[str, float] = {}
     volatility: dict[str, float] = {}
     trades: dict[str, float] = {}
-    horizon = at.epoch_millis
-    floor = horizon - FUNDING_TRAILING_DAYS * 24 * 60 * 60 * 1000
-    for symbol in symbols:
+    for symbol, at in sorted(instants.items()):
+        horizon = at.epoch_millis
+        floor = horizon - FUNDING_TRAILING_DAYS * 24 * 60 * 60 * 1000
         key = SeriesKey(venue=PERP_VENUE, symbol=symbol, timeframe=Timeframe.D1)
         if not store.has_series(key):
             continue
@@ -541,24 +547,68 @@ class BandStudy:
         }
 
 
+def _selection_instants(path: Path) -> dict[str, Timestamp]:
+    """Each extended-sample symbol's own selection instant, from the file that recorded it."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise BandStudyIncomplete(f"{path} does not hold a mapping.")
+    selections = payload.get("selections")
+    if not isinstance(selections, list):
+        return {}
+    out: dict[str, Timestamp] = {}
+    for entry in selections:
+        if not isinstance(entry, dict):
+            continue
+        at = Timestamp.parse(f"{entry['selected_at']}T00:00:00+00:00")
+        for item in entry.get("symbols", []):
+            if isinstance(item, dict):
+                out[str(item["symbol"])] = at
+    return out
+
+
+def _measured_from(path: Path) -> dict[str, float]:
+    """One measurement file's per-symbol half-spreads, or nothing when it is absent."""
+    if not path.is_file():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise BandStudyIncomplete(f"{path} does not hold a mapping.")
+    return measured_half_spreads({str(k): v for k, v in payload.items()})
+
+
 def study(
     world: World,
     instants: Sequence[Timestamp],
     *,
     spread_path: Path = SPREAD_RESULTS,
+    extended_path: Path | None = None,
     store_root: Path = PERP_ROOT,
 ) -> BandStudy:
-    """Rules M1 and B1, computed. Occupancy first, because it decides the acquisition."""
+    """Rules M1 and B1, computed. Occupancy first, because it decides the acquisition.
+
+    Rule B1 ranks its candidate quantities across **every sampled symbol**, so once rule
+    M1's sample exists the two measurements are pooled. More symbols is not a change to the
+    rule: it is the rule applied to the evidence the rule asked to be gathered, and it is
+    what lifts the ceiling on how many bands can be tested at all.
+    """
     payload = json.loads(spread_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise BandStudyIncomplete(f"{spread_path} does not hold a mapping.")
     measured = measured_half_spreads({str(k): v for k, v in payload.items()})
+    if extended_path is not None:
+        measured = {**measured, **_measured_from(extended_path)}
     if not measured:
         raise BandStudyIncomplete("no measured spread to rank a candidate quantity against.")
     selected_at = str(payload.get("symbols_selected_at", ""))
     at = Timestamp.parse(f"{selected_at}T00:00:00+00:00")
+    # Rule S1's symbols were selected at one instant and rule M1's at two others, and each
+    # symbol's candidate quantity is read at the instant that selected it.
+    picked = dict.fromkeys(measured, at)
+    if extended_path is not None and extended_path.is_file():
+        picked.update(_selection_instants(extended_path))
     scored_candidates = tuple(
-        scored(item, measured) for item in candidates_for(store_root, sorted(measured), at)
+        scored(item, measured)
+        for item in candidates_for(store_root, {key: picked[key] for key in measured})
     )
     return BandStudy(
         occupancy=occupancy(world, instants),

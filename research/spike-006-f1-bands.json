@@ -814,85 +814,110 @@
     "what_an_empty_band_means": "A band no member of the traded universe ever occupied has a default that is never charged. Measuring it would produce a number about instruments this strategy would not touch, which is why rule M1 registers the empty answer as an answer."
   },
   "recut": {
-    "band_count_is_limited_by_the_sample_size": true,
+    "band_count_is_limited_by_the_sample_size": false,
     "band_edges_on_the_chosen_quantity": [
-      0.00013312034078807243
+      0.000254323499491353
     ],
     "band_median_half_spread_bps": [
-      0.02706175,
-      1.00948
+      0.6793925000000001,
+      1.4904095000000002
     ],
     "band_members": [
       [
         "BTCUSDT",
         "ETHUSDT",
-        "THETAUSDT"
-      ],
-      [
+        "THETAUSDT",
         "BLZUSDT",
         "UNFIUSDT",
-        "API3USDT"
+        "SPELLUSDT"
+      ],
+      [
+        "RIFUSDT",
+        "CVXUSDT",
+        "CTKUSDT",
+        "API3USDT",
+        "TLMUSDT"
       ]
     ],
     "bands_supported_by_the_evidence": 2,
     "candidates": [
       {
-        "absolute_rho": 0.8285714285714286,
-        "clears_the_registered_level": false,
-        "permutation_p_value": 0.05979402059794021,
+        "absolute_rho": 0.6454545454545455,
+        "clears_the_registered_level": true,
+        "permutation_p_value": 0.03849615038496151,
         "quantity": "trailing 30-day median quote turnover",
-        "spearman_rho": -0.8285714285714286,
+        "spearman_rho": -0.6454545454545455,
         "values_by_symbol": {
           "API3USDT": 9625985.7615,
           "BLZUSDT": 9591133.05663,
           "BTCUSDT": 14620574901.78585,
+          "CTKUSDT": 918247.0057,
+          "CVXUSDT": 4149817.168,
           "ETHUSDT": 7129111264.198695,
+          "RIFUSDT": 820909.73397,
+          "SPELLUSDT": 4669386.1485192,
           "THETAUSDT": 26677558.322025,
+          "TLMUSDT": 3631449.1503,
           "UNFIUSDT": 26593500.156
         }
       },
       {
-        "absolute_rho": 1.0,
+        "absolute_rho": 0.9,
         "clears_the_registered_level": true,
-        "permutation_p_value": 0.0027997200279972004,
+        "permutation_p_value": 0.0007999200079992001,
         "quantity": "relative tick size",
-        "spearman_rho": 1.0,
+        "spearman_rho": 0.9,
         "values_by_symbol": {
           "API3USDT": 0.0006777363605557439,
           "BLZUSDT": 0.00013312034078807243,
           "BTCUSDT": 3.520178543455724e-06,
+          "CTKUSDT": 0.00037764350453172205,
+          "CVXUSDT": 0.00027177605652941976,
           "ETHUSDT": 5.349453018428865e-06,
+          "RIFUSDT": 0.000254323499491353,
+          "SPELLUSDT": 0.00021072595090085343,
           "THETAUSDT": 0.0001001351824963701,
+          "TLMUSDT": 0.0008673026886383347,
           "UNFIUSDT": 0.0001973749136484753
         }
       },
       {
-        "absolute_rho": 0.6571428571428571,
+        "absolute_rho": 0.5909090909090909,
         "clears_the_registered_level": false,
-        "permutation_p_value": 0.16618338166183383,
+        "permutation_p_value": 0.058694130586941305,
         "quantity": "realised daily volatility",
-        "spearman_rho": 0.6571428571428571,
+        "spearman_rho": 0.5909090909090909,
         "values_by_symbol": {
           "API3USDT": 0.0336135229916249,
           "BLZUSDT": 0.04601087246830671,
           "BTCUSDT": 0.021872144061451482,
+          "CTKUSDT": 0.030015292295043426,
+          "CVXUSDT": 0.03952702967940414,
           "ETHUSDT": 0.02669543453632154,
+          "RIFUSDT": 0.03875885388105944,
+          "SPELLUSDT": 0.04560098819609463,
           "THETAUSDT": 0.03713646618162558,
+          "TLMUSDT": 0.05466294742516895,
           "UNFIUSDT": 0.04992142244677279
         }
       },
       {
-        "absolute_rho": 0.8285714285714286,
-        "clears_the_registered_level": false,
-        "permutation_p_value": 0.06159384061593841,
+        "absolute_rho": 0.7,
+        "clears_the_registered_level": true,
+        "permutation_p_value": 0.022097790220977902,
         "quantity": "mean daily trade count",
-        "spearman_rho": -0.8285714285714286,
+        "spearman_rho": -0.7,
         "values_by_symbol": {
           "API3USDT": 69316.13333333333,
           "BLZUSDT": 74094.33333333333,
           "BTCUSDT": 4766390.033333333,
+          "CTKUSDT": 23835.233333333334,
+          "CVXUSDT": 50353.76666666667,
           "ETHUSDT": 3437219.3666666667,
+          "RIFUSDT": 37476.96666666667,
+          "SPELLUSDT": 69777.56666666667,
           "THETAUSDT": 142591.9,
+          "TLMUSDT": 34630.833333333336,
           "UNFIUSDT": 159590.26666666666
         }
       }
@@ -902,8 +927,13 @@
       "API3USDT": 2.12259075,
       "BLZUSDT": 0.7346772500000001,
       "BTCUSDT": 0.017861000000000002,
+      "CTKUSDT": 0.8869072499999999,
+      "CVXUSDT": 1.4904095000000002,
       "ETHUSDT": 0.02706175,
+      "RIFUSDT": 1.24374725,
+      "SPELLUSDT": 0.93264675,
       "THETAUSDT": 0.62410775,
+      "TLMUSDT": 3.61973375,
       "UNFIUSDT": 1.00948
     },
     "minimum_symbols_per_band": 3,
@@ -912,7 +942,8 @@
     "rule": "B1",
     "seed": 20260911,
     "separation_factor": "2",
-    "what_limited_it": "6 symbols are measured and rule B1 requires at least 3 in every band, so at most 2 bands can be tested however well the quantity separates them. That is a limit of the sample and not a statement about the market."
+    "symbols_ranked": 11,
+    "what_limited_it": "the separation requirement, not the sample size"
   },
   "rule_m1": {
     "bands_needing_measurement": [

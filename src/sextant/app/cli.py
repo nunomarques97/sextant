@@ -496,9 +496,14 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         return _command_f1_spread()
     if stage == "bands":
         from sextant.app import spike_006_f1_bands
+        from sextant.app.spike_006_f1_extended import EXTENDED_RESULTS
         from sextant.app.spike_006_f1_world import build_world
 
-        study = spike_006_f1_bands.study(build_world(), spike_006_f1_bands.rebalance_instants())
+        study = spike_006_f1_bands.study(
+            build_world(),
+            spike_006_f1_bands.rebalance_instants(),
+            extended_path=EXTENDED_RESULTS,
+        )
         written = spike_006_f1_bands.write(study, spike_006_f1_bands.BANDS_RESULTS)
         for band in spike_006_f1_bands.BANDS:
             count = study.occupancy.instrument_instants.get(band, 0)

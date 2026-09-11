@@ -169,12 +169,54 @@ class ExtendedSample:
         return sum(1 for item in self.measured if item.verified)
 
     @property
-    def band_of_symbol(self) -> Mapping[str, str]:
-        return {
-            item.symbol: selection.band
+    def bands_of_symbol(self) -> Mapping[str, tuple[str, ...]]:
+        """Which bands each symbol was selected into. Usually one, sometimes two.
+
+        A band is a property of an instrument at an instant, and rule M1 picks each band at
+        its own earliest qualifying instant, so a symbol that was mid in 2023 and thin in
+        2025 is legitimately in both selections. It contributes to both bands' figures
+        rather than to whichever was written last.
+        """
+        out: dict[str, list[str]] = {}
+        for selection in self.selections:
+            for item in selection.chosen:
+                out.setdefault(item.symbol, []).append(selection.band)
+        return {symbol: tuple(bands) for symbol, bands in out.items()}
+
+    @property
+    def in_more_than_one_band(self) -> tuple[str, ...]:
+        """Symbols selected into two bands, named rather than silently collapsed."""
+        return tuple(
+            sorted(symbol for symbol, bands in self.bands_of_symbol.items() if len(bands) > 1)
+        )
+
+    def days_measured(self, symbol: str) -> int:
+        """How many of the registered days this symbol actually published."""
+        return len({item.day for item in self.measured if item.symbol == symbol})
+
+    def coverage(self, band: str) -> tuple[int, int, int]:
+        """For one band: symbols selected, symbols with every day, symbol-days measured."""
+        chosen = [
+            item.symbol
             for selection in self.selections
+            if selection.band == band
             for item in selection.chosen
-        }
+        ]
+        complete = sum(
+            1 for symbol in chosen if self.days_measured(symbol) >= len(self.days_requested)
+        )
+        days = sum(self.days_measured(symbol) for symbol in chosen)
+        return len(chosen), complete, days
+
+    def meets_the_requirement(self, band: str) -> bool:
+        """Whether this band was measured as rule M1 registered it.
+
+        Four symbols, each over the registered days. Applied rather than invented: a band
+        that falls short is reported as not measured, with what is missing named, and no
+        substitution is made for it.
+        """
+        _, complete, _ = self.coverage(band)
+        return complete >= EXTENDED_SAMPLE_PER_BAND
 
     def per_symbol_median(self) -> Mapping[str, Decimal | None]:
         """Each symbol's median daily median quoted spread, across the days it published."""
@@ -184,12 +226,21 @@ class ExtendedSample:
         return {symbol: _median(values) for symbol, values in sorted(rows.items())}
 
     def by_band(self) -> Mapping[str, Decimal | None]:
-        """Each band's median across its symbols' medians. Reported beside the dispersion."""
-        placed = self.band_of_symbol
+        """Each band's median across its symbols' medians, where the band was measured.
+
+        ``None`` for a band that did not meet rule M1's registered requirement. A median of
+        whatever happened to publish is not the band's spread, and printing one would be
+        exactly the substitution the rule forbids.
+        """
+        medians = self.per_symbol_median()
         rows: dict[str, list[Decimal | None]] = {}
-        for symbol, value in self.per_symbol_median().items():
-            rows.setdefault(placed.get(symbol, "unknown"), []).append(value)
-        return {band: _median(values) for band, values in sorted(rows.items())}
+        for selection in self.selections:
+            for item in selection.chosen:
+                rows.setdefault(selection.band, []).append(medians.get(item.symbol))
+        return {
+            band: _median(values) if self.meets_the_requirement(band) else None
+            for band, values in sorted(rows.items())
+        }
 
     def as_json(self) -> dict[str, object]:
         return {
@@ -226,6 +277,42 @@ class ExtendedSample:
                 band: None if value is None else str(value)
                 for band, value in self.by_band().items()
             },
+            "coverage_by_band": {
+                selection.band: {
+                    "symbols_selected": self.coverage(selection.band)[0],
+                    "symbols_that_published_every_registered_day": self.coverage(selection.band)[1],
+                    "symbol_days_measured": self.coverage(selection.band)[2],
+                    "symbol_days_requested": len(selection.chosen) * len(self.days_requested),
+                    "meets_the_registered_requirement": self.meets_the_requirement(selection.band),
+                }
+                for selection in self.selections
+            },
+            "bands_measured_as_registered": [
+                selection.band
+                for selection in self.selections
+                if self.meets_the_requirement(selection.band)
+            ],
+            "bands_not_measured_as_registered": [
+                selection.band
+                for selection in self.selections
+                if not self.meets_the_requirement(selection.band)
+            ],
+            "symbols_selected_into_two_bands": list(self.in_more_than_one_band),
+            "a_band_that_falls_short_is_not_averaged": (
+                "A band whose selected symbols did not publish the registered days is "
+                "reported as NOT MEASURED, with the missing symbol-days named. A median of "
+                "whatever happened to publish is not that band's spread, and substituting "
+                "one would be the move rule M1 forbids in the clause about unpublished "
+                "days."
+            ),
+            "unverified_because_the_publisher_supplied_no_digest": sum(
+                1 for item in self.measured if item.publisher_digest is None
+            ),
+            "unverified_because_the_digest_did_not_match": sum(
+                1
+                for item in self.measured
+                if item.publisher_digest is not None and not item.verified
+            ),
             "per_symbol_day": [item.as_json() for item in self.measured],
             "dispersion_is_the_finding": (
                 "The per-symbol table is the result. A band median is printed beside it "
@@ -308,7 +395,13 @@ def acquire(
                 )
         return symbol, rows, absent
 
-    symbols = [item.symbol for selection in selections for item in selection.chosen]
+    # De-duplicated, and not only to save bytes. A symbol can qualify in two bands at two
+    # instants - a band is a property of an instrument at an instant - and two workers
+    # fetching the same object to the same path race each other for the file and for its
+    # checksum. The selections keep both memberships; the download happens once.
+    symbols = list(
+        dict.fromkeys(item.symbol for selection in selections for item in selection.chosen)
+    )
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for symbol, rows, absent in pool.map(one, symbols):
             measured.extend(rows)

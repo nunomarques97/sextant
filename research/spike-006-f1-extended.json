@@ -1,0 +1,793 @@
+{
+  "a_band_that_falls_short_is_not_averaged": "A band whose selected symbols did not publish the registered days is reported as NOT MEASURED, with the missing symbol-days named. A median of whatever happened to publish is not that band's spread, and substituting one would be the move rule M1 forbids in the clause about unpublished days.",
+  "assumed_slippage_bps_by_band": {
+    "deep": "5",
+    "mid": "10",
+    "thin": "25",
+    "unknown": "25"
+  },
+  "assumed_spread_bps_by_band": {
+    "deep": "10",
+    "mid": "25",
+    "thin": "60",
+    "unknown": "60"
+  },
+  "bands_measured_as_registered": [
+    "mid"
+  ],
+  "bands_not_measured_as_registered": [
+    "thin"
+  ],
+  "coverage_by_band": {
+    "mid": {
+      "meets_the_registered_requirement": true,
+      "symbol_days_measured": 24,
+      "symbol_days_requested": 24,
+      "symbols_selected": 4,
+      "symbols_that_published_every_registered_day": 4
+    },
+    "thin": {
+      "meets_the_registered_requirement": false,
+      "symbol_days_measured": 8,
+      "symbol_days_requested": 24,
+      "symbols_selected": 4,
+      "symbols_that_published_every_registered_day": 1
+    }
+  },
+  "days_not_published": {
+    "FORTHUSDT": [
+      "2023-05-16",
+      "2023-06-01",
+      "2023-08-01",
+      "2023-10-01",
+      "2023-12-01",
+      "2024-02-01"
+    ],
+    "RIFUSDT": [
+      "2023-05-16",
+      "2023-06-01",
+      "2023-08-01",
+      "2023-10-01"
+    ],
+    "VICUSDT": [
+      "2023-05-16",
+      "2023-06-01",
+      "2023-08-01",
+      "2023-10-01",
+      "2023-12-01",
+      "2024-02-01"
+    ]
+  },
+  "days_requested": [
+    "2023-05-16",
+    "2023-06-01",
+    "2023-08-01",
+    "2023-10-01",
+    "2023-12-01",
+    "2024-02-01"
+  ],
+  "dispersion_is_the_finding": "The per-symbol table is the result. A band median is printed beside it because the cost model charges by band, not because the dispersion inside a band is noise to be averaged away: rule S1 found two orders of magnitude of it inside the deep band and that is what rule B1 exists to repair.",
+  "measured_median_bps_by_band": {
+    "mid": "2.42305625",
+    "thin": null
+  },
+  "measured_median_bps_by_symbol": {
+    "CTKUSDT": "1.7738145",
+    "CVXUSDT": "2.980819",
+    "RIFUSDT": "2.4874945",
+    "SPELLUSDT": "1.8652935",
+    "TLMUSDT": "7.2394675"
+  },
+  "megabytes_fetched": "100.0",
+  "per_symbol_day": [
+    {
+      "bytes": 1678314,
+      "day": "2023-05-16",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": null,
+        "milliseconds_covered": 0,
+        "quotes": 0,
+        "time_weighted_mean_bps": null,
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "eb36fcb73e5c2ca78984b84c20c2dc1a81d4e9836ceac17b151615dcaf5d0bf6",
+      "sha256": "eb36fcb73e5c2ca78984b84c20c2dc1a81d4e9836ceac17b151615dcaf5d0bf6",
+      "symbol": "CTKUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.404987",
+        "milliseconds_covered": 43810537,
+        "quotes": 114149,
+        "time_weighted_mean_bps": "1.485843",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 2482733,
+      "day": "2023-06-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.385329",
+        "milliseconds_covered": 294063,
+        "quotes": 787,
+        "time_weighted_mean_bps": "1.52842",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "1d0b4c71f9c1717e2a0a01f6836679f915b2f73d0dbeb7008bae99bc80447a2f",
+      "sha256": "1d0b4c71f9c1717e2a0a01f6836679f915b2f73d0dbeb7008bae99bc80447a2f",
+      "symbol": "CTKUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.388792",
+        "milliseconds_covered": 86394063,
+        "quotes": 171492,
+        "time_weighted_mean_bps": "1.584434",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 2694493,
+      "day": "2023-08-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.738072",
+        "milliseconds_covered": 294349,
+        "quotes": 517,
+        "time_weighted_mean_bps": "1.791555",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "cf2c64417e64f9c0dc82718bc21de6817e85ad7c3629b0003ce7dfe5113e51c2",
+      "sha256": "cf2c64417e64f9c0dc82718bc21de6817e85ad7c3629b0003ce7dfe5113e51c2",
+      "symbol": "CTKUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.758241",
+        "milliseconds_covered": 86394349,
+        "quotes": 188545,
+        "time_weighted_mean_bps": "1.961593",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 2224852,
+      "day": "2023-10-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.232392",
+        "milliseconds_covered": 295252,
+        "quotes": 1347,
+        "time_weighted_mean_bps": "2.952582",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "8c01d78c099513cdfe6c697b8503d545f117a67d5f8a5101fa9525d260860336",
+      "sha256": "8c01d78c099513cdfe6c697b8503d545f117a67d5f8a5101fa9525d260860336",
+      "symbol": "CTKUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.192742",
+        "milliseconds_covered": 86395252,
+        "quotes": 148102,
+        "time_weighted_mean_bps": "2.856746",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 3463536,
+      "day": "2023-12-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.771008",
+        "milliseconds_covered": 299988,
+        "quotes": 1455,
+        "time_weighted_mean_bps": "1.896245",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "89cc4709585c171f2d761c9da4ca65d66b49404e1644b0ffe06586fe409ae4a8",
+      "sha256": "89cc4709585c171f2d761c9da4ca65d66b49404e1644b0ffe06586fe409ae4a8",
+      "symbol": "CTKUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.789388",
+        "milliseconds_covered": 86399988,
+        "quotes": 264314,
+        "time_weighted_mean_bps": "1.831698",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 3400456,
+      "day": "2024-02-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.235198",
+        "milliseconds_covered": 299867,
+        "quotes": 1521,
+        "time_weighted_mean_bps": "2.731796",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "6b8e917631b333e9a8dfed967460ff48766af89eb5d1a93a1fd788dec7422b02",
+      "sha256": "6b8e917631b333e9a8dfed967460ff48766af89eb5d1a93a1fd788dec7422b02",
+      "symbol": "CTKUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.204101",
+        "milliseconds_covered": 86399867,
+        "quotes": 257098,
+        "time_weighted_mean_bps": "2.80829",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 1413795,
+      "day": "2023-05-16",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": null,
+        "milliseconds_covered": 0,
+        "quotes": 0,
+        "time_weighted_mean_bps": null,
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "e8f2962eac40dac9eb85da812c1e7dcaec80931452af50a68c4ec817d5f3d38c",
+      "sha256": "e8f2962eac40dac9eb85da812c1e7dcaec80931452af50a68c4ec817d5f3d38c",
+      "symbol": "CVXUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.135155",
+        "milliseconds_covered": 43812794,
+        "quotes": 101504,
+        "time_weighted_mean_bps": "2.227672",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 3072311,
+      "day": "2023-06-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.397219",
+        "milliseconds_covered": 299617,
+        "quotes": 1095,
+        "time_weighted_mean_bps": "2.417328",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "1c8d4645c1afab9f0b7c27fcfe4f63da5eb126edbd65368d619616f6c7e90c1a",
+      "sha256": "1c8d4645c1afab9f0b7c27fcfe4f63da5eb126edbd65368d619616f6c7e90c1a",
+      "symbol": "CVXUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.390343",
+        "milliseconds_covered": 86399617,
+        "quotes": 222955,
+        "time_weighted_mean_bps": "2.409115",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 7642312,
+      "day": "2023-08-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.13627",
+        "milliseconds_covered": 299816,
+        "quotes": 2117,
+        "time_weighted_mean_bps": "3.662916",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "a1dcfe6b41e1d0be9a0e4953bdc3fd1fb699a76fad8c8363424ecbf58142ce5b",
+      "sha256": "a1dcfe6b41e1d0be9a0e4953bdc3fd1fb699a76fad8c8363424ecbf58142ce5b",
+      "symbol": "CVXUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.276003",
+        "milliseconds_covered": 86399816,
+        "quotes": 545324,
+        "time_weighted_mean_bps": "3.419589",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 2383955,
+      "day": "2023-10-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.235722",
+        "milliseconds_covered": 299965,
+        "quotes": 1236,
+        "time_weighted_mean_bps": "3.364803",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "8d670589a3fbd5fa8f61a5b1bac499cc7a2c4625088445a379301a804dfd6b93",
+      "sha256": "8d670589a3fbd5fa8f61a5b1bac499cc7a2c4625088445a379301a804dfd6b93",
+      "symbol": "CVXUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.225286",
+        "milliseconds_covered": 86399965,
+        "quotes": 165306,
+        "time_weighted_mean_bps": "3.318773",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 2262898,
+      "day": "2023-12-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.77354",
+        "milliseconds_covered": 299992,
+        "quotes": 1372,
+        "time_weighted_mean_bps": "2.780326",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "872b2a73b100fc24b8ecc99d38dd18d127463616630352bb0fd16aba3342aace",
+      "sha256": "872b2a73b100fc24b8ecc99d38dd18d127463616630352bb0fd16aba3342aace",
+      "symbol": "CVXUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.736352",
+        "milliseconds_covered": 86399992,
+        "quotes": 160636,
+        "time_weighted_mean_bps": "2.770161",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 3419009,
+      "day": "2024-02-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.413551",
+        "milliseconds_covered": 298652,
+        "quotes": 1211,
+        "time_weighted_mean_bps": "3.434675",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "5223abcd5fdd30cd3536f63dd0eda3fb037a1b622dd2d6dab6f89ae05f6b237b",
+      "sha256": "5223abcd5fdd30cd3536f63dd0eda3fb037a1b622dd2d6dab6f89ae05f6b237b",
+      "symbol": "CVXUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "3.49101",
+        "milliseconds_covered": 86398652,
+        "quotes": 245487,
+        "time_weighted_mean_bps": "3.501994",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 6341401,
+      "day": "2023-12-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.883239",
+        "milliseconds_covered": 300000,
+        "quotes": 4089,
+        "time_weighted_mean_bps": "2.51796",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "43600f90075da9d589a9db5e10fc846a4723afebb4242cd27655c7cf3e1f5207",
+      "sha256": "43600f90075da9d589a9db5e10fc846a4723afebb4242cd27655c7cf3e1f5207",
+      "symbol": "RIFUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.681324",
+        "milliseconds_covered": 86400000,
+        "quotes": 451106,
+        "time_weighted_mean_bps": "1.85827",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 4425129,
+      "day": "2024-02-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.32243",
+        "milliseconds_covered": 299874,
+        "quotes": 1597,
+        "time_weighted_mean_bps": "1.690252",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "7495e1479857874482324cb2ce092106bac722a15e6ff377a0db1948f092a9c0",
+      "sha256": "7495e1479857874482324cb2ce092106bac722a15e6ff377a0db1948f092a9c0",
+      "symbol": "RIFUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.293665",
+        "milliseconds_covered": 86399874,
+        "quotes": 303424,
+        "time_weighted_mean_bps": "1.735423",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 1985580,
+      "day": "2023-05-16",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": null,
+        "milliseconds_covered": 0,
+        "quotes": 0,
+        "time_weighted_mean_bps": null,
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "d1533bd3823bca9d98b062f283bfb4bfca26976c03e81e0f8d4082a604e3b554",
+      "sha256": "d1533bd3823bca9d98b062f283bfb4bfca26976c03e81e0f8d4082a604e3b554",
+      "symbol": "SPELLUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.734454",
+        "milliseconds_covered": 43804833,
+        "quotes": 125127,
+        "time_weighted_mean_bps": "1.897276",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 4520795,
+      "day": "2023-06-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.684778",
+        "milliseconds_covered": 299893,
+        "quotes": 1772,
+        "time_weighted_mean_bps": "1.774454",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "b35b7929d75c58137f6f7316d46d4b9350b13a71f51c1d62aebd585dfc8565cf",
+      "sha256": "b35b7929d75c58137f6f7316d46d4b9350b13a71f51c1d62aebd585dfc8565cf",
+      "symbol": "SPELLUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.702562",
+        "milliseconds_covered": 86399893,
+        "quotes": 286497,
+        "time_weighted_mean_bps": "1.940683",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 5856915,
+      "day": "2023-08-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.139723",
+        "milliseconds_covered": 299818,
+        "quotes": 1434,
+        "time_weighted_mean_bps": "2.285598",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "6599105cbff0c0bb9505c540342088f2c79d5955bc3782cce33634d97c45f768",
+      "sha256": "6599105cbff0c0bb9505c540342088f2c79d5955bc3782cce33634d97c45f768",
+      "symbol": "SPELLUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.142933",
+        "milliseconds_covered": 86399818,
+        "quotes": 378177,
+        "time_weighted_mean_bps": "2.342698",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 8376827,
+      "day": "2023-10-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.043944",
+        "milliseconds_covered": 295268,
+        "quotes": 2410,
+        "time_weighted_mean_bps": "2.047676",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "bf6fcf5030c10aa2ead9dd24b654e44bebb4814b8ece2aac63f64baf1ccf53e7",
+      "sha256": "bf6fcf5030c10aa2ead9dd24b654e44bebb4814b8ece2aac63f64baf1ccf53e7",
+      "symbol": "SPELLUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.993421",
+        "milliseconds_covered": 86395268,
+        "quotes": 572410,
+        "time_weighted_mean_bps": "2.003163",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 6396004,
+      "day": "2023-12-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.760098",
+        "milliseconds_covered": 297015,
+        "quotes": 2225,
+        "time_weighted_mean_bps": "1.763098",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "99e2d56ae3ae4446c5f7206d3b95acecea4c3a6f0b110af60dbb2178f3ed5ad9",
+      "sha256": "99e2d56ae3ae4446c5f7206d3b95acecea4c3a6f0b110af60dbb2178f3ed5ad9",
+      "symbol": "SPELLUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "1.737166",
+        "milliseconds_covered": 86397015,
+        "quotes": 427662,
+        "time_weighted_mean_bps": "1.738541",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 4516969,
+      "day": "2024-02-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.051913",
+        "milliseconds_covered": 299878,
+        "quotes": 1610,
+        "time_weighted_mean_bps": "2.081171",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "e74ed6a638c4cd11ff440a23fdd8396bdcd328d541242db1a7704575b38502c7",
+      "sha256": "e74ed6a638c4cd11ff440a23fdd8396bdcd328d541242db1a7704575b38502c7",
+      "symbol": "SPELLUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "2.059944",
+        "milliseconds_covered": 86399878,
+        "quotes": 332380,
+        "time_weighted_mean_bps": "2.104516",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 2761427,
+      "day": "2023-05-16",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": null,
+        "milliseconds_covered": 0,
+        "quotes": 0,
+        "time_weighted_mean_bps": null,
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "4bf3f4b172e6a40539131cef7cb0d451a15f977f909b64ac6dbba091e6312e1d",
+      "sha256": "4bf3f4b172e6a40539131cef7cb0d451a15f977f909b64ac6dbba091e6312e1d",
+      "symbol": "TLMUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "6.240249",
+        "milliseconds_covered": 43812540,
+        "quotes": 209903,
+        "time_weighted_mean_bps": "6.23189",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 5813500,
+      "day": "2023-06-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "6.61157",
+        "milliseconds_covered": 300000,
+        "quotes": 1759,
+        "time_weighted_mean_bps": "6.631133",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "2d473017e042a406eb772a449a99903fa093069f7cbc3e8cf60d18a24136494d",
+      "sha256": "2d473017e042a406eb772a449a99903fa093069f7cbc3e8cf60d18a24136494d",
+      "symbol": "TLMUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "6.576783",
+        "milliseconds_covered": 86400000,
+        "quotes": 449938,
+        "time_weighted_mean_bps": "6.588527",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 2068328,
+      "day": "2023-08-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "9.367681",
+        "milliseconds_covered": 294349,
+        "quotes": 235,
+        "time_weighted_mean_bps": "9.369979",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "6b966e9aaf6c7d2dac0f5fb213d0a6d1f9adb7946fd6d1e13ff94ed2fd32f333",
+      "sha256": "6b966e9aaf6c7d2dac0f5fb213d0a6d1f9adb7946fd6d1e13ff94ed2fd32f333",
+      "symbol": "TLMUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "9.367681",
+        "milliseconds_covered": 86394349,
+        "quotes": 134702,
+        "time_weighted_mean_bps": "9.397303",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 4063893,
+      "day": "2023-10-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "9.741841",
+        "milliseconds_covered": 299986,
+        "quotes": 597,
+        "time_weighted_mean_bps": "9.740486",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "67533bb327210dbc429bf4f61da58145085cb9165b8db383fd66094cf5227d4b",
+      "sha256": "67533bb327210dbc429bf4f61da58145085cb9165b8db383fd66094cf5227d4b",
+      "symbol": "TLMUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "9.592326",
+        "milliseconds_covered": 86399986,
+        "quotes": 266286,
+        "time_weighted_mean_bps": "9.583926",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 7073495,
+      "day": "2023-12-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "6.749915",
+        "milliseconds_covered": 299978,
+        "quotes": 1138,
+        "time_weighted_mean_bps": "6.745334",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "7f6c8b3a6026bc80da9996764d8219c6261169331091d0e374af8d1d42576c91",
+      "sha256": "7f6c8b3a6026bc80da9996764d8219c6261169331091d0e374af8d1d42576c91",
+      "symbol": "TLMUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "6.651147",
+        "milliseconds_covered": 86399978,
+        "quotes": 481306,
+        "time_weighted_mean_bps": "6.631299",
+        "window": "whole day"
+      }
+    },
+    {
+      "bytes": 4480446,
+      "day": "2024-02-01",
+      "opening_window": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "7.742934",
+        "milliseconds_covered": 299881,
+        "quotes": 1399,
+        "time_weighted_mean_bps": "7.744125",
+        "window": "00:00-00:05 UTC"
+      },
+      "publisher_sha256": "7bde7f907f59282c36378c6371129c449775a9b880406b215ce7ebf2379a4d99",
+      "sha256": "7bde7f907f59282c36378c6371129c449775a9b880406b215ce7ebf2379a4d99",
+      "symbol": "TLMUSDT",
+      "verified_against_the_publisher": true,
+      "whole_day": {
+        "crossed_or_locked_quotes": 0,
+        "median_bps": "7.827788",
+        "milliseconds_covered": 86399881,
+        "quotes": 301669,
+        "time_weighted_mean_bps": "7.811109",
+        "window": "whole day"
+      }
+    }
+  ],
+  "rule": "M1",
+  "selections": [
+    {
+      "band": "mid",
+      "members_in_the_band_at_that_instant": 4,
+      "selected_at": "2023-07-01",
+      "symbols": [
+        {
+          "base": "CTK",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "mid",
+          "symbol": "CTKUSDT",
+          "trailing_30d_median_quote_turnover": "4060409.41940"
+        },
+        {
+          "base": "CVX",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "mid",
+          "symbol": "CVXUSDT",
+          "trailing_30d_median_quote_turnover": "4149817.168000"
+        },
+        {
+          "base": "SPELL",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "mid",
+          "symbol": "SPELLUSDT",
+          "trailing_30d_median_quote_turnover": "4669386.1485192"
+        },
+        {
+          "base": "TLM",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "mid",
+          "symbol": "TLMUSDT",
+          "trailing_30d_median_quote_turnover": "3631449.1503000"
+        }
+      ]
+    },
+    {
+      "band": "thin",
+      "members_in_the_band_at_that_instant": 4,
+      "selected_at": "2025-12-01",
+      "symbols": [
+        {
+          "base": "CTK",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "thin",
+          "symbol": "CTKUSDT",
+          "trailing_30d_median_quote_turnover": "918247.0057000"
+        },
+        {
+          "base": "FORTH",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "thin",
+          "symbol": "FORTHUSDT",
+          "trailing_30d_median_quote_turnover": "724109.7097500"
+        },
+        {
+          "base": "RIF",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "thin",
+          "symbol": "RIFUSDT",
+          "trailing_30d_median_quote_turnover": "820909.7339700"
+        },
+        {
+          "base": "VIC",
+          "chosen_as": "nearest the band median",
+          "liquidity_band": "thin",
+          "symbol": "VICUSDT",
+          "trailing_30d_median_quote_turnover": "831511.2640000"
+        }
+      ]
+    }
+  ],
+  "symbol_days_measured": 26,
+  "symbol_days_requested": 48,
+  "symbols_selected_into_two_bands": [
+    "CTKUSDT"
+  ],
+  "tree": "bookTicker",
+  "unverified_because_the_digest_did_not_match": 0,
+  "unverified_because_the_publisher_supplied_no_digest": 0,
+  "venue_series": "binance_perp",
+  "verified_against_the_publisher": 26,
+  "what_it_cannot_do": "It changes no F1 figure. F1 is costed at the registered assumption in every cell and its verdict was settled before any of this was measured.",
+  "why_it_was_acquired": "All six symbols in rule S1's sample fall in the DEEP band, so the mid and thin defaults were extrapolation from a band they are not in. Rule M1's occupancy precondition says neither band is empty in practice, so both defaults are charged and both are worth measuring."
+}
