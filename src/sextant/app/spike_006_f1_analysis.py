@@ -33,6 +33,7 @@ from math import sqrt
 
 from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
+    ADD_BACK_RULE,
     CONVERSION_BPS,
     DEPTH_WINDOW_ENDS,
     DEPTH_WINDOW_STARTS,
@@ -1389,6 +1390,98 @@ class CurrencyCorrection:
         }
 
 
+class AddBackWouldClearACriterion(ResultsIncomplete):
+    """Rule R1: this add-back may not stand in for a rerun, and the family must be rerun.
+
+    Raised rather than reported, because the whole point of the rule is that the cheap
+    path stops being available the moment it would flatter a result. A warning printed
+    beside a number a reader is about to quote is not a guard.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class AddBackAdmissibility:
+    """Rule R1: whether returning a double-counted charge may substitute for a rerun.
+
+    **Why the shortcut is not generally valid.** Adding a charge back to a committed
+    aggregate is not equivalent to rerunning. Returning a charge raises equity, a larger
+    equity takes larger positions, and a losing strategy loses more on a larger book. The
+    add-back is therefore an **upper bound on the improvement** a rerun would show, and
+    never the improvement itself.
+
+    **Which criterion it can move.** Only the absolute one. Criterion 1's absolute clause
+    is a positive net return, and the add-back moves net return directly. Everything else
+    - the deflated Sharpe, the regime split, the null comparison - needs a monthly series
+    the add-back does not produce, which is exactly why a family that crosses zero has to
+    be rerun rather than re-argued.
+    """
+
+    corrections: tuple[CurrencyCorrection, ...]
+
+    @property
+    def variants_that_would_stop_failing(self) -> tuple[str, ...]:
+        """Variants whose corrected net return is no longer negative.
+
+        Not "would pass": would stop failing. The distinction is the rule. A variant at
+        or above zero can no longer be asserted to fail criterion 1's absolute clause
+        from an aggregate, and what it actually does is a question only a rerun answers.
+        """
+        return tuple(sorted(item.variant for item in self.corrections if not item.still_loses))
+
+    @property
+    def may_substitute_for_a_rerun(self) -> bool:
+        """Rule R1's condition: every corrected figure stays on the failing side."""
+        return bool(self.corrections) and not self.variants_that_would_stop_failing
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "rule": ADD_BACK_RULE,
+            "variants_examined": len(self.corrections),
+            "variants_that_would_stop_failing": list(self.variants_that_would_stop_failing),
+            "may_substitute_for_a_rerun": self.may_substitute_for_a_rerun,
+            "why_it_is_only_an_upper_bound": (
+                "Returning a charge raises equity, a larger equity takes larger positions, "
+                "and a losing strategy loses more on a larger book. The add-back is an "
+                "UPPER BOUND on the improvement a rerun would show, never the improvement."
+            ),
+            "which_criterion_it_can_move": (
+                "Only the absolute one. Criterion 1's absolute clause is a positive net "
+                "return and the add-back moves net return directly. The deflated Sharpe, "
+                "the regime split and the null comparison all need a monthly series the "
+                "add-back does not produce."
+            ),
+            "what_happens_when_it_may_not": (
+                "The family is rerun, without exception, and the add-back is reported as "
+                "the upper bound that prompted the rerun rather than as the result."
+            ),
+        }
+
+
+def assert_the_add_back_may_substitute(
+    items: Sequence[CurrencyCorrection],
+) -> AddBackAdmissibility:
+    """Rule R1, enforced on the path that reports an add-back rather than only in a test.
+
+    Called wherever a corrected aggregate is about to be presented in place of a rerun.
+    A family whose corrected figure crosses zero on any variant stops here.
+    """
+    verdict = AddBackAdmissibility(corrections=tuple(items))
+    if not verdict.may_substitute_for_a_rerun:
+        named = ", ".join(verdict.variants_that_would_stop_failing) or "none"
+        raise AddBackWouldClearACriterion(
+            f"Rule {ADD_BACK_RULE}: an add-back may substitute for a rerun only while the "
+            "corrected figure stays on the failing side of every criterion. It does not "
+            f"here - {named} would no longer be losing - so the add-back is an upper bound "
+            "on an improvement whose size only a rerun establishes, and the family is "
+            "rerun without exception."
+            if verdict.corrections
+            else f"Rule {ADD_BACK_RULE}: no variant was examined, so nothing establishes "
+            "that the corrected figures stay on the failing side, and an unexamined "
+            "add-back may not substitute for a rerun."
+        )
+    return verdict
+
+
 def currency_corrections(
     payload: Mapping[str, object], *, cell: str
 ) -> tuple[CurrencyCorrection, ...]:
@@ -1740,6 +1833,8 @@ __all__ = [
     "MINIMUM_MONTHS_PER_REGIME",
     "MINIMUM_REGIMES",
     "SELECTION_SHARE",
+    "AddBackAdmissibility",
+    "AddBackWouldClearACriterion",
     "Capacity",
     "CapacityVerdict",
     "CostLines",
@@ -1754,6 +1849,7 @@ __all__ = [
     "Verdict",
     "WithoutAMonth",
     "analyse",
+    "assert_the_add_back_may_substitute",
     "assumption_could_be_carrying_the_verdict",
     "break_even_of",
     "capacity_of",

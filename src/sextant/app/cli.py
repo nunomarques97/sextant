@@ -146,6 +146,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "estimator",
             "bands",
             "extended",
+            "tick",
+            "thin",
             "contraction",
             "report",
         ),
@@ -157,6 +159,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "`spread` acquires the quoted-spread sample, but only when rule S1 fired; "
         "`bands` computes rules M1 and B1: how often each liquidity band is "
         "occupied and what the bands should be cut on; "
+        "`tick` snapshots the venue's own instrument metadata and runs rules T2 and T3 "
+        "against it; `thin` answers rule T4 over the registered universe; "
         "`extended` acquires rule M1's sample in the mid and thin bands, and refuses "
         "to acquire a band the traded universe never occupies; "
         "`estimator` computes rule E1's spread estimator and its calibration "
@@ -396,6 +400,70 @@ def _command_f1_extended() -> int:
     return EXIT_OK
 
 
+def _command_f1_tick() -> int:
+    """Rules T1, T2 and T3: the venue's own tick, the circularity test, the collapse.
+
+    Two steps, and the first one is the only one that reaches the network. The snapshot
+    is taken once and committed; everything after it reads the file, because a result
+    that can only be reproduced by asking a live service again is not reproducible.
+    """
+    from sextant.adapters.exchanges.binance import futures_metadata
+    from sextant.app import spike_006_f1_tick
+    from sextant.app.spike_006_f1 import PER_SYMBOL_TICK_RULE, TICK_METADATA_RULE
+
+    snapshot_path = spike_006_f1_tick.TICK_METADATA_SNAPSHOT
+    if not snapshot_path.is_file():
+        snapshot = futures_metadata.fetch()
+        futures_metadata.write(snapshot, snapshot_path)
+        print(f"  rule {TICK_METADATA_RULE}: {len(snapshot.symbols)} instruments snapshotted")
+        print(f"  response sha256: {snapshot.digest}")
+    else:
+        print(f"  rule {TICK_METADATA_RULE}: reading the committed snapshot, not the endpoint")
+    study = spike_006_f1_tick.study(snapshot_path=snapshot_path)
+    bound = len(study.tick_bound)
+    print(f"  tick-bound: {bound} of {len(study.readings)} sampled symbols")
+    for label, item in (
+        ("whole sample", study.whole_sample),
+        ("floating subset", study.floating_subset),
+    ):
+        if item.rho is None:
+            print(f"  {label}: no rho - {item.refused_because}")
+        else:
+            print(f"  {label}: rho {item.rho:.3f} at p {item.p_value:.4f}")
+    print(f"  rule {PER_SYMBOL_TICK_RULE}: tick-bound dominates: {study.tick_bound_dominates}")
+    print(f"  band defaults the evidence supports: {study.bands_the_evidence_supports}")
+    written = spike_006_f1_tick.write(study, spike_006_f1_tick.TICK_RESULTS)
+    print(f"  written: {written.as_posix()}")
+    return EXIT_OK
+
+
+def _command_f1_thin() -> int:
+    """Rule T4: whether any registered variant ever opens a thin-band instrument.
+
+    A computation over the universe. No return is scored, no trial is charged and the
+    engine is not run: the nine registered allocators are asked what they chose.
+    """
+    from sextant.app import spike_006_f1_bands, spike_006_f1_thin
+    from sextant.app.spike_006_f1 import FAMILY, THIN_BAND_RULE
+    from sextant.app.spike_006_f1_world import build_world
+
+    study = spike_006_f1_thin.study(
+        build_world(),
+        spike_006_f1_bands.rebalance_instants(),
+        family=FAMILY,
+    )
+    counts = study.counts_by_band()
+    for band in spike_006_f1_bands.BANDS:
+        print(f"  {band}: {counts[band]} instrument-instants selected")
+    answer = "YES" if study.any_variant_selects_thin else "NO"
+    print(f"  rule {THIN_BAND_RULE}: does any variant ever select a thin-band instrument? {answer}")
+    if study.any_variant_selects_thin:
+        print(f"  thin-band instruments ever opened: {', '.join(study.thin_symbols)}")
+    written = spike_006_f1_thin.write(study, spike_006_f1_thin.THIN_RESULTS)
+    print(f"  written: {written.as_posix()}")
+    return EXIT_OK
+
+
 def _command_f1_estimator() -> int:
     """Compute rule E1's calibration, and report the adoption it decides.
 
@@ -516,6 +584,10 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         return EXIT_OK
     if stage == "extended":
         return _command_f1_extended()
+    if stage == "tick":
+        return _command_f1_tick()
+    if stage == "thin":
+        return _command_f1_thin()
     if stage == "estimator":
         return _command_f1_estimator()
     if stage == "contraction":

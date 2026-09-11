@@ -48,6 +48,7 @@ from sextant.app.spike_006_f1_analysis import (
     Rescue,
     Toll,
     analyse,
+    assert_the_add_back_may_substitute,
     assumption_could_be_carrying_the_verdict,
     capacity_report,
     combined_toll,
@@ -65,6 +66,8 @@ from sextant.app.spike_006_f1_depth import DEPTH_RESULTS
 from sextant.app.spike_006_f1_estimator import ESTIMATOR_RESULTS
 from sextant.app.spike_006_f1_extended import EXTENDED_RESULTS
 from sextant.app.spike_006_f1_spread import SPREAD_RESULTS
+from sextant.app.spike_006_f1_thin import THIN_RESULTS
+from sextant.app.spike_006_f1_tick import TICK_RESULTS
 from sextant.domain.time import Timestamp
 from sextant.engine.execution.breakeven import BreakEvenUndefined, d2a_holds
 
@@ -82,6 +85,8 @@ def render(
     estimator_path: Path = ESTIMATOR_RESULTS,
     extended_path: Path = EXTENDED_RESULTS,
     bands_path: Path = BANDS_RESULTS,
+    tick_path: Path = TICK_RESULTS,
+    thin_path: Path = THIN_RESULTS,
 ) -> Path:
     """Read the result file and write the report beside it."""
     with results_path.open(encoding="utf-8") as handle:
@@ -116,6 +121,12 @@ def render(
         if bands_path.is_file()
         else None
     )
+    tick = (
+        _mapping(json.loads(tick_path.read_text(encoding="utf-8"))) if tick_path.is_file() else None
+    )
+    thin = (
+        _mapping(json.loads(thin_path.read_text(encoding="utf-8"))) if thin_path.is_file() else None
+    )
     # Every derived block is recomputed from the file's own monthly series rather than
     # read back. The runner writes them too, for a reader of the file, but a page that
     # trusted them would silently print an older schema's field names for a run made
@@ -147,6 +158,7 @@ def render(
         _depth_section(depth),
         _verdict_section(payload),
         _amendment_twelve_section(payload),
+        _amendment_thirteen_section(payload, tick, thin),
     ]
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(NEWLINE.join(sections), encoding="utf-8", newline=NEWLINE)
@@ -2593,6 +2605,384 @@ def _amendment_twelve_section(payload: Mapping[str, object]) -> str:
         ]
     )
     return NEWLINE.join(lines)
+
+
+def _amendment_thirteen_section(
+    payload: Mapping[str, object],
+    tick: Mapping[str, object] | None,
+    thin: Mapping[str, object] | None,
+) -> str:
+    """Section 18: the tick, the circularity, the band model and the thin band.
+
+    Added rather than edited in, for the same reason section 17 was. Section 7.8 is the
+    result as it was computed; this is what happened when its own stated weakness was
+    tested with the venue's own numbers, and the answer is not the one section 7.8 hoped
+    for.
+    """
+    if tick is None:
+        return ""
+    t1 = _mapping(tick["rule_t1"])
+    t2 = _mapping(tick["rule_t2"])
+    t3 = _mapping(tick["rule_t3"])
+    t3h = _mapping(tick["rule_t3h"])
+    whole = _mapping(t2["correlation_on_the_whole_sample"])
+    subset = _mapping(t2["correlation_on_the_floating_subset"])
+    bound = _sequence(t2["tick_bound"])
+    floating = _sequence(t2["floats_above_the_tick"])
+    overstated = _sequence(t1["symbols_the_derivation_overestimated"])
+    below = _sequence(t1["symbols_whose_spread_is_below_one_metadata_tick"])
+    lines = [
+        "## 18. Amendment 13: the tick, and what testing it did to section 7.8",
+        "",
+        "**Added, not edited.** Section 7.8 stands as it was computed and stated its own",
+        "weakest point. Amendment 13 tested that point with the venue's own numbers, and",
+        "**section 7.8's result does not survive the test**. Section 35 of the",
+        "pre-registration is the rule; this is what the rule found.",
+        "",
+        "### 18.1 Rule T1: the tick, from the venue instead of from a divisor",
+        "",
+        "**The venue's own instrument metadata, snapshotted and committed.**",
+        f"`{_text(t1['snapshot'])}`, SHA-256 `{_text(t1['response_sha256'])[:16]}...`, fetched",
+        f"{_text(t1['fetched_at'])[:10]}. Nothing downstream reads the endpoint.",
+        "",
+        "**It is an assumption, not a measurement, and the label is not a formality.** The",
+        "endpoint serves today's metadata and publishes no history of it, so this is",
+        "**today's tick applied to a historical window**. Registered under invariant 12 with",
+        "that label.",
+        "",
+        "#### Where the derivation was right, and where it was ten times wrong",
+        "",
+        "| symbol | metadata tick | derived tick | derived / metadata |",
+        "|---|---:|---:|---:|",
+    ]
+    for entry in _sequence(t2["per_symbol"]):
+        row = _mapping(entry)
+        ratio = row["derived_over_metadata"]
+        lines.append(
+            f"| `{_text(row['symbol'])}` "
+            f"| {_text(row['metadata_tick'])} "
+            f"| {_short(row['derived_tick'])} "
+            f"| {'-' if ratio is None else f'{_number_of(ratio):.1f}x'} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"**The two it overstated are `{_text(floating[0]) if floating else ''}` and",
+            f"`{_text(floating[1]) if len(floating) > 1 else ''}`, and they are the only two",
+            "symbols in the sample whose spread is not at the venue's floor.** That is not a",
+            "coincidence and section 18.2 is what it costs.",
+            "",
+            "**Section 7.8 reported five symbols with an impossible derived tick:",
+            f"{_names(overstated)}. The metadata splits those five in two.** On",
+            f"{_names(floating)} the derivation really was the fault, tenfold. On the other",
+            "three the derived tick **equals** what the venue publishes, and the venue's own",
+            "figure is *still* wider than their measured spread - so what is wrong there is",
+            "not the arithmetic but the date, which is the next paragraph.",
+            "",
+            "#### A spread below one tick is evidence about the tick",
+            "",
+            f"**{_count_of(len(below))} symbols came in below one published increment:",
+            f"{_names(below)}.** A quoted spread cannot be narrower than one tick at a",
+            "constant tick, so this says something about the tick rather than about the",
+            "spread. Two things produce it and they are not equally innocent.",
+            "",
+            "**The innocent one** is the denominator: the relative tick divides by a",
+            "thirty-day median close while the spread was measured on six particular days, so",
+            "a shortfall of a few per cent is arithmetic. `RIFUSDT` at 0.98 ticks and",
+            "`SPELLUSDT` at 0.89 are in that range.",
+            "",
+            "**`CTKUSDT` at 0.47 ticks is not.** A factor of two is not a denominator effect.",
+            "The venue's increment for that symbol is wider today than it was in 2023, which",
+            "means **the point-in-time limitation rule T1 registered is not hypothetical: it",
+            "is already visible in the first sample it was applied to.**",
+            "",
+            "### 18.2 Rule T2: the correlation was circular, and it does not survive",
+            "",
+            f"**{_count_of(len(bound))} of {_count_of(t2['symbols_measured'])} sampled symbols",
+            "are tick-bound** - their measured quoted spread sits at or below",
+            f"{_text(t2['tick_bound_ceiling_in_ticks'])} ticks, which is the venue's own floor.",
+            f"Only {_names(floating)} float above it.",
+            "",
+            "| symbol | quoted spread | one tick | spread in ticks | at the floor |",
+            "|---|---:|---:|---:|---|",
+        ]
+    )
+    for entry in _sequence(t2["per_symbol"]):
+        row = _mapping(entry)
+        lines.append(
+            f"| `{_text(row['symbol'])}` "
+            f"| {_number_of(row['measured_quoted_spread_bps']):.4f} bps "
+            f"| {_number_of(row['relative_tick_bps']):.4f} bps "
+            f"| {_number_of(row['spread_in_ticks']):.2f} "
+            f"| {_mark(bool(row['is_tick_bound']))} |"
+        )
+    lines.extend(
+        [
+            "",
+            "#### Both recomputed correlations",
+            "",
+            "| sample | symbols | rho | p | clears |",
+            "|---|---:|---:|---:|---|",
+            f"| on metadata ticks, whole sample | {_count_of(whole['symbol_count'])} "
+            f"| {_rho(whole['spearman_rho'])} | {_p(whole['permutation_p_value'])} "
+            f"| {_clears(whole['clears_the_registered_level'])} |",
+            f"| on metadata ticks, floating subset | {_count_of(subset['symbol_count'])} "
+            f"| {_rho(subset['spearman_rho'])} | {_p(subset['permutation_p_value'])} "
+            f"| {_clears(subset['clears_the_registered_level'])} |",
+            "",
+            "**Section 7.8's rho of 0.900 at p 0.0008 becomes",
+            f"{_rho(whole['spearman_rho'])} at p {_p(whole['permutation_p_value'])}, and it no",
+            "longer clears the registered level.** Nothing about the procedure changed: same",
+            "rank statistic, same 10,000 permutations, same seed, same eleven symbols. Only",
+            "the x-axis was corrected.",
+            "",
+            "**The whole of that correlation rested on the two symbols where the derivation",
+            "was worst.** The derived tick agreed with the venue on nine symbols and",
+            "overstated it tenfold on exactly the two whose spreads are the widest in the",
+            "sample. That put them at the top of the tick ranking and the top of the spread",
+            "ranking at once, which is what a rank correlation rewards. Correct the two and",
+            "the ordering collapses.",
+            "",
+            "**The subset correlation is refused rather than reported.** Only",
+            f"{_count_of(subset['symbol_count'])} symbols float above the tick, against a",
+            f"registered minimum of {_count_of(t2['minimum_symbols_for_a_subset_correlation'])}.",
+            "Below that the permutation test cannot produce an interpretable p-value, so the",
+            "answer is that the subset is too small to say. **That is itself the finding**: the",
+            "sample contains almost no instrument whose spread is not the tick, so it could",
+            "never have said anything about the ones that matter.",
+            "",
+            "**So the honest reading of section 7.8 is the one it was warned about.** Tick",
+            "size predicted spread because on nine of eleven instruments *the spread is the",
+            "tick*. True and useful about those instruments, and empty about every other - in",
+            "particular about the thin band, which is the band that could not be measured.",
+            "",
+            "### 18.3 Rule T3: the band model collapses, and not to two bands",
+            "",
+            f"**Tick-bound dominates: {_percent_of(t2['tick_bound_share'])} of the sample, "
+            f"against a",
+            f"registered threshold of {_text(t3['dominance_threshold'])}.** A band assigns a",
+            "default to something unmeasured, and an instrument whose spread is one tick needs",
+            "no default: its half-spread is **tick/2**, per symbol, exactly.",
+            "",
+            "| symbol | half-spread from the tick |",
+            "|---|---:|",
+        ]
+    )
+    per_symbol = _mapping(t3["half_spread_bps_by_symbol_from_the_tick"])
+    for symbol in sorted(per_symbol):
+        lines.append(f"| `{symbol}` | {_number_of(per_symbol[symbol]):.4f} bps |")
+    lines.extend(
+        [
+            "",
+            f"**The residual is {_names(floating)} - two instruments, against rule B1's own",
+            "minimum of three before a band is a band.** So the band model does not collapse",
+            "to two bands and it does not collapse to one evidenced band either. It collapses",
+            "to **a per-symbol figure for nine of eleven instruments and a single default for a",
+            "residual too small to evidence a default**, which is reported as an assumption",
+            "with nothing behind it rather than counted as a band because it is the only one",
+            "left.",
+            "",
+            "**Section 7.8's two bands are withdrawn.** They were cut on a variable whose",
+            "correlation with spread does not survive correcting its x-axis, and the ordering",
+            "they encoded was carried by the two worst-measured symbols in the sample.",
+            "",
+            "**This touches no criterion.** Rule T3 governs the bound column only, and the",
+            "headline decides every verdict. No F1 figure moves.",
+            "",
+            "### 18.4 Rule T3H: the constant-ratio observation, registered as a hypothesis",
+            "",
+            f"**The deep band's assumption is {_text(t3h['deep_band_ratio'])} times its measured",
+            f"half-spread and the mid band's is {_text(t3h['mid_band_ratio'])} times its own: a",
+            f"factor of {_number_of(t3h['how_far_apart_the_two_are']):.2f} between the two",
+            "errors.** If that holds, the band structure contributes almost nothing to the",
+            "bound and a single scale factor reproduces the whole bound column.",
+            "",
+            "**It is written down as a hypothesis and not adopted.** Two bands is two points.",
+            "It is registered now so that it cannot later be adopted as though it had been",
+            "tested, with the falsification stated in advance: a third band's ratio differing",
+            f"from the mean by more than a factor of {_text(t3h['falsification_factor'])}.",
+            "",
+            "**The thin band is the observation that would have discriminated.** Its absence",
+            "is therefore not only a gap in coverage. It is the gap that would have tested",
+            "this, which is a sharper statement of the cost than section 7.7 made.",
+            "",
+        ]
+    )
+    lines.extend(_thin_band_lines(thin))
+    lines.extend(_add_back_lines(payload))
+    return NEWLINE.join(lines)
+
+
+def _thin_band_lines(thin: Mapping[str, object] | None) -> list[str]:
+    """Rule T4's answer, which is a computation over the universe rather than a sample."""
+    if thin is None:
+        return []
+    counts = _mapping(thin["instrument_instants_by_band"])
+    by_variant = _mapping(thin["thin_band_selections_by_variant"])
+    symbols = _sequence(thin["thin_band_symbols_ever_selected"])
+    instants = _sequence(thin["instants_with_a_thin_band_selection"])
+    selects = bool(thin["any_variant_selects_a_thin_band_instrument"])
+    lines = [
+        "### 18.5 Rule T4: the thin band is never measured, and it is traded",
+        "",
+        "**The registered days are not moved.** They are what make the deep and mid",
+        "measurements comparable to each other, and measuring the thin band two years later",
+        "on one symbol of four would buy a figure and spend the only thing that made the",
+        "figures mean anything. So the question is not what the thin band's spread is. It is",
+        "whether any variant ever puts money into one.",
+        "",
+        "**A computation over the universe, not a measurement.** Every registered variant was",
+        "asked, at every rebalance instant of the window, which pairs it opens, and each",
+        "opened perpetual was banded by the cost model's own floors at that instant. No",
+        "return was scored, no trial was charged and the engine was not run.",
+        "",
+        f"**The answer is {'YES' if selects else 'NO'}.**",
+        "",
+        "| band | instrument-instants selected | share |",
+        "|---|---:|---:|",
+    ]
+    total = sum(int(str(counts[band])) for band in counts)
+    for band in ("deep", "mid", "thin"):
+        count = int(str(counts.get(band, 0)))
+        share = (count / total * 100.0) if total else 0.0
+        lines.append(f"| {band} | {count:,} | {share:.1f}% |")
+    if not selects:
+        lines.extend(
+            [
+                "",
+                "**The thin band is empty in practice.** Its default is never charged, so the",
+                "question closes with no acquisition, no substitution and no cost.",
+                "",
+            ]
+        )
+        return lines
+    lines.extend(
+        [
+            "",
+            f"**{_count_of(counts.get('thin', 0))} instrument-instants across",
+            f"{_count_of(len(symbols))} distinct instruments, at",
+            f"{_count_of(len(instants))} of the window's rebalances.** Which variants reach",
+            "for them is not random:",
+            "",
+            "| variant | rebalances holding a thin-band instrument |",
+            "|---|---:|",
+        ]
+    )
+    for variant in sorted(by_variant):
+        lines.append(f"| {_variant_label(variant)} | {_count_of(by_variant[variant])} |")
+    first = _text(instants[0]) if instants else ""
+    last = _text(instants[-1]) if instants else ""
+    lines.extend(
+        [
+            "",
+            "**The two variants that never touch it are the two that rank on turnover.** They",
+            "take the most traded names by construction, so they cannot land in the least",
+            "traded band. Every variant that ranks on funding or premium does land there,",
+            "which is the whole point of ranking on carry: carry is largest where liquidity",
+            "is smallest.",
+            "",
+            f"**And every one of those selections falls between {first} and {last}** - the last",
+            "months of the window, and the same stretch in which rule M1 found the thin band's",
+            "earliest four-member instant at 2025-12-01. The thin band is not a historical",
+            "curiosity in this universe; it is a recent one, and it arrives exactly where the",
+            "measurement could not follow.",
+            "",
+            "**What the registered rule does with that.** The thin band keeps its assumption",
+            "at full strength and **no bound is reported for it**, because there is no",
+            "measurement for a bound to be made of. A result depending on a thin-band",
+            "instrument is then referred to rule A12.2 - which is a **gate and not a verdict**.",
+            "A12.2 records a family as spread-contingent only when it **fails at the headline",
+            "and clears at the bound**.",
+            "",
+            "**F1 is not spread-contingent and rule H1 still does not fire.** F1 fails at the",
+            "headline, fails at the bound and fails at zero, so A12.2 closes it normally. What",
+            "changes is for F2 onward: a family that holds a thin-band instrument gets no bound",
+            "column for that holding, and if it then fails at the headline while clearing at",
+            "the bound on everything else, rule H1 is what resolves it.",
+            "",
+        ]
+    )
+    return lines
+
+
+def _add_back_lines(payload: Mapping[str, object]) -> list[str]:
+    """Rule R1: the condition section 17.2 used without stating it.
+
+    The admissibility check is called here rather than only asserted in a test, because
+    this is the page on which an add-back is offered to a reader in place of a rerun.
+    """
+    items = currency_corrections(payload, cell=headline_cell().label)
+    if not items:
+        return []
+    verdict = assert_the_add_back_may_substitute(items)
+    best = max(item.corrected_net_pnl for item in items)
+    return [
+        "### 18.6 Rule R1: when an add-back may stand in for a rerun",
+        "",
+        "**Section 17.2 reported the currency correction by adding the double count back to",
+        "a committed aggregate rather than by rerunning the grid, and it did not state the",
+        "condition that makes that legitimate.** The condition is registered now.",
+        "",
+        "**Why the shortcut is not generally valid.** Returning a charge raises equity, a",
+        "larger equity takes larger positions, and a losing strategy loses more on a larger",
+        "book. So the add-back is an **upper bound on the improvement** a rerun would show,",
+        "and never the improvement itself.",
+        "",
+        "> **Rule R1.** The add-back may substitute for a rerun **only while the corrected",
+        "> figure remains on the failing side of every criterion**. A family that would clear",
+        "> any criterion after an add-back is **rerun, without exception**.",
+        "",
+        "**F1 meets it, and that is why section 17.2 stands.** Of",
+        f"{_count_of(len(items))} variants, "
+        f"{_count_of(len(verdict.variants_that_would_stop_failing))}",
+        "would stop failing with the whole double count returned; the best of them reaches",
+        f"{_money(best)} EUR on 1,500 across 56 months, still negative. Even the upper bound",
+        "on the improvement stays on the failing side.",
+        "",
+        "**Only one criterion could have moved anyway, and that is the reason for the rule.**",
+        "Criterion 1's absolute clause is a positive net return and the add-back moves net",
+        "return directly. The deflated Sharpe, the regime split and the null comparison all",
+        "need a monthly series an add-back does not produce, which is exactly why a family",
+        "that crosses zero has to be rerun rather than re-argued.",
+        "",
+        "**Enforced on the path, not only in a test.** This page calls the check before it",
+        "prints the corrected column, and refuses to render if the condition fails.",
+        "",
+    ]
+
+
+def _short(value: object) -> str:
+    """A derived tick at a precision a reader can compare, or a dash when absent."""
+    if value is None:
+        return "-"
+    return f"{float(str(value)):.3g}"
+
+
+def _number_of(value: object) -> float:
+    """One numeric field out of a result file, which may be text or a number."""
+    return float(str(value))
+
+
+def _rho(value: object) -> str:
+    return "-" if value is None else f"{_number_of(value):.3f}"
+
+
+def _p(value: object) -> str:
+    return "-" if value is None else f"{_number_of(value):.4f}"
+
+
+def _clears(value: object) -> str:
+    return "too small to say" if value is None else _mark(bool(value))
+
+
+def _names(items: Sequence[object]) -> str:
+    """A list of symbols, named in prose rather than counted."""
+    text = [f"`{_text(item)}`" for item in items]
+    if not text:
+        return "none of them"
+    if len(text) == 1:
+        return text[0]
+    return ", ".join(text[:-1]) + " and " + text[-1]
 
 
 def _what_the_verdict_rests_on(payload: Mapping[str, object]) -> list[str]:

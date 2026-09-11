@@ -13,7 +13,7 @@ ancestry is checkable with `git merge-base --is-ancestor`.
 - everything denominated in **EUR**
 - **verdict: (B)**
 
-> **This run read `v1.7.1`; the specification is now `v2.3`.** Amendments 7 and 8 were registered while the grid
+> **This run read `v1.7.1`; the specification is now `v2.4`.** Amendments 7 and 8 were registered while the grid
 > was running and neither changes a computed value: amendment 7 fixes how a void
 > execution is counted in the trial registry, and amendment 8 fixes who may
 > declare one void and makes the spread sample conditional on rule S1. No
@@ -1322,3 +1322,264 @@ inflated by a defect, and a euro-funded account trading USDT-quoted instruments
 pays a currency toll far smaller than F1's charges suggested. Section 31's
 instruction to report the currency leg on its own line in every family stands, and
 is now more useful rather than less: it is what made the defect visible.
+
+## 18. Amendment 13: the tick, and what testing it did to section 7.8
+
+**Added, not edited.** Section 7.8 stands as it was computed and stated its own
+weakest point. Amendment 13 tested that point with the venue's own numbers, and
+**section 7.8's result does not survive the test**. Section 35 of the
+pre-registration is the rule; this is what the rule found.
+
+### 18.1 Rule T1: the tick, from the venue instead of from a divisor
+
+**The venue's own instrument metadata, snapshotted and committed.**
+`spike-006-f1-tick-metadata.json`, SHA-256 `40e2a677bcad8c7d...`, fetched
+2026-09-11. Nothing downstream reads the endpoint.
+
+**It is an assumption, not a measurement, and the label is not a formality.** The
+endpoint serves today's metadata and publishes no history of it, so this is
+**today's tick applied to a historical window**. Registered under invariant 12 with
+that label.
+
+#### Where the derivation was right, and where it was ten times wrong
+
+| symbol | metadata tick | derived tick | derived / metadata |
+|---|---:|---:|---:|
+| `API3USDT` | 0.0001 | 0.001 | 10.0x |
+| `BLZUSDT` | 0.00001 | 1e-05 | 1.0x |
+| `BTCUSDT` | 0.10 | 0.1 | 1.0x |
+| `CTKUSDT` | 0.0001000 | 0.0001 | 1.0x |
+| `CVXUSDT` | 0.001000 | 0.001 | 1.0x |
+| `ETHUSDT` | 0.01 | 0.01 | 1.0x |
+| `RIFUSDT` | 0.0000100 | 1e-05 | 1.0x |
+| `SPELLUSDT` | 1E-7 | 1e-07 | 1.0x |
+| `THETAUSDT` | 0.0001 | 0.0001 | 1.0x |
+| `TLMUSDT` | 0.0000010 | 1e-05 | 10.0x |
+| `UNFIUSDT` | 0.001 | 0.001 | 1.0x |
+
+**The two it overstated are `API3USDT` and
+`TLMUSDT`, and they are the only two
+symbols in the sample whose spread is not at the venue's floor.** That is not a
+coincidence and section 18.2 is what it costs.
+
+**Section 7.8 reported five symbols with an impossible derived tick:
+`API3USDT`, `CTKUSDT`, `RIFUSDT`, `SPELLUSDT` and `TLMUSDT`. The metadata splits those five in two.** On
+`API3USDT` and `TLMUSDT` the derivation really was the fault, tenfold. On the other
+three the derived tick **equals** what the venue publishes, and the venue's own
+figure is *still* wider than their measured spread - so what is wrong there is
+not the arithmetic but the date, which is the next paragraph.
+
+#### A spread below one tick is evidence about the tick
+
+**3 symbols came in below one published increment:
+`CTKUSDT`, `RIFUSDT` and `SPELLUSDT`.** A quoted spread cannot be narrower than one tick at a
+constant tick, so this says something about the tick rather than about the
+spread. Two things produce it and they are not equally innocent.
+
+**The innocent one** is the denominator: the relative tick divides by a
+thirty-day median close while the spread was measured on six particular days, so
+a shortfall of a few per cent is arithmetic. `RIFUSDT` at 0.98 ticks and
+`SPELLUSDT` at 0.89 are in that range.
+
+**`CTKUSDT` at 0.47 ticks is not.** A factor of two is not a denominator effect.
+The venue's increment for that symbol is wider today than it was in 2023, which
+means **the point-in-time limitation rule T1 registered is not hypothetical: it
+is already visible in the first sample it was applied to.**
+
+### 18.2 Rule T2: the correlation was circular, and it does not survive
+
+**9 of 11 sampled symbols
+are tick-bound** - their measured quoted spread sits at or below
+1.5 ticks, which is the venue's own floor.
+Only `API3USDT` and `TLMUSDT` float above it.
+
+| symbol | quoted spread | one tick | spread in ticks | at the floor |
+|---|---:|---:|---:|---|
+| `API3USDT` | 4.2452 bps | 0.6777 bps | 6.26 | no |
+| `BLZUSDT` | 1.4694 bps | 1.3312 bps | 1.10 | yes |
+| `BTCUSDT` | 0.0357 bps | 0.0352 bps | 1.01 | yes |
+| `CTKUSDT` | 1.7738 bps | 3.7764 bps | 0.47 | yes |
+| `CVXUSDT` | 2.9808 bps | 2.7178 bps | 1.10 | yes |
+| `ETHUSDT` | 0.0541 bps | 0.0535 bps | 1.01 | yes |
+| `RIFUSDT` | 2.4875 bps | 2.5432 bps | 0.98 | yes |
+| `SPELLUSDT` | 1.8653 bps | 2.1073 bps | 0.89 | yes |
+| `THETAUSDT` | 1.2482 bps | 1.0014 bps | 1.25 | yes |
+| `TLMUSDT` | 7.2395 bps | 0.8673 bps | 8.35 | no |
+| `UNFIUSDT` | 2.0190 bps | 1.9737 bps | 1.02 | yes |
+
+#### Both recomputed correlations
+
+| sample | symbols | rho | p | clears |
+|---|---:|---:|---:|---|
+| on metadata ticks, whole sample | 11 | 0.327 | 0.3255 | no |
+| on metadata ticks, floating subset | 2 | - | - | too small to say |
+
+**Section 7.8's rho of 0.900 at p 0.0008 becomes
+0.327 at p 0.3255, and it no
+longer clears the registered level.** Nothing about the procedure changed: same
+rank statistic, same 10,000 permutations, same seed, same eleven symbols. Only
+the x-axis was corrected.
+
+**The whole of that correlation rested on the two symbols where the derivation
+was worst.** The derived tick agreed with the venue on nine symbols and
+overstated it tenfold on exactly the two whose spreads are the widest in the
+sample. That put them at the top of the tick ranking and the top of the spread
+ranking at once, which is what a rank correlation rewards. Correct the two and
+the ordering collapses.
+
+**The subset correlation is refused rather than reported.** Only
+2 symbols float above the tick, against a
+registered minimum of 5.
+Below that the permutation test cannot produce an interpretable p-value, so the
+answer is that the subset is too small to say. **That is itself the finding**: the
+sample contains almost no instrument whose spread is not the tick, so it could
+never have said anything about the ones that matter.
+
+**So the honest reading of section 7.8 is the one it was warned about.** Tick
+size predicted spread because on nine of eleven instruments *the spread is the
+tick*. True and useful about those instruments, and empty about every other - in
+particular about the thin band, which is the band that could not be measured.
+
+### 18.3 Rule T3: the band model collapses, and not to two bands
+
+**Tick-bound dominates: 82% of the sample, against a
+registered threshold of 0.5.** A band assigns a
+default to something unmeasured, and an instrument whose spread is one tick needs
+no default: its half-spread is **tick/2**, per symbol, exactly.
+
+| symbol | half-spread from the tick |
+|---|---:|
+| `BLZUSDT` | 0.6656 bps |
+| `BTCUSDT` | 0.0176 bps |
+| `CTKUSDT` | 1.8882 bps |
+| `CVXUSDT` | 1.3589 bps |
+| `ETHUSDT` | 0.0267 bps |
+| `RIFUSDT` | 1.2716 bps |
+| `SPELLUSDT` | 1.0536 bps |
+| `THETAUSDT` | 0.5007 bps |
+| `UNFIUSDT` | 0.9869 bps |
+
+**The residual is `API3USDT` and `TLMUSDT` - two instruments, against rule B1's own
+minimum of three before a band is a band.** So the band model does not collapse
+to two bands and it does not collapse to one evidenced band either. It collapses
+to **a per-symbol figure for nine of eleven instruments and a single default for a
+residual too small to evidence a default**, which is reported as an assumption
+with nothing behind it rather than counted as a band because it is the only one
+left.
+
+**Section 7.8's two bands are withdrawn.** They were cut on a variable whose
+correlation with spread does not survive correcting its x-axis, and the ordering
+they encoded was carried by the two worst-measured symbols in the sample.
+
+**This touches no criterion.** Rule T3 governs the bound column only, and the
+headline decides every verdict. No F1 figure moves.
+
+### 18.4 Rule T3H: the constant-ratio observation, registered as a hypothesis
+
+**The deep band's assumption is 18.87 times its measured
+half-spread and the mid band's is 20.64 times its own: a
+factor of 1.09 between the two
+errors.** If that holds, the band structure contributes almost nothing to the
+bound and a single scale factor reproduces the whole bound column.
+
+**It is written down as a hypothesis and not adopted.** Two bands is two points.
+It is registered now so that it cannot later be adopted as though it had been
+tested, with the falsification stated in advance: a third band's ratio differing
+from the mean by more than a factor of 1.5.
+
+**The thin band is the observation that would have discriminated.** Its absence
+is therefore not only a gap in coverage. It is the gap that would have tested
+this, which is a sharper statement of the cost than section 7.7 made.
+
+### 18.5 Rule T4: the thin band is never measured, and it is traded
+
+**The registered days are not moved.** They are what make the deep and mid
+measurements comparable to each other, and measuring the thin band two years later
+on one symbol of four would buy a figure and spend the only thing that made the
+figures mean anything. So the question is not what the thin band's spread is. It is
+whether any variant ever puts money into one.
+
+**A computation over the universe, not a measurement.** Every registered variant was
+asked, at every rebalance instant of the window, which pairs it opens, and each
+opened perpetual was banded by the cost model's own floors at that instant. No
+return was scored, no trial was charged and the engine was not run.
+
+**The answer is YES.**
+
+| band | instrument-instants selected | share |
+|---|---:|---:|
+| deep | 4,284 | 83.2% |
+| mid | 748 | 14.5% |
+| thin | 114 | 2.2% |
+
+**114 instrument-instants across
+26 distinct instruments, at
+8 of the window's rebalances.** Which variants reach
+for them is not random:
+
+| variant | rebalances holding a thin-band instrument |
+|---|---:|
+| `carry-basket-10` | 0 |
+| `carry-basket-5` | 0 |
+| `carry-positive-10` | 7 |
+| `carry-premium-10` | 4 |
+| `carry-rank30-10` | 7 |
+| `carry-rank30-5` | 5 |
+| `carry-rank90-10` | 8 |
+| `carry-rank90-10-quarterly` (18 rebalances) | 7 |
+| `carry-rank90-5` | 5 |
+
+**The two variants that never touch it are the two that rank on turnover.** They
+take the most traded names by construction, so they cannot land in the least
+traded band. Every variant that ranks on funding or premium does land there,
+which is the whole point of ranking on carry: carry is largest where liquidity
+is smallest.
+
+**And every one of those selections falls between 2025-12-01 and 2026-07-01** - the last
+months of the window, and the same stretch in which rule M1 found the thin band's
+earliest four-member instant at 2025-12-01. The thin band is not a historical
+curiosity in this universe; it is a recent one, and it arrives exactly where the
+measurement could not follow.
+
+**What the registered rule does with that.** The thin band keeps its assumption
+at full strength and **no bound is reported for it**, because there is no
+measurement for a bound to be made of. A result depending on a thin-band
+instrument is then referred to rule A12.2 - which is a **gate and not a verdict**.
+A12.2 records a family as spread-contingent only when it **fails at the headline
+and clears at the bound**.
+
+**F1 is not spread-contingent and rule H1 still does not fire.** F1 fails at the
+headline, fails at the bound and fails at zero, so A12.2 closes it normally. What
+changes is for F2 onward: a family that holds a thin-band instrument gets no bound
+column for that holding, and if it then fails at the headline while clearing at
+the bound on everything else, rule H1 is what resolves it.
+
+### 18.6 Rule R1: when an add-back may stand in for a rerun
+
+**Section 17.2 reported the currency correction by adding the double count back to
+a committed aggregate rather than by rerunning the grid, and it did not state the
+condition that makes that legitimate.** The condition is registered now.
+
+**Why the shortcut is not generally valid.** Returning a charge raises equity, a
+larger equity takes larger positions, and a losing strategy loses more on a larger
+book. So the add-back is an **upper bound on the improvement** a rerun would show,
+and never the improvement itself.
+
+> **Rule R1.** The add-back may substitute for a rerun **only while the corrected
+> figure remains on the failing side of every criterion**. A family that would clear
+> any criterion after an add-back is **rerun, without exception**.
+
+**F1 meets it, and that is why section 17.2 stands.** Of
+9 variants, 0
+would stop failing with the whole double count returned; the best of them reaches
+-19.15 EUR on 1,500 across 56 months, still negative. Even the upper bound
+on the improvement stays on the failing side.
+
+**Only one criterion could have moved anyway, and that is the reason for the rule.**
+Criterion 1's absolute clause is a positive net return and the add-back moves net
+return directly. The deflated Sharpe, the regime split and the null comparison all
+need a monthly series an add-back does not produce, which is exactly why a family
+that crosses zero has to be rerun rather than re-argued.
+
+**Enforced on the path, not only in a test.** This page calls the check before it
+prints the corrected column, and refuses to render if the condition fails.

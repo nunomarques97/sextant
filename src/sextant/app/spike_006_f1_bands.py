@@ -37,7 +37,7 @@ from math import log, sqrt
 from pathlib import Path
 
 from sextant.adapters.exchanges.binance.costs import DEEP_BAND_FLOOR, MID_BAND_FLOOR
-from sextant.adapters.storage.bars import ParquetBarStore, SeriesKey
+from sextant.adapters.storage.bars import ParquetBarStore, SeriesKey, StoredBar
 from sextant.app.futures_archive import PERP_VENUE
 from sextant.app.futures_archive import STORE_ROOT as PERP_ROOT
 from sextant.app.spike_006_f1 import (
@@ -480,14 +480,7 @@ def candidates_for(store_root: Path, instants: Mapping[str, Timestamp]) -> tuple
     volatility: dict[str, float] = {}
     trades: dict[str, float] = {}
     for symbol, at in sorted(instants.items()):
-        horizon = at.epoch_millis
-        floor = horizon - FUNDING_TRAILING_DAYS * 24 * 60 * 60 * 1000
-        key = SeriesKey(venue=PERP_VENUE, symbol=symbol, timeframe=Timeframe.D1)
-        if not store.has_series(key):
-            continue
-        window = [
-            bar for bar in store.read_series(key) if floor <= bar.open_time.epoch_millis < horizon
-        ]
+        window = _trailing_window(store, symbol, at)
         if len(window) < 2:
             continue
         closes = [Decimal(bar.close) for bar in window]
@@ -509,6 +502,56 @@ def candidates_for(store_root: Path, instants: Mapping[str, Timestamp]) -> tuple
         Candidate(name="realised daily volatility", values=volatility, rho=None, p_value=None),
         Candidate(name="mean daily trade count", values=trades, rho=None, p_value=None),
     )
+
+
+def _trailing_window(store: ParquetBarStore, symbol: str, at: Timestamp) -> list[StoredBar]:
+    """One symbol's stored daily bars over the trailing window ending before ``at``.
+
+    Extracted because rule T2 needs the same window rule B1 used, and a second copy of a
+    window rule is a second window rule.
+    """
+    horizon = at.epoch_millis
+    floor = horizon - FUNDING_TRAILING_DAYS * 24 * 60 * 60 * 1000
+    key = SeriesKey(venue=PERP_VENUE, symbol=symbol, timeframe=Timeframe.D1)
+    if not store.has_series(key):
+        return []
+    return [bar for bar in store.read_series(key) if floor <= bar.open_time.epoch_millis < horizon]
+
+
+def reference_prices(store_root: Path, instants: Mapping[str, Timestamp]) -> dict[str, Decimal]:
+    """Each symbol's median close over its own trailing window, as a relative tick needs.
+
+    The same denominator rule B1 divides its derived tick by, so a metadata tick and a
+    derived tick are expressed against the same price and differ only where they differ.
+    """
+    store = ParquetBarStore(store_root)
+    out: dict[str, Decimal] = {}
+    for symbol, at in sorted(instants.items()):
+        window = _trailing_window(store, symbol, at)
+        if len(window) < 2:
+            continue
+        out[symbol] = _median_decimal([Decimal(bar.close) for bar in window])
+    return out
+
+
+def selection_instants(spread_path: Path, extended_path: Path | None) -> dict[str, Timestamp]:
+    """Every sampled symbol paired with the instant its own sample selected it at.
+
+    Rule S1's six at rule S1's instant, rule M1's at theirs. Exposed because rule T2
+    reads the same pairing and reading it twice from two places is how two places come
+    to disagree.
+    """
+    payload = json.loads(spread_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise BandStudyIncomplete(f"{spread_path} does not hold a mapping.")
+    measured = measured_half_spreads({str(k): v for k, v in payload.items()})
+    if extended_path is not None:
+        measured = {**measured, **_measured_from(extended_path)}
+    at = Timestamp.parse(f"{payload.get('symbols_selected_at', '')}T00:00:00+00:00")
+    picked = dict.fromkeys(measured, at)
+    if extended_path is not None and extended_path.is_file():
+        picked.update(_selection_instants(extended_path))
+    return dict(picked)
 
 
 def _median_decimal(values: Sequence[Decimal]) -> Decimal:
@@ -680,7 +723,9 @@ __all__ = [
     "permutation_p_value",
     "rebalance_instants",
     "recut",
+    "reference_prices",
     "scored",
+    "selection_instants",
     "study",
     "write",
 ]
