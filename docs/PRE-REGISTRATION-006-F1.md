@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v2.3`. Part 1, the specification, committed before any funding number was
+**Version `v2.4`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
@@ -25,7 +25,13 @@ the banded spread assumption **from F2** with an estimator that has to pass a te
 was run. Section 33.7 records what that test said: the estimator is **refused**. `v2.3` adds
 section 34, which settles what 33.7 left open: the assumption is kept as the only number any
 criterion reads, the measurement is reported beside it as a bound, and a divergence between the two
-becomes a registered outcome rather than a judgement call. No amendment in this document changes an F1 variant, cell, criterion, threshold, budget or
+becomes a registered outcome rather than a judgement call. `v2.4` adds section 35, which
+settles what section 34's own weakest result left open: the tick is taken from the venue's
+instrument metadata instead of being derived from prices, the correlation that chose it is
+recomputed twice to test whether it was circular, an instrument whose spread is one tick is given
+its exact half-spread instead of a band, and the thin band's registered days are **not** moved. It
+also registers the condition under which adding a charge back to a committed aggregate may stand
+in for a rerun, which the currency correction used and did not state. No amendment in this document changes an F1 variant, cell, criterion, threshold, budget or
 verdict letter.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
@@ -2554,3 +2560,166 @@ them**, the seed counts, the null constructs, declared expectations D1 and D2, a
 are **unchanged**. A12.1, A12.2 and A12.6 apply from F2. Rules B1 and M1 govern the cost model from
 F2. Rule H1 has not fired. A12.7, A12.8 and A12.9 are labelling and verification and add sections
 rather than editing them.
+
+
+## 35. Amendment 13 — the tick, the bands, the thin band, and the add-back
+
+**Section 34 produced one result whose weakest part was stated in the report before anybody had to
+find it, and the Product Owner found the rest of it.** Rule B1 cut the bands on relative tick size
+at a rank correlation of 0.900, and the tick it correlated against was *derived* rather than looked
+up. On 5 of the 11 sampled symbols the derived tick came out **wider than that symbol's own measured
+quoted spread**, which is not a noisy estimate but an impossible one. Nearly half the sample had a
+known bad x-axis, and a rank correlation computed against a partly impossible variable is not
+evidence whatever its p-value.
+
+**And the half of it this document did not state: circularity.** If a symbol's quoted spread *is*
+one tick, then correlating spread against tick size measures the tick against itself. Section 7.8's
+own observation — that the two symbols whose derivation is demonstrably clean are the two whose
+spread is most obviously tick-bound — says that is likely what happened. A rho of 0.900 would then
+be **mechanical**, mechanical on exactly the instruments a cost model least needs, and carrying no
+information about instruments whose spread floats above the tick. That is the thin band, which is
+the band that could not be measured.
+
+**So the band cut does not stand on the evidence as it was.** Five rules settle it. None of them
+touches the headline level, so none of them can move a verdict letter: the headline decides every
+criterion and only the **bound** column depends on the band model.
+
+### 35.1 R1 — When an add-back may stand in for a rerun
+
+**Rule A12.9 found the currency line double-counted and the correction was reported by adding the
+double count back to a committed aggregate rather than by rerunning F1.** That shortcut was used
+without its condition being stated, and it is not generally valid.
+
+> **Why not.** Returning a charge **raises equity**, a larger equity takes **larger positions**, and
+> a losing strategy **loses more** on a larger book. The add-back is therefore an **upper bound on
+> the improvement** a rerun would show, and never the improvement itself.
+
+> **Rule R1.** The add-back may substitute for a rerun **only when the corrected figure remains on
+> the failing side of every criterion**. A family that would clear any criterion after an add-back
+> is **rerun, without exception**, and the add-back is reported as the upper bound that prompted the
+> rerun rather than as the result.
+
+**F1 is safe under it, and that is the reason rather than the conclusion.** Every one of the nine
+variants still loses with the whole double count returned, so even the upper bound on the
+improvement stays negative and no criterion changes side. **Asserted as a test**, so that the
+shortcut cannot be reused on a winner by whoever comes next.
+
+### 35.2 T1 — The tick comes from the venue, not from a divisor
+
+> **Rule T1.** Tick size is read from the venue's public instrument endpoint,
+> `https://fapi.binance.com/fapi/v1/exchangeInfo`, field `PRICE_FILTER.tickSize`, for the
+> USD-margined perpetual venue the measurement was taken on. The response is snapshotted, its
+> SHA-256 recorded in the snapshot, and the snapshot committed. Nothing downstream reads the
+> endpoint; everything downstream reads the snapshot.
+
+**The greatest-common-divisor step is removed rather than improved.** A divisor inferred from
+published prices is a *multiple* of the true increment and equals it only when the sample happens to
+use every one. No amount of extra history makes that a measurement of the tick; it makes it a
+tighter upper bound on the tick. The endpoint publishes the quantity itself.
+
+> **The point-in-time limitation, stated as a limitation.** This is **today's tick applied to a
+> historical window**. The venue publishes its current instrument metadata and no history of it.
+> Tick changes are rare but real, and a symbol whose tick moved inside the window carries the wrong
+> figure for part of it. Registered as an **assumption** with that label under invariant 12, and
+> never as a measurement.
+
+A snapshot of today's metadata is evidence about today. Calling it a measurement of the window would
+be the error rule E1 was refused for, in the flattering direction.
+
+### 35.3 T2 — Test the circularity before trusting anything built on the tick
+
+> **Rule T2.** For every measured symbol, report the measured median quoted spread **in ticks**,
+> from the metadata tick. A symbol is **tick-bound** when that figure is at or below **1.5** ticks
+> and **floats above the tick** otherwise. Report the fraction in each.
+>
+> Then rerun rule B1's procedure unchanged — Spearman's rho, 10,000 permutations at seed 20260911, a
+> candidate must clear 0.05 — **twice**: first with relative tick size taken from the metadata, and
+> then again **on the non-tick-bound subset alone**.
+
+**Why 1.5 and not a number chosen from the data.** A quoted spread is a whole number of ticks at
+every instant, so a median at or below one and a half ticks means the modal quote is one tick wide.
+The threshold sits at the midpoint between the only two values a nearly-always-one-tick symbol and a
+nearly-always-two-tick symbol can produce. It is fixed by the arithmetic.
+
+**A subset correlation is reported only when it holds at least 5 symbols.** At n = 4 the smallest
+attainable two-sided permutation p-value is 1/24, about 0.042, which clears 0.05 in the single most
+extreme arrangement and in no other; a "significant" result there says only that the ordering was
+perfect. Below five, the honest answer is that the subset is too small to say, and no rho is
+reported for it.
+
+**If the correlation exists only where the spread is the tick, say so plainly.** Tick size predicts
+spread because the spread *is* the tick. That is a true and useful fact about those instruments and
+an empty one about every other.
+
+### 35.4 T3 — Where tick-bound dominates, a band is the wrong object
+
+**A band is a device for assigning a default to something unmeasured.** An instrument whose quoted
+spread is one tick needs no default: its half-spread is **tick/2**, per symbol, exactly, with no
+band, no estimator and no assumption.
+
+> **Rule T3.** Tick-bound **dominates** when more than **0.5** of the measured symbols are
+> tick-bound under rule T2. Where it does, the band model is replaced for those instruments by the
+> per-symbol `tick/2` figure, and a band default is kept **only for the residual** that floats above
+> the tick. The number of bands is then whatever survives under rule B1's own minimum of **3**
+> symbols per band and **a factor of 2** between adjacent medians.
+
+**If the residual supports one band, one is the correct answer.** Do not preserve two bands because
+the analysis produced two, any more than three were preserved because there happened to be three.
+
+**This touches only the bound column.** No criterion reads the bound, so rule T3 cannot move a
+verdict letter in either direction.
+
+### 35.5 T3H — The constant-ratio hypothesis, registered as a hypothesis
+
+**The deep band's assumption is 18.87 times its measured half-spread. The mid band's is 20.64 times
+its own.** The assumption's *error* is close to a constant ratio across both measured bands. If that
+holds, the band structure contributes almost nothing to the bound and a **single scale factor**
+applied to the measured level reproduces the whole bound column.
+
+> **Registered as a hypothesis and not adopted.** Two bands is two points and proves nothing on its
+> own. It is written down now so that it cannot later be adopted as though it had been tested.
+>
+> **What would test it: a third measured band.** The **thin** band is the observation that would
+> discriminate. Its absence is therefore not only a gap in coverage — it is the gap that would have
+> tested this.
+>
+> **Falsification.** The hypothesis is rejected if a third measured band's ratio differs from the
+> mean of the measured ratios by more than **a factor of 1.5**. The two measured ratios differ from
+> each other by a factor of 1.09, so 1.5 sits well outside their own spread while still inside what
+> a single scale factor would tolerate.
+
+### 35.6 T4 — The thin band: the days are not moved
+
+**The registered days are what make the deep and mid measurements comparable.** Measuring the thin
+band two years later, on one symbol of four, produces a number that cannot be compared with the two
+it exists to be compared against. Moving the days would buy a figure and spend the only thing that
+made the figures mean anything. **The thin band stays unmeasured**, and the question becomes whether
+that matters.
+
+> **Rule T4.** Over a family's own registered universe, determine whether any variant ever
+> **selects** a thin-band instrument at any rebalance instant. This is a computation over the
+> universe, not a measurement.
+>
+> **If none does**: record the band as **empty in practice**, its default as unused, and close the
+> question. No acquisition, no substitution, no cost.
+>
+> **If some does**: that band keeps the assumption at **full strength, with no bound reported for
+> it**, and any result depending on a thin-band instrument is **spread-contingent under rule A12.2**,
+> which then fires rule A12.5 — rule H1 — for the acquisition.
+
+**This uses the machinery already registered instead of inventing a relief for a gap**, and it is
+the reason A12.2 was written before anybody knew it would be needed. A rule written after the case
+it excuses is not a rule.
+
+**F1's universe is registered and its answer is computed. The F2 to F6 universes do not exist yet**,
+so rule T4 is registered as a standing **per-family obligation**, answered before that family's
+bound column is reported, rather than answered in advance for families whose universes nobody has
+written.
+
+### 35.7 What this does not touch
+
+The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6 **as F1 was judged on
+them**, the seed counts, the null constructs, declared expectations D1 and D2, rules C1 to C3, and
+**the headline spread level** are unchanged. Rules T1, T2, T3 and T4 govern the **bound** column and
+the band model from F2. Rule R1 governs every family including, retrospectively as a statement of
+its condition, F1's currency correction — which meets it.

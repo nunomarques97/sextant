@@ -135,7 +135,7 @@ MAXIMUM_RE_EXECUTIONS = 2
 #: The version of the pre-registration this code implements. Held here as well as in
 #: the configuration so a report can cite the specification's current version beside
 #: the version the run it describes actually read, without either being retyped.
-REGISTERED_VERSION = "v2.3"
+REGISTERED_VERSION = "v2.4"
 
 #: Section 30, amendment 8. Who may declare a run void, and who may not. Two roles
 #: rather than one sentence of prose, because the prose outlives the conversation it
@@ -271,6 +271,69 @@ CONVERSION_BPS = FX_PAIR_FEE_BPS
 #: run: once in and once out. The FX charge must scale with this number and never with
 #: turnover, and a test holds it.
 FX_CROSSINGS_PER_RUN = 2
+
+#: Section 35, amendment 13, rule R1. Adding a double-counted charge back to a
+#: committed aggregate is an UPPER BOUND on the improvement a rerun would show, never
+#: the improvement: returning a charge raises equity, and a losing strategy loses more
+#: on a larger book. The shortcut therefore holds only while the corrected figure stays
+#: on the failing side of every criterion, and a test refuses it otherwise.
+ADD_BACK_RULE = "R1"
+
+#: Section 35, rule T1. The tick comes from the venue's own instrument metadata and
+#: never from a divisor inferred from published prices. The GCD derivation is removed
+#: rather than improved: it can only overestimate, and it demonstrably did.
+TICK_METADATA_RULE = "T1"
+TICK_METADATA_ENDPOINT = "https://fapi.binance.com/fapi/v1/exchangeInfo"
+TICK_METADATA_FILTER = "PRICE_FILTER"
+TICK_METADATA_FIELD = "tickSize"
+
+#: What the snapshot is, under invariant 12. The venue publishes today's metadata and
+#: no history of it, so a tick read from it is today's tick applied to a historical
+#: window: an assumption with a point-in-time limitation, never a measurement.
+TICK_METADATA_LEVEL = "registered-assumption"
+
+#: Section 35, rule T2. A quoted spread is a whole number of ticks at every instant, so
+#: a median at or below one and a half ticks means the modal quote is one tick wide.
+#: The threshold sits at the midpoint between the only two values a nearly-always-one
+#: and a nearly-always-two tick symbol can produce, which fixes it by the arithmetic
+#: rather than by the data.
+TICK_CIRCULARITY_RULE = "T2"
+TICK_BOUND_CEILING = Decimal("1.5")
+
+#: How few symbols a subset correlation may hold and still be reported. At n = 4 the
+#: smallest attainable two-sided permutation p-value is one in twenty-four, about
+#: 0.042, which clears 0.05 in the single most extreme arrangement and in no other: a
+#: significant result there says only that the ordering was perfect. Below five, the
+#: answer is that the subset is too small to say.
+TICK_SUBSET_MINIMUM_SYMBOLS = 5
+
+#: Section 35, rule T3. An instrument whose quoted spread is one tick needs no band:
+#: its half-spread is tick/2 exactly. Where tick-bound instruments are more than half
+#: the sample, the band model is replaced for them by that per-symbol figure and a band
+#: default is kept only for the residual that floats above the tick.
+PER_SYMBOL_TICK_RULE = "T3"
+TICK_BOUND_DOMINANCE = Decimal("0.5")
+
+#: Section 35, rule T3H. Registered as a HYPOTHESIS so that it cannot later be adopted
+#: as though it had been tested: the assumption's error is close to a constant ratio
+#: across both measured bands, which if it held would mean the band structure
+#: contributes almost nothing to the bound. Two bands is two points.
+CONSTANT_RATIO_RULE = "T3H"
+RATIO_DEEP = SPREAD_BOUND_RATIO
+RATIO_MID = Decimal("20.64")
+
+#: What would falsify it. The two measured ratios differ from each other by a factor of
+#: 1.09, so this sits well outside their own spread while still inside what a single
+#: scale factor would tolerate.
+RATIO_HYPOTHESIS_FACTOR = Decimal("1.5")
+
+#: Section 35, rule T4. The thin band's registered days are not moved, so the band
+#: stays unmeasured and the question becomes whether that matters: whether any variant
+#: of a family ever SELECTS a thin-band instrument at any rebalance instant. A
+#: computation over the universe, not a measurement, answered per family before that
+#: family's bound column is reported.
+THIN_BAND_RULE = "T4"
+THIN_BAND = "thin"
 
 #: The size rule S1 implies when it fires: six symbols on six days, which is section
 #: 12's own registered sample and already the minimum. No subsampling rule is added,
@@ -1251,6 +1314,254 @@ def _sample_days(prose: str) -> int:
     return int(_after(prose, "over at least the same "))
 
 
+def _add_back_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rule R1: when an add-back may stand in for a rerun, and when it may not."""
+    block = _mapping(raw["rerun_or_add_back"], "rerun_or_add_back")
+    return [
+        ("rerun_or_add_back.rule_id", _text(block["rule_id"]), ADD_BACK_RULE),
+        ("rerun_or_add_back.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "rerun_or_add_back.why_the_shortcut_is_not_generally_valid names the bound",
+            "UPPER BOUND" in _text(block["why_the_shortcut_is_not_generally_valid"]),
+            True,
+        ),
+        (
+            "rerun_or_add_back.why_the_shortcut_is_not_generally_valid gives the mechanism",
+            "raises equity" in _text(block["why_the_shortcut_is_not_generally_valid"]),
+            True,
+        ),
+        (
+            "rerun_or_add_back.rule requires every criterion to stay failing",
+            "FAILING side of every criterion" in _text(block["rule"]),
+            True,
+        ),
+        (
+            "rerun_or_add_back.rule reruns without exception otherwise",
+            "without exception" in _text(block["rule"]),
+            True,
+        ),
+        (
+            "rerun_or_add_back.asserted_as_a_test",
+            "refuses an add-back" in _text(block["asserted_as_a_test"]),
+            True,
+        ),
+    ]
+
+
+def _tick_metadata_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rules T1 and T2: where the tick comes from, and what is done before trusting it."""
+    block = _mapping(raw["venue_tick_metadata"], "venue_tick_metadata")
+    circular = _mapping(raw["tick_circularity"], "tick_circularity")
+    return [
+        ("venue_tick_metadata.rule_id", _text(block["rule_id"]), TICK_METADATA_RULE),
+        ("venue_tick_metadata.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "venue_tick_metadata.source names the endpoint",
+            TICK_METADATA_ENDPOINT in _text(block["source"]),
+            True,
+        ),
+        (
+            "venue_tick_metadata.source names the filter",
+            f"{TICK_METADATA_FILTER}.{TICK_METADATA_FIELD}" in _text(block["source"]),
+            True,
+        ),
+        ("venue_tick_metadata.what_it_is", _text(block["what_it_is"]), TICK_METADATA_LEVEL),
+        (
+            "venue_tick_metadata.point_in_time_limitation is stated",
+            "TODAY'S tick applied to a historical window"
+            in _text(block["point_in_time_limitation"]),
+            True,
+        ),
+        (
+            "venue_tick_metadata.never_a_measurement",
+            "evidence about today" in _text(block["never_a_measurement"]),
+            True,
+        ),
+        (
+            "venue_tick_metadata.replaces removes the derivation",
+            "REMOVED rather than improved" in _text(block["replaces"]),
+            True,
+        ),
+        ("tick_circularity.rule_id", _text(circular["rule_id"]), TICK_CIRCULARITY_RULE),
+        ("tick_circularity.is_a_trial", bool(circular["is_a_trial"]), False),
+        (
+            "tick_circularity.tick_bound_test",
+            _ceiling(_text(circular["tick_bound_test"])),
+            TICK_BOUND_CEILING,
+        ),
+        (
+            "tick_circularity.minimum_symbols_for_the_subset",
+            _subset_minimum(_text(circular["minimum_symbols_for_the_subset"])),
+            TICK_SUBSET_MINIMUM_SYMBOLS,
+        ),
+        (
+            "tick_circularity.recompute_twice keeps rule B1's permutations",
+            _permutations_of(_text(circular["recompute_twice"])) == BAND_RECUT_PERMUTATIONS,
+            True,
+        ),
+        (
+            "tick_circularity.recompute_twice keeps rule B1's seed",
+            _seed_of(_text(circular["recompute_twice"])) == BAND_RECUT_SEED,
+            True,
+        ),
+        (
+            "tick_circularity.recompute_twice names the subset",
+            "NON-TICK-BOUND SUBSET ALONE" in _text(circular["recompute_twice"]),
+            True,
+        ),
+        (
+            "tick_circularity.why_that_threshold is arithmetic and not a choice",
+            "fixed by the arithmetic" in _text(circular["why_that_threshold"]),
+            True,
+        ),
+        (
+            "tick_circularity.what_a_tick_bound_only_correlation_means",
+            "the spread IS the tick" in _text(circular["what_a_tick_bound_only_correlation_means"]),
+            True,
+        ),
+    ]
+
+
+def _tick_band_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rules T3, T3H and T4: the band model, the hypothesis and the thin band."""
+    block = _mapping(raw["per_symbol_tick_half_spread"], "per_symbol_tick_half_spread")
+    ratio = _mapping(raw["constant_ratio_hypothesis"], "constant_ratio_hypothesis")
+    thin = _mapping(raw["thin_band_is_traded_or_not"], "thin_band_is_traded_or_not")
+    return [
+        ("per_symbol_tick_half_spread.rule_id", _text(block["rule_id"]), PER_SYMBOL_TICK_RULE),
+        ("per_symbol_tick_half_spread.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "per_symbol_tick_half_spread.applies_from",
+            _text(block["applies_from"]),
+            CRITERION_ONE_STRENGTHENED_FROM,
+        ),
+        (
+            "per_symbol_tick_half_spread.dominance_test",
+            _dominance(_text(block["dominance_test"])),
+            TICK_BOUND_DOMINANCE,
+        ),
+        (
+            "per_symbol_tick_half_spread.why_a_band_is_the_wrong_object",
+            "its half-spread is tick/2" in _text(block["why_a_band_is_the_wrong_object"]),
+            True,
+        ),
+        (
+            "per_symbol_tick_half_spread.rule keeps rule B1's minimum",
+            _minimum_symbols_of(_text(block["rule"])) == BAND_MINIMUM_SYMBOLS,
+            True,
+        ),
+        (
+            "per_symbol_tick_half_spread.rule keeps rule B1's separation",
+            _separation(_text(block["rule"])) == BAND_SEPARATION_FACTOR,
+            True,
+        ),
+        (
+            "per_symbol_tick_half_spread.one_band_is_an_answer",
+            "one is the correct answer" in _text(block["one_band_is_an_answer"]),
+            True,
+        ),
+        (
+            "per_symbol_tick_half_spread.what_it_does_not_touch",
+            "no criterion reads the bound" in _text(block["what_it_does_not_touch"]),
+            True,
+        ),
+        ("constant_ratio_hypothesis.rule_id", _text(ratio["rule_id"]), CONSTANT_RATIO_RULE),
+        ("constant_ratio_hypothesis.is_a_trial", bool(ratio["is_a_trial"]), False),
+        (
+            "constant_ratio_hypothesis.status",
+            "hypothesis" in _text(ratio["status"]),
+            True,
+        ),
+        (
+            "constant_ratio_hypothesis.observation.deep",
+            _times(_text(ratio["observation"]), "assumption is "),
+            RATIO_DEEP,
+        ),
+        (
+            "constant_ratio_hypothesis.observation.mid",
+            _times(_text(ratio["observation"]), "the mid band's is "),
+            RATIO_MID,
+        ),
+        (
+            "constant_ratio_hypothesis.falsification",
+            _separation(_text(ratio["falsification"])),
+            RATIO_HYPOTHESIS_FACTOR,
+        ),
+        (
+            "constant_ratio_hypothesis.what_would_test_it names the thin band",
+            "THIN band" in _text(ratio["what_would_test_it"]),
+            True,
+        ),
+        ("thin_band_is_traded_or_not.rule_id", _text(thin["rule_id"]), THIN_BAND_RULE),
+        ("thin_band_is_traded_or_not.is_a_trial", bool(thin["is_a_trial"]), False),
+        (
+            "thin_band_is_traded_or_not.the_days_are_not_moved",
+            "stays UNMEASURED" in _text(thin["the_days_are_not_moved"]),
+            True,
+        ),
+        (
+            "thin_band_is_traded_or_not.computation is over the universe",
+            "not a measurement" in _text(thin["computation"]),
+            True,
+        ),
+        (
+            "thin_band_is_traded_or_not.if_none_does",
+            "EMPTY IN PRACTICE" in _text(thin["if_none_does"]),
+            True,
+        ),
+        (
+            "thin_band_is_traded_or_not.if_some_does names the contingent outcome",
+            SPREAD_CONTINGENT.upper() in _text(thin["if_some_does"]).upper(),
+            True,
+        ),
+        (
+            "thin_band_is_traded_or_not.if_some_does fires rule H1",
+            HISTORICAL_QUOTES_RULE in _text(thin["if_some_does"]),
+            True,
+        ),
+        (
+            "thin_band_is_traded_or_not.if_some_does reports no bound for that band",
+            "NO bound reported" in _text(thin["if_some_does"]),
+            True,
+        ),
+    ]
+
+
+def _ceiling(prose: str) -> Decimal:
+    """How many ticks wide a spread may be and still be called tick-bound."""
+    return Decimal(_after(prose, "at or below "))
+
+
+def _subset_minimum(prose: str) -> int:
+    """How few symbols a subset correlation may hold and still be reported."""
+    return int(_after(prose, "at least "))
+
+
+def _dominance(prose: str) -> Decimal:
+    """What share of the sample makes tick-bound instruments dominant."""
+    return Decimal(_after(prose, "more than "))
+
+
+def _times(prose: str, marker: str) -> Decimal:
+    """One of the two measured assumption-to-measurement ratios."""
+    return Decimal(_after(prose, marker))
+
+
+def _permutations_of(prose: str) -> int:
+    """Rule T2 restates rule B1's permutation count, and it has to be the same one."""
+    return int(_after(prose, "rho, "))
+
+
+def _seed_of(prose: str) -> int:
+    """Rule T2 restates rule B1's seed, and it has to be the same one."""
+    return int(_after(prose, "permutations at seed "))
+
+
+def _minimum_symbols_of(prose: str) -> int:
+    """Rule T3 restates rule B1's minimum band size, and it has to be the same one."""
+    return int(_after(prose, "minimum of "))
+
+
 def _cadence_checks(variants: Mapping[str, object]) -> list[tuple[str, object, object]]:
     """Amendment 28.3's pairing and its reporting requirement.
 
@@ -1583,6 +1894,9 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.extend(_band_recut_checks(raw))
     checks.extend(_extended_sample_checks(raw))
     checks.extend(_fx_invariant_checks(raw))
+    checks.extend(_add_back_checks(raw))
+    checks.extend(_tick_metadata_checks(raw))
+    checks.extend(_tick_band_checks(raw))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
     for band in ("deep", "mid", "thin", "unknown"):
         checks.append(

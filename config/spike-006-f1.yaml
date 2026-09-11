@@ -28,12 +28,33 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v2.3
+version: v2.4
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
 supersedes: null
 amendments:
+  - id: amendment-13
+    document_section: "35"
+    subject: >
+      The tick, the bands and the thin band, and the condition under which an add-back
+      may stand in for a rerun. FIVE rules. R1: adding a double-counted charge back to
+      an aggregate is an UPPER BOUND on the improvement a rerun would show, because
+      returning a charge raises equity and a losing strategy loses more on a larger
+      book, so the add-back substitutes for a rerun ONLY while the corrected figure
+      stays on the failing side of every criterion. T1: the tick comes from the venue's
+      own instrument metadata and never from a divisor inferred from published prices,
+      and it is registered as a point-in-time ASSUMPTION because the venue publishes
+      today's tick. T2: before anything built on the tick is trusted, the measured
+      spread is reported in ticks per symbol and rule B1's correlation is recomputed
+      twice - on metadata ticks, and on the non-tick-bound subset alone - because a
+      correlation between spread and tick on instruments whose spread IS the tick
+      measures the tick against itself. T3: an instrument whose spread is one tick needs
+      no band, because its half-spread is tick/2 exactly, so where tick-bound dominates
+      the band model is replaced by a per-symbol figure and a band default is kept only
+      for the residual that floats above the tick. T4: the thin band's registered days
+      are NOT moved, and the question becomes whether any variant ever selects a
+      thin-band instrument at all.
   - id: amendment-1
     document_section: "16"
     subject: >
@@ -1979,6 +2000,177 @@ statistics:
     The report says so and quantifies how far short they fall: the effect size that
     would have been detectable at the available N_eff, and the N_eff that would have
     been needed for the observed effect.
+
+# ---------------------------------------------------------------------------
+# Amendment 13: the tick, the bands, the thin band, and the add-back
+# ---------------------------------------------------------------------------
+
+rerun_or_add_back:
+  rule_id: R1
+  added_by: amendment-13
+  is_a_trial: false
+  why_the_shortcut_is_not_generally_valid: >
+    Adding a double-counted charge back to a committed aggregate is NOT equivalent to a
+    rerun. Returning a charge raises equity, a larger equity takes larger positions, and
+    a losing strategy loses more on a larger book. The add-back is therefore an UPPER
+    BOUND on the improvement a rerun would show, and never the improvement itself.
+  rule: >
+    The add-back may substitute for a rerun only when the corrected figure remains on
+    the FAILING side of every criterion. A family that would clear any criterion after
+    an add-back is rerun, without exception, and the add-back is reported as the upper
+    bound that prompted the rerun rather than as the result.
+  why_f1_is_safe_under_it: >
+    F1's corrected currency line leaves every one of the nine variants losing, so even
+    the upper bound on the improvement stays negative and no criterion changes side.
+    That is the condition, met; it is not a general licence.
+  asserted_as_a_test: >
+    A test refuses an add-back that moves any criterion to the passing side, so the
+    shortcut cannot be reused on a winner by whoever comes next.
+
+venue_tick_metadata:
+  rule_id: T1
+  added_by: amendment-13
+  is_a_trial: false
+  replaces: >
+    the derivation of the tick as the greatest common divisor of published prices. The
+    GCD step is REMOVED rather than improved: it can only overestimate, and on 5 of the
+    11 sampled symbols it produced a tick wider than that symbol's own measured quoted
+    spread, which is impossible.
+  source: >
+    the venue's public instrument endpoint at https://fapi.binance.com/fapi/v1/exchangeInfo,
+    field PRICE_FILTER.tickSize, for the USD-margined perpetual venue the measurement
+    was taken on. Unauthenticated and public, like every other read in this task.
+  snapshot: >
+    The response is snapshotted to research/spike-006-f1-tick-metadata.json, its SHA-256
+    is recorded in the snapshot itself, and the snapshot is committed. Nothing downstream
+    reads the endpoint; everything downstream reads the snapshot.
+  what_it_is: registered-assumption
+  point_in_time_limitation: >
+    This is TODAY'S tick applied to a historical window. The venue publishes its current
+    instrument metadata and no history of it. Tick changes are rare but real, and a
+    symbol whose tick was widened or narrowed inside the window carries the wrong figure
+    for part of it. Registered as an ASSUMPTION with that label, never as a measurement,
+    under invariant 12.
+  never_a_measurement: >
+    A snapshot of today's metadata is evidence about today. Labelling it a measurement of
+    the window would be the same class of error rule E1 was refused for, in the
+    flattering direction.
+
+tick_circularity:
+  rule_id: T2
+  added_by: amendment-13
+  is_a_trial: false
+  why: >
+    If a symbol's quoted spread IS one tick, then correlating spread against tick size
+    measures the tick against itself. Rule B1 chose relative tick size on a rho of 0.900,
+    and the two symbols whose derived tick was demonstrably clean are the two whose
+    spread is most obviously tick-bound. A rho that is mechanical on the instruments we
+    least need a model for carries no information about the instruments we do.
+  report_per_symbol: >
+    For every measured symbol, the measured median quoted spread expressed in TICKS, from
+    the metadata tick of rule T1.
+  tick_bound_test: >
+    A symbol is TICK-BOUND when its measured median quoted spread is at or below 1.5
+    ticks, and FLOATS above the tick otherwise.
+  why_that_threshold: >
+    A quoted spread is a whole number of ticks at every instant, so a median at or below
+    1.5 ticks means the modal quote is one tick wide. The threshold sits at the midpoint
+    between the only two values a nearly-always-one-tick symbol and a nearly-always-two-tick
+    symbol can produce, so it is fixed by the arithmetic rather than chosen from the data.
+  recompute_twice: >
+    Rule B1's procedure is rerun unchanged - Spearman's rho, 10000 permutations at seed
+    20260911, a candidate must clear 0.05 - first with relative tick size taken from the
+    metadata rather than the divisor, and then again on the NON-TICK-BOUND SUBSET ALONE.
+  minimum_symbols_for_the_subset: >
+    A subset correlation is reported only when it holds at least 5 symbols. At n = 4 the
+    smallest attainable two-sided permutation p-value is 1/24, about 0.042, which clears
+    0.05 in the single most extreme arrangement and in no other, so a significant result
+    at n = 4 says only that the ordering was perfect. Below that count the answer is that
+    the subset is too small to say, and no rho is reported.
+  what_a_tick_bound_only_correlation_means: >
+    If the correlation exists only where the spread is the tick, say so plainly: tick size
+    predicts spread because the spread IS the tick. That is a true and useful fact about
+    those instruments and an empty one about every other, and in particular about the thin
+    band, which is the band that could not be measured.
+
+per_symbol_tick_half_spread:
+  rule_id: T3
+  added_by: amendment-13
+  applies_from: F2
+  is_a_trial: false
+  why_a_band_is_the_wrong_object: >
+    A band is a device for assigning a default to something unmeasured. An instrument
+    whose quoted spread is one tick needs no default: its half-spread is tick/2, per
+    symbol, exactly, with no band, no estimator and no assumption.
+  dominance_test: >
+    Tick-bound DOMINATES when more than 0.5 of the measured symbols are tick-bound under
+    rule T2.
+  rule: >
+    Where tick-bound dominates, the band model is replaced for those instruments by the
+    per-symbol tick/2 figure, and a band default is kept ONLY for the residual that floats
+    above the tick. The number of bands is then whatever survives under rule B1's own
+    minimum of 3 symbols per band and a factor of 2 between adjacent medians.
+  one_band_is_an_answer: >
+    If the residual supports one band, one is the correct answer. Do not preserve two
+    bands because the analysis produced two, any more than three were preserved because
+    there were three.
+  what_it_does_not_touch: >
+    The headline level. Rule T3 changes only how the BOUND column is computed, and no
+    criterion reads the bound.
+
+constant_ratio_hypothesis:
+  rule_id: T3H
+  added_by: amendment-13
+  is_a_trial: false
+  status: hypothesis, not a result
+  observation: >
+    The deep band's assumption is 18.87 times its measured half-spread and the mid band's
+    is 20.64 times its own. The assumption's ERROR is close to a constant ratio across
+    both measured bands.
+  hypothesis: >
+    If that holds, the band structure contributes almost nothing to the bound and a single
+    scale factor applied to the measured level reproduces the whole bound column.
+  why_it_is_not_adopted: >
+    Two bands is two points and proves nothing on its own. It is registered as a
+    hypothesis so that it cannot be adopted later as though it had been tested.
+  what_would_test_it: >
+    A third measured band. The THIN band is the observation that would discriminate, so
+    its absence is not only a gap in coverage: it is the gap that would have tested this.
+  falsification: >
+    The hypothesis is rejected if a third measured band's ratio differs from the mean of
+    the measured ratios by more than a factor of 1.5. The two measured ratios differ from
+    each other by a factor of 1.09, so 1.5 sits well outside their own spread while still
+    inside what a single scale factor would tolerate.
+
+thin_band_is_traded_or_not:
+  rule_id: T4
+  added_by: amendment-13
+  is_a_trial: false
+  the_days_are_not_moved: >
+    The registered days are what make the deep and mid measurements comparable. Measuring
+    the thin band two years later on one symbol of four would buy a figure and spend the
+    only thing that made the figures mean anything. The thin band stays UNMEASURED, and
+    the question becomes whether that matters.
+  computation: >
+    Over a family's own registered universe, determine whether any variant ever SELECTS a
+    thin-band instrument at any rebalance instant. This is a computation over the
+    universe, not a measurement, and it is answered for each family before that family's
+    bound column is reported.
+  if_none_does: >
+    Record the band as EMPTY IN PRACTICE, its default as unused, and close the question.
+    No acquisition, no substitution, no cost.
+  if_some_does: >
+    That band keeps the assumption at FULL STRENGTH with NO bound reported for it, and any
+    result depending on a thin-band instrument is SPREAD-CONTINGENT under rule A12.2,
+    which then fires rule A12.5, rule H1, for the acquisition.
+  why_this_and_not_a_concession: >
+    It uses the machinery already registered instead of inventing a relief for a gap. Rule
+    A12.2 was written before anybody knew it would be needed, which is the only condition
+    under which it means anything.
+  f1_is_answered_but_f2_to_f6_cannot_be_yet: >
+    F1's universe is registered and its answer is computed here. The F2 to F6 universes do
+    not exist yet, so the rule is registered as a standing per-family obligation rather
+    than answered in advance for families whose universes nobody has written.
 
 # ---------------------------------------------------------------------------
 # Provenance: how a reader verifies the ordering without trusting anyone
