@@ -34,6 +34,8 @@ from sextant.app.spike_006_f1 import (
     EXECUTION_FEE_OF_EQUITY_BPS,
     FX_CROSSINGS_PER_RUN,
     RESULTS_PATH,
+    SPREAD_LEVEL_BOUND,
+    SPREAD_LEVEL_HEADLINE,
     execution_sensitivity,
 )
 from sextant.app.spike_006_f1_analysis import (
@@ -43,6 +45,7 @@ from sextant.app.spike_006_f1_analysis import (
     CurrencyCorrection,
     Rescue,
     ResultsIncomplete,
+    ScoredAtTheWrongLevel,
     SpreadAcquisition,
     Toll,
     analyse,
@@ -1457,3 +1460,46 @@ def test_the_recut_section_states_the_tick_derivations_own_weakness() -> None:
     assert "overestimate" in rendered
     assert "which is impossible" in rendered
     assert "sceptic should attack this first" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Rule A12.6: the criteria read the headline level and never the bound
+# ---------------------------------------------------------------------------
+
+
+def test_a_row_computed_at_the_bound_is_refused_by_the_criteria() -> None:
+    """The whole point of two levels is that only one of them decides anything.
+
+    The perturbation that matters: a row arrives labelled with the reported level rather
+    than the judged one, and every criterion downstream would score it without noticing.
+    """
+    row = run(construct="v")
+    row["spread_level"] = SPREAD_LEVEL_BOUND
+    with pytest.raises(ScoredAtTheWrongLevel, match="never scored"):
+        analyse(payload(deterministic=[row], nulls=[]))
+
+
+def test_a_row_at_the_headline_level_is_scored_normally() -> None:
+    """The label is a guard and not an obstacle."""
+    row = run(construct="v")
+    row["spread_level"] = SPREAD_LEVEL_HEADLINE
+    assert len(analyse(payload(deterministic=[row], nulls=[]))) == 1
+
+
+def test_a_row_with_no_level_is_read_as_the_headline() -> None:
+    """F1's result file predates the field, and there was only one level for it to be at."""
+    assert len(analyse(payload(deterministic=[run(construct="v")], nulls=[]))) == 1
+
+
+def test_the_committed_f1_result_carries_no_row_at_the_wrong_level() -> None:
+    """Run against the file the verdict rests on, not only against a fixture."""
+    committed = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+    assert len(analyse(committed)) > 0
+
+
+def test_a_wrongly_levelled_row_is_refused_rather_than_dropped() -> None:
+    """Filtering it would leave a grid quietly one cell short and nothing would say so."""
+    rows = [run(construct="a"), run(construct="b")]
+    rows[1]["spread_level"] = SPREAD_LEVEL_BOUND
+    with pytest.raises(ScoredAtTheWrongLevel, match="b"):
+        analyse(payload(deterministic=rows, nulls=[]))

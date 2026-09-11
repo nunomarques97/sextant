@@ -44,6 +44,8 @@ from sextant.app.spike_006_f1 import (
     REGISTERED_CELLS,
     REGISTERED_VARIANTS,
     RESEARCH_FEE_OF_EQUITY_BPS,
+    SPREAD_LEVEL_BOUND,
+    SPREAD_LEVEL_HEADLINE,
     SPREAD_SAMPLE_SYMBOL_DAYS,
     SPREAD_TRIGGER_RULE,
     SPREAD_TRIGGER_THRESHOLD,
@@ -713,8 +715,40 @@ def _criteria(
     )
 
 
+class ScoredAtTheWrongLevel(ResultsIncomplete):
+    """A criterion was asked to read a row computed at the bound. Rule A12.6.
+
+    The bound is a reported sensitivity and never a criterion: it is a measured figure
+    this project cannot date, projected over a window it was not measured on. A verdict
+    that read it would be a verdict about 2023 applied to 2021.
+
+    Raised rather than filtered. A row at the wrong level reaching the criteria is a wiring
+    defect, and silently dropping it would leave a grid that is quietly one cell short.
+    """
+
+
+def _at_the_headline(row: Mapping[str, object]) -> None:
+    """Refuse a row that was not computed at the headline spread level.
+
+    Rule A12.6's mechanical guard. A row that names no level is read as the headline, which
+    is what F1's result file predates the field with: it was computed before two levels
+    existed and there was only one for it to be at.
+    """
+    level = row.get("spread_level")
+    if level is not None and _text(level) != SPREAD_LEVEL_HEADLINE:
+        raise ScoredAtTheWrongLevel(
+            f"{_text(row.get('construct'))} in cell {_text(row.get('cell_id'))} was computed "
+            f"at the {_text(level)} spread level and a criterion was asked to read it. Only "
+            f"{SPREAD_LEVEL_HEADLINE} is judged; {SPREAD_LEVEL_BOUND} is reported beside it "
+            "and never scored."
+        )
+
+
 def analyse(payload: Mapping[str, object]) -> tuple[VariantRow, ...]:
-    """Every variant in every cell, reduced to the numbers the verdict needs."""
+    """Every variant in every cell, reduced to the numbers the verdict needs.
+
+    Every row is checked against rule A12.6's guard before a criterion sees it.
+    """
     deterministic = _rows(payload, "deterministic")
     nulls = _rows(payload, "nulls")
     labels = regime_labels(payload)
@@ -731,6 +765,7 @@ def analyse(payload: Mapping[str, object]) -> tuple[VariantRow, ...]:
     signs = _signs_by_variant(deterministic)
     rows: list[VariantRow] = []
     for row in deterministic:
+        _at_the_headline(row)
         if _text(row.get("kind")) != "variant":
             continue
         variant, cell = _text(row["construct"]), _text(row["cell_id"])
@@ -1712,6 +1747,7 @@ __all__ = [
     "Decomposition",
     "Rescue",
     "ResultsIncomplete",
+    "ScoredAtTheWrongLevel",
     "SpreadAcquisition",
     "Toll",
     "VariantRow",
