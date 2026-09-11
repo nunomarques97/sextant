@@ -886,14 +886,6 @@ class WithoutAMonth:
         }
 
 
-def _compounded(series: Sequence[tuple[Timestamp, Decimal]]) -> Decimal:
-    """The terminal return of a monthly series, compounded rather than summed."""
-    total = Decimal(1)
-    for _, value in series:
-        total *= Decimal(1) + value
-    return total - Decimal(1)
-
-
 def excluding_month(
     payload: Mapping[str, object], at: Timestamp, *, cell: str
 ) -> tuple[WithoutAMonth, ...]:
@@ -919,13 +911,160 @@ def excluding_month(
                 variant=_text(item["construct"]),
                 cell=cell,
                 months=len(monthly),
-                net_return=_compounded(monthly),
+                net_return=_compound(monthly),
                 sharpe=None if with_it is None else with_it.sharpe_annualised,
-                net_return_without=_compounded(kept),
+                net_return_without=_compound(kept),
                 sharpe_without=None if without_it is None else without_it.sharpe_annualised,
             )
         )
     return tuple(sorted(rows, key=lambda row: row.variant))
+
+
+# ---------------------------------------------------------------------------
+# Rule S1, generalised: could the assumption be carrying the verdict?
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Rescue:
+    """What one variant would look like with its assumed costs set to zero.
+
+    The question rule S1 asks from amendment 9 onward. A sign change is not enough:
+    a variant that crosses zero and lands below its own null was rescued by rounding
+    rather than by the assumption, and measuring the assumption would change nothing.
+    So the bar is criterion 1 itself, applied to the counterfactual.
+    """
+
+    variant: str
+    cell: str
+    net_return: Decimal
+    sharpe: float | None
+    net_return_at_zero: Decimal
+    sharpe_at_zero: float | None
+    null_p95: float | None
+    assumed_cost: Decimal
+    deflated_at_zero: DeflatedSharpeResult | None
+    """The counterfactual's Deflated Sharpe, at the same honest trial count.
+
+    Carried because criterion 1 is one of six. A variant that clears criterion 1 at
+    zero assumed cost has not thereby cleared the verdict, and the cheapest way to see
+    whether the letter would move is to ask criterion 2 of the same counterfactual.
+    """
+
+    @property
+    def survives_deflation_at_zero(self) -> bool | None:
+        """Criterion 2, applied to the counterfactual."""
+        if self.deflated_at_zero is None:
+            return None
+        return self.deflated_at_zero.deflated_sharpe_ratio > DSR_THRESHOLD
+
+    @property
+    def beats_its_null(self) -> bool | None:
+        """Whether the counterfactual Sharpe clears the null's 95th percentile."""
+        if self.sharpe_at_zero is None or self.null_p95 is None:
+            return None
+        return self.sharpe_at_zero > self.null_p95
+
+    @property
+    def clears_criterion_one(self) -> bool | None:
+        """Criterion 1, applied to the counterfactual: beats its null *and* earns."""
+        beats = self.beats_its_null
+        if beats is None:
+            return None
+        return beats and self.net_return_at_zero > 0
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "variant": self.variant,
+            "cell_id": self.cell,
+            "assumed_cost_removed": str(self.assumed_cost),
+            "net_return": str(self.net_return),
+            "net_return_at_zero_assumed_cost": str(self.net_return_at_zero),
+            "sharpe_annualised": self.sharpe,
+            "sharpe_annualised_at_zero_assumed_cost": self.sharpe_at_zero,
+            "exposure_matched_null_p95": self.null_p95,
+            "beats_its_null_at_zero_assumed_cost": self.beats_its_null,
+            "would_clear_criterion_one": self.clears_criterion_one,
+            "deflated_sharpe_at_zero_assumed_cost": None
+            if self.deflated_at_zero is None
+            else self.deflated_at_zero.deflated_sharpe_ratio,
+            "would_survive_deflation_at_zero": self.survives_deflation_at_zero,
+            "model": (
+                "The removed cost is added back in equal instalments across the scored "
+                "months, each converted to a return on that month's opening equity along "
+                "the realised path. Exact in the total and in the sign of the net return; "
+                "approximate in the volatility, because the true charge follows each "
+                "month's turnover and is lumpier than a constant. From the family that "
+                "records per-month assumed costs, the same test is computed exactly."
+            ),
+        }
+
+
+def _lifted(
+    monthly: Sequence[tuple[Timestamp, Decimal]], removed: Decimal, equity: Decimal
+) -> tuple[tuple[Timestamp, Decimal], ...]:
+    """The monthly series with a total cost added back in equal instalments."""
+    if not monthly:
+        return ()
+    instalment = removed / Decimal(len(monthly))
+    out: list[tuple[Timestamp, Decimal]] = []
+    running = equity
+    for at, value in monthly:
+        out.append((at, value + instalment / running) if running != 0 else (at, value))
+        running = running * (Decimal(1) + value)
+    return tuple(out)
+
+
+def rescues(payload: Mapping[str, object], *, cell: str) -> tuple[Rescue, ...]:
+    """Amendment 9's test for every variant in one cell."""
+    trials = payload.get("trials")
+    trial_count = int(_text(trials["including_nulls"])) if isinstance(trials, dict) else 0
+    nulls = {
+        _text(row["construct"]).split("/")[0]: row
+        for row in _rows(payload, "nulls")
+        if _text(row["cell_id"]) == cell and _text(row["construct"]).endswith(EXPOSURE_MATCHED)
+    }
+    out: list[Rescue] = []
+    for row in _rows(payload, "deterministic"):
+        if _text(row.get("kind")) != "variant" or _text(row["cell_id"]) != cell:
+            continue
+        name = _text(row["construct"])
+        lines = _costs_of(row)
+        monthly = monthly_of(row)
+        equity = _decimal(row.get("initial_equity", ACCOUNT_EQUITY.amount))
+        lifted = _lifted(monthly, lines.assumed, equity)
+        before, after = statistics_of(monthly), statistics_of(lifted)
+        null = nulls.get(name)
+        variance = _variance(null)
+        deflated = (
+            deflated_sharpe_ratio(after, trials=trial_count, trial_sharpe_variance=variance)
+            if after is not None and variance is not None and trial_count > 0
+            else None
+        )
+        out.append(
+            Rescue(
+                variant=name,
+                cell=cell,
+                net_return=_compound(monthly),
+                sharpe=None if before is None else before.sharpe_annualised,
+                net_return_at_zero=_compound(lifted),
+                sharpe_at_zero=None if after is None else after.sharpe_annualised,
+                null_p95=_percentile(null, "sharpe"),
+                assumed_cost=lines.assumed,
+                deflated_at_zero=deflated,
+            )
+        )
+    return tuple(sorted(out, key=lambda item: item.variant))
+
+
+def assumption_could_be_carrying_the_verdict(items: Sequence[Rescue]) -> bool:
+    """Amendment 9's rule S1: acquire when some variant would clear criterion 1.
+
+    True means the assumed cost is load-bearing for the verdict and has to be
+    measured. False means no measurement of it could change the answer, which is a
+    stronger statement than "the sample was not acquired" and is what the report says.
+    """
+    return any(item.clears_criterion_one for item in items)
 
 
 # ---------------------------------------------------------------------------
@@ -1252,6 +1391,7 @@ __all__ = [
     "CostLines",
     "Criteria",
     "Decomposition",
+    "Rescue",
     "ResultsIncomplete",
     "SpreadAcquisition",
     "Toll",
@@ -1259,6 +1399,7 @@ __all__ = [
     "Verdict",
     "WithoutAMonth",
     "analyse",
+    "assumption_could_be_carrying_the_verdict",
     "break_even_of",
     "capacity_of",
     "capacity_report",
@@ -1268,6 +1409,7 @@ __all__ = [
     "monthly_of",
     "opening_instants",
     "regime_labels",
+    "rescues",
     "spread_acquisition",
     "tolls",
     "verdict",

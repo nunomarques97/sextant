@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v1.9
+version: v2.0
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,6 +63,18 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-9
+    document_section: "31"
+    subject: >
+      Rule S1 generalised so it governs every family rather than only F1, and two
+      findings recorded so F2 onward does not rediscover them. An assumed cost is
+      measured only when it could plausibly be carrying the verdict, and the test is
+      computed: set the assumed cost to zero, re-evaluate, and acquire when some
+      variant would then clear CRITERION 1. A sign change alone is not a rescue.
+      Registered AFTER F1's figures were read, on the Product Owner's instruction, and
+      it changes F1's acquisition answer from no to yes. It changes no F1 result: every
+      variant stays costed at the assumption under invariant 12, and a measurement
+      placed beside an assumption cannot move a number computed from the assumption.
   - id: amendment-8
     document_section: "30"
     subject: >
@@ -1202,13 +1214,34 @@ spread_sample:
   acquisition:
     rule_id: S1
     added_by: amendment-8
+    generalised_by: amendment-9
+    supersedes_condition: >
+      amendment 8's condition was "some variant earns a positive net return at research
+      fees". It is superseded by the condition below, which asks a different question
+      and gives a different answer on F1: amendment 8's was false and amendment 9's is
+      true. Both are recorded rather than one overwriting the other.
     decided_by: >
       a computed condition on research/spike-006-f1.json, in exactly the way rule C3
       decides whether the depth sample is needed. Nobody chooses after a number exists.
     condition: >
-      at least one registered variant, in at least one registered cost cell, earns a
-      net return over the scored out-of-sample window that is strictly greater than
-      zero.
+      with the assumed cost set to ZERO and the run re-evaluated, at least one
+      registered variant reaches a net return AND a Sharpe that would themselves clear
+      criterion 1: strictly positive net return over the scored window, and an
+      annualised Sharpe above the 95th percentile of that variant's own
+      exposure-matched null.
+    why_not_a_sign_change: >
+      A variant that crosses zero and lands at a figure too small to clear its own null
+      was not rescued by the assumption, it was rescued by rounding. Measuring the
+      assumption would change nothing about the verdict, and acquiring data to refine a
+      cost on such a variant is acquiring data no rule reads.
+    counterfactual_model: >
+      The removed cost is added back in equal instalments across the scored months,
+      each converted to a return on that month's opening equity along the realised
+      path. Exact in the total and in the sign of the net return; approximate in the
+      volatility, since the true charge follows each month's turnover. From the first
+      family whose runner records per-month assumed costs, the test is computed
+      exactly and the model is retired.
+    per_month_assumed_costs_required_from: F2
     quantity: net return over the scored out-of-sample window, after every cost line
     threshold: "0"
     comparison: strictly greater than
@@ -1279,6 +1312,35 @@ depth_sample:
     seventeen-month stretch of a longer window. Nothing about the spot leg, nothing
     about the other years, nothing about what would actually have filled. Capacity is
     reported as a bound with its basis stated, constrained by rules C1, C2 and C3.
+
+
+# ---------------------------------------------------------------------------
+# What every family reports, whatever its signal (amendment 31)
+# ---------------------------------------------------------------------------
+every_family_reports:
+  currency_leg_as_its_own_line:
+    rule: >
+      The FX conversion charge is reported as its own line in every cost table, in
+      every family, and is NEVER folded into fees.
+    why: >
+      Measured in F1: the conversion leg was 20.3 per cent of the best variant's toll
+      against 13.7 per cent in exchange fees. A euro-funded account trading USDT-quoted
+      instruments pays a currency toll larger than the venue's own, it scales with
+      turnover rather than sitting fixed per run, and it lands identically on any
+      family quoted away from the account's currency. Folding it into fees would hide
+      the larger of the two and would misattribute a structural cost of this account to
+      the venue's schedule.
+  family_level_result_is_the_headline:
+    rule: >
+      The headline figure for a family is the result ACROSS its grid, not its best
+      variant's. A best-variant figure is reported beside it and never in front of it.
+    why: >
+      Measured in F1: the best variant cleared 227.53 of carry before charges while the
+      nine together cleared 18.86, because the price legs returned 2,094.76 of the
+      2,113.62 received in funding. The family-level number is the finding - the
+      premium is compensation for the basis risk that earns it, priced close to exactly
+      - and a best-variant headline would have reported the opposite impression from
+      the same run.
 
 # ---------------------------------------------------------------------------
 # Statistics

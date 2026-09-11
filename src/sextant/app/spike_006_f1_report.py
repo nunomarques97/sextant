@@ -44,12 +44,15 @@ from sextant.app.spike_006_f1 import (
 )
 from sextant.app.spike_006_f1_analysis import (
     CostLines,
+    Rescue,
     Toll,
     analyse,
+    assumption_could_be_carrying_the_verdict,
     capacity_report,
     combined_toll,
     depth_sample_is_needed,
     excluding_month,
+    rescues,
     spread_acquisition,
     tolls,
 )
@@ -97,6 +100,7 @@ def render(
         _cadence_section(payload),
         _decomposition_section(payload),
         _toll_section(payload),
+        _rescue_section(payload),
         _regime_section(payload),
         _recent_section(payload),
         _contraction_section(payload, contraction),
@@ -777,21 +781,17 @@ def _sensitivity(items: Sequence[Toll]) -> list[str]:
         )
     lines.extend(
         [
-            "### 7.3 The circularity in rule S1, named",
+            "### 7.3 Rule S1, and the circularity it had to break",
             "",
-            "Rule S1 acquires the spread sample only if some variant earns a positive net",
-            "return at research fees. No variant did, so the sample was not acquired. **But the",
-            "assumed spread is inside the charges that produced that negative net.** The",
-            "assumption therefore helped prevent the measurement that could have corrected it,",
-            "and a rule with that shape is worth stating rather than leaving for a reader to",
-            "notice.",
+            "**Amendment 8's version of rule S1** acquired the spread sample if some variant",
+            "earned a positive net return at research fees. No variant did, so it was false.",
+            "**But the assumed spread is inside the charges that produced that negative net**,",
+            "so the assumption helped prevent the measurement that could have corrected it.",
             "",
-            "The figures above are what breaks it. Seven of the nine lose with both assumed",
-            "lines set to zero, so for those seven the circularity is harmless: no measurement",
-            "could have changed their sign. It is live only for the two that flip, and only",
-            "at a reduction of about four fifths. Whether that justifies acquiring the sample",
-            "is a rule for the Product Owner to write, and it is not decided by this run's",
-            "numbers - which is the same discipline rule S1 itself was registered under.",
+            "**Amendment 9 replaces the test with the counterfactual** and the bar is criterion",
+            "1 itself: set the assumed cost to zero, re-evaluate, and acquire when some variant",
+            "would then clear a positive net return *and* a Sharpe above its own null. A sign",
+            "change alone is not a rescue.",
             "",
         ]
     )
@@ -810,6 +810,138 @@ def _share(part: Decimal, whole: Decimal) -> str:
     if whole == 0:
         return "-"
     return f"{part / whole * 100:.1f}%"
+
+
+def _deflation_at_zero(items: Sequence[Rescue]) -> list[str]:
+    """Criterion 2 asked of the counterfactual, for the variants that cleared criterion 1."""
+    rows: list[str] = []
+    for item in items:
+        block = item.deflated_at_zero
+        if block is None:
+            continue
+        rows.append(
+            f"| {_variant_label(item.variant)} "
+            f"| {_fixed(block.observed_sharpe_per_period, 4)} "
+            f"| {_fixed(block.expected_maximum_sharpe_per_period, 4)} "
+            f"| {_fixed(block.deflated_sharpe_ratio, 4)} "
+            f"| {_mark(item.survives_deflation_at_zero)} |"
+        )
+    return rows
+
+
+def _rescue_section(payload: Mapping[str, object]) -> str:
+    """Rule S1 as amendment 9 states it, computed rather than asserted.
+
+    Its own section rather than a paragraph, because the rule's answer and the answer
+    its author expected differ, and a reader has to be able to see both with the
+    figures that separate them.
+    """
+    cell = headline_cell().label
+    items = rescues(payload, cell=cell)
+    if not items:
+        return ""
+    fires = assumption_could_be_carrying_the_verdict(items)
+    clearing = [item for item in items if item.clears_criterion_one]
+    lines = [
+        "### 7.4 Rule S1: could the assumed cost be carrying the verdict?",
+        "",
+        "Amendment 9, registered **after** these figures had been read and labelled as such",
+        "everywhere it appears. It governs an acquisition and can move no number in this",
+        "document: every variant stays costed at the registered assumption in every cell,",
+        "under invariant 12.",
+        "",
+        "Spread and slippage are set to zero and the run re-evaluated. The bar is criterion 1",
+        "applied to that counterfactual: a positive net return **and** a Sharpe above the 95th",
+        "percentile of the variant's own exposure-matched null.",
+        "",
+        "| variant | net as run | net at zero | Sharpe at zero | its null's p95 | clears |",
+        "|---|---:|---:|---:|---:|---|",
+    ]
+    for item in items:
+        lines.append(
+            f"| {_variant_label(item.variant)} "
+            f"| {_percent(item.net_return)} "
+            f"| {_percent(item.net_return_at_zero)} "
+            f"| {_fixed(item.sharpe_at_zero)} "
+            f"| {_fixed(item.null_p95)} "
+            f"| {_mark(item.clears_criterion_one)} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"**Rule S1 as written: {_yes(fires)}.** "
+            + (
+                f"{_count(len(clearing)).capitalize()} of the {_count(len(items))} variants "
+                "clear criterion 1 once the assumed cost is removed, so by the registered rule "
+                "the spread sample is to be acquired."
+                if fires
+                else "No variant clears criterion 1 once the assumed cost is removed, so no "
+                "spread measurement could change this family's answer. The sample is not "
+                "acquired, and that is a measured statement rather than a procedural one."
+            ),
+            "",
+        ]
+    )
+    bars = sorted(item.null_p95 for item in items if item.null_p95 is not None)
+    if fires and bars:
+        lines.extend(
+            [
+                "#### The rule fires, and its author expected it not to",
+                "",
+                "**This is reported rather than resolved, because the two readings disagree.**",
+                "The rule was registered on the reasoning that a variant landing at a small",
+                "positive figure is *rescued by rounding rather than by the assumption*, and",
+                "would fail to clear its own null. On this data it does clear it.",
+                "",
+                "**The reason is that the null bar is negative.** The exposure-matched null is",
+                "itself losing over this window, at a 95th-percentile Sharpe between",
+                f"{_fixed(bars[0])} and {_fixed(bars[-1])}, so a counterfactual Sharpe near",
+                "zero clears it comfortably. Criterion 1 is a",
+                "comparison against chance in this market, not an absolute bar, and at zero",
+                "assumed cost these two variants beat chance while earning almost nothing.",
+                "",
+                "In absolute terms the two are still tiny: they earn 18.70 and 39.48 EUR on",
+                "1,500 of equity across 56 months. Whether that is *the assumption carrying the",
+                "verdict* or *rounding* is precisely what the two readings disagree about.",
+                "",
+                "**The verdict letter does not move either way, and that is computed rather",
+                "than argued.** Criterion 1 is one of six. Asking criterion 2 of the same",
+                "counterfactual:",
+                "",
+                "| variant | Sharpe at zero, per month | expected max under the trial count "
+                "| DSR | clears 0.95 |",
+                "|---|---:|---:|---:|---|",
+                *_deflation_at_zero(clearing),
+                "",
+                "Both columns are per month, which is the unit the deflation works in: an",
+                "annualised 0.09 is a monthly 0.026. Both deflated Sharpes are **0.0000**",
+                "against a threshold of 0.95, because the expected maximum under the registry's",
+                "honest trial count is about seventy times the counterfactual's own Sharpe.",
+                "**So even with spread and slippage",
+                "deleted entirely, no variant clears all six criteria and F1's verdict stays",
+                "(B).** What the acquisition could buy is a measured cost line beside a variant",
+                "that beats a losing null while earning 1.5 per cent over four and a half years.",
+                "",
+                "**Until the Product Owner settles which reading governs, the sample is not",
+                "acquired.** A 1.8 to 3.2 GB download made on a reading of a rule that its own",
+                "author did not expect is the kind of decision this apparatus exists to make",
+                "visible rather than convenient.",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "**The counterfactual is modelled, not measured.** The removed cost is added back in",
+            "equal instalments across the scored months, on each month's opening equity along",
+            "the realised path. That is exact in the total and in the sign of the net return,",
+            "and approximate in the volatility, because the real charge follows each month's",
+            "turnover. From F2 the runner records per-month assumed costs and the same test is",
+            "computed exactly. The conclusion here does not rest on the approximation: the two",
+            "clearing Sharpes sit more than a full point above their null bars.",
+            "",
+        ]
+    )
+    return NEWLINE.join(lines)
 
 
 def _regime_section(payload: Mapping[str, object]) -> str:
@@ -1584,13 +1716,25 @@ def _what_the_verdict_rests_on(payload: Mapping[str, object]) -> list[str]:
         for item in items
         if item.lines.flip_multiplier is None or item.lines.flip_multiplier <= 0
     ]
+    across = combined.market_gain + combined.funding_received
     return [
         "### What this verdict rests on",
         "",
+        "**The family-level result is the headline, not the best variant's.** Across the",
+        f"{_count(len(items))} variants the book received {_money(combined.funding_received)} in",
+        f"funding and the price legs gave back "
+        f"{_share(-combined.market_gain, combined.funding_received)}",
+        f"of it, leaving **{_money(across)}** on 1,500 of equity before a single charge. That is",
+        "the finding:",
+        "**the premium is compensation for the basis risk that earns it, priced close to",
+        "exactly.** The best single variant cleared",
+        f"{_money(max(item.lines.gross_before_costs for item in items))}, and reporting that",
+        "figure in front would give the opposite impression from the same run.",
+        "",
         f"**The premium is real.** {_count(len(earning)).capitalize()} of the "
-        f"{_count(len(items))} variants cleared a positive carry before any charge: the",
-        "funding received exceeded what the price legs gave back. This is the first",
-        "positive gross result in this project, and it is what theory predicts for a",
+        f"{_count(len(items))} variants cleared a positive carry before any charge: for those,",
+        "the funding received exceeded what the price legs gave back. This is the first",
+        "positive gross result anywhere in this project, and it is what theory predicts for a",
         "hedged carry. F1 does not say the effect is absent.",
         "",
         f"**It dies in the toll, and {_share(combined.assumed, combined.charges)} of that toll",
@@ -1604,10 +1748,19 @@ def _what_the_verdict_rests_on(payload: Mapping[str, object]) -> list[str]:
         "",
         f"**What survives that caveat.** {_count(len(stuck)).capitalize()} of the "
         f"{_count(len(items))} variants lose with spread and slippage deleted entirely, so",
-        "for those the assumption changes nothing at all. The remaining variants turn",
-        "positive only at roughly a fifth of the assumed cost, and then by amounts far below",
-        "criterion 1's bar. **(B) is therefore robust to the assumption it rests on**, which",
-        "is the claim that had to be checked before the letter could be trusted.",
+        "for those the assumption changes nothing at all. Two do turn positive, and by rule",
+        "S1 as amendment 9 writes it they clear criterion 1 in that counterfactual. **They",
+        "still fail criterion 2 with a deflated Sharpe of 0.0000 against a bar of 0.95**, so",
+        "no variant clears all six even with the assumed cost deleted. **(B) is therefore",
+        "robust to the assumption it rests on**, which is the claim that had to be checked",
+        "before the letter could be trusted. Section 7.4 carries the arithmetic.",
+        "",
+        "**The currency leg is reported separately wherever it appears, and always will be.**",
+        f"At {_share(combined.conversion, combined.charges)} of the toll against",
+        f"{_share(combined.fees, combined.charges)} in exchange fees, a euro-funded account",
+        "trading instruments quoted elsewhere pays a currency toll larger than the venue's",
+        "own. It scales with turnover rather than sitting fixed per run, and it will land the",
+        "same way on every family quoted away from the account's currency. Section 31.5.",
     ]
 
 

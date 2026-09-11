@@ -24,6 +24,7 @@ from sextant.app.spike_006_f1 import (
     CADENCE_PAIR,
     CONFIG_PATH,
     ENGINE_VERSION,
+    EXACT_RESCUE_TEST_FROM,
     FAMILY,
     MAINTENANCE_MARGIN_STRESS,
     MAINTENANCE_MARGINS,
@@ -35,6 +36,7 @@ from sextant.app.spike_006_f1 import (
     REGISTERED_VARIANTS,
     REGISTERED_VERSION,
     SPREAD_SAMPLE_SYMBOL_DAYS,
+    SPREAD_TRIGGER_BAR,
     SPREAD_TRIGGER_RULE,
     SPREAD_TRIGGER_THRESHOLD,
     THINNER_EVIDENCE_VARIANT,
@@ -691,4 +693,71 @@ def test_growing_the_spread_sample_refuses_the_run(tmp_path: Path) -> None:
     _alter(payload, ("spread_sample", "acquisition", "size_if_acquired", "symbol_days"), 120)
     altered = _write(payload, tmp_path / "size.yaml")
     with pytest.raises(DriftedFromPreRegistration, match="symbol_days"):
+        assert_no_drift(altered)
+
+
+# ---------------------------------------------------------------------------
+# Amendment 9: rule S1 generalised, and the two findings that travel
+# ---------------------------------------------------------------------------
+
+
+def test_rule_s1_is_registered_against_criterion_one_and_not_against_a_sign() -> None:
+    """Section 31.2. A sign change is not a rescue, and the bar says so."""
+    assert SPREAD_TRIGGER_BAR == "criterion-1"
+    assert EXACT_RESCUE_TEST_FROM == "F2"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("generalised_by", "amendment-8"),
+        ("per_month_assumed_costs_required_from", "F4"),
+    ],
+)
+def test_moving_amendment_nines_own_fields_refuses_the_run(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    payload = _registered()
+    _alter(payload, ("spread_sample", "acquisition", field), value)
+    altered = _write(payload, tmp_path / f"{field}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=field):
+        assert_no_drift(altered)
+
+
+def test_softening_rule_s1_to_a_sign_change_refuses_the_run(tmp_path: Path) -> None:
+    """The one edit that would turn the rule back into the version it replaced."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_sample", "acquisition", "condition"),
+        "some variant earns a positive net return",
+    )
+    altered = _write(payload, tmp_path / "condition.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="criterion 1"):
+        assert_no_drift(altered)
+
+
+def test_the_currency_leg_may_never_be_folded_into_fees(tmp_path: Path) -> None:
+    """Section 31.5's first finding, guarded so a later family cannot quietly drop it."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("every_family_reports", "currency_leg_as_its_own_line", "rule"),
+        "The FX conversion charge is reported with the other fees.",
+    )
+    altered = _write(payload, tmp_path / "currency.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="currency_leg"):
+        assert_no_drift(altered)
+
+
+def test_the_family_level_result_stays_the_headline(tmp_path: Path) -> None:
+    """Section 31.5's second finding. A best-variant headline reads the other way."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("every_family_reports", "family_level_result_is_the_headline", "rule"),
+        "The headline figure for a family is its best variant's.",
+    )
+    altered = _write(payload, tmp_path / "headline.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="family_level"):
         assert_no_drift(altered)

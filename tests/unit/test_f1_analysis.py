@@ -36,16 +36,19 @@ from sextant.app.spike_006_f1_analysis import (
     Capacity,
     CapacityVerdict,
     CostLines,
+    Rescue,
     ResultsIncomplete,
     SpreadAcquisition,
     Toll,
     analyse,
+    assumption_could_be_carrying_the_verdict,
     break_even_of,
     capacity_of,
     combined_toll,
     depth_sample_is_needed,
     excluding_month,
     opening_instants,
+    rescues,
     spread_acquisition,
     tolls,
     verdict,
@@ -834,3 +837,102 @@ def test_the_toll_records_its_shares_and_says_funding_is_not_in_them() -> None:
     assert isinstance(shares, dict)
     assert set(shares) == {"fees", "spread", "slippage", "fx_conversion", "delisting_haircut"}
     assert "Funding is not a part of this total" in str(payload_json["note"])
+
+
+# ---------------------------------------------------------------------------
+# Rule S1 as amendment 9 states it
+# ---------------------------------------------------------------------------
+
+
+def _noisy(count: int, mean: str, swing: str) -> dict[str, str]:
+    """A monthly series with a chosen mean and a chosen volatility.
+
+    ``months`` ties the wobble to the mean, which fixes the Sharpe at 2.0 a month
+    however small the return is. Amendment 9's bar is a Sharpe comparison, so a fixture
+    for it has to be able to hold a small mean beside a large swing.
+    """
+    centre, wobble = Decimal(mean), Decimal(swing)
+    out: dict[str, str] = {}
+    for index in range(count):
+        year, month = 2022 + index // 12, index % 12 + 1
+        step = wobble if index % 2 == 0 else -wobble
+        out[f"{year}-{month:02d}-01T00:00:00+00:00"] = str(centre + step)
+    return out
+
+
+def _rescue(*, gross: str, fees: str, p95: float, monthly: dict[str, str]) -> Rescue:
+    """One variant and its null, put through amendment 9's counterfactual."""
+    return rescues(
+        payload(
+            deterministic=[run(construct="v", gross=gross, fees=fees, monthly=monthly)],
+            nulls=[null(construct="v/exposure-matched", p95=p95, recent_p95=p95)],
+        ),
+        cell=HEADLINE,
+    )[0]
+
+
+def test_removing_the_assumed_cost_lifts_the_series_by_exactly_that_amount() -> None:
+    """The counterfactual is exact in the total, whatever it does to the volatility."""
+    item = _rescue(gross="200", fees="50", p95=0.1, monthly=_noisy(40, "-0.002", "0.05"))
+    assert item.assumed_cost == Decimal(20), "the fixture charges 10 spread and 10 slippage"
+    assert item.net_return_at_zero > item.net_return
+
+
+def test_a_sign_change_alone_does_not_clear_the_rule() -> None:
+    """Amendment 9's whole point: rescued by rounding is not rescued by the assumption.
+
+    The variant turns positive once the assumed cost is removed and still sits below
+    its own null, so no measurement of that cost could change the verdict.
+    """
+    item = _rescue(gross="200", fees="50", p95=1.5, monthly=_noisy(40, "0.004", "0.05"))
+    assert item.net_return_at_zero > 0
+    assert item.beats_its_null is False
+    assert item.clears_criterion_one is False
+
+
+def test_clearing_the_null_while_earning_does_fire_the_rule() -> None:
+    """Both halves of criterion 1, applied to the counterfactual."""
+    item = _rescue(gross="200", fees="50", p95=-9.0, monthly=_noisy(40, "0.004", "0.05"))
+    assert item.net_return_at_zero > 0
+    assert item.beats_its_null is True
+    assert item.clears_criterion_one is True
+    assert assumption_could_be_carrying_the_verdict([item]) is True
+
+
+def test_a_variant_that_still_loses_at_zero_cost_never_fires_the_rule() -> None:
+    """The seven-of-nine case: no spread measurement could change the sign."""
+    item = _rescue(gross="-900", fees="50", p95=-9.0, monthly=_noisy(40, "-0.02", "0.05"))
+    assert item.net_return_at_zero < 0
+    assert item.clears_criterion_one is False
+    assert assumption_could_be_carrying_the_verdict([item]) is False
+
+
+def test_a_rescue_with_no_null_answers_none_rather_than_false() -> None:
+    """No null means the rule could not be evaluated, not that it was not met."""
+    item = rescues(
+        payload(deterministic=[run(construct="v", gross="200")], nulls=[]), cell=HEADLINE
+    )[0]
+    assert item.beats_its_null is None
+    assert item.clears_criterion_one is None
+
+
+def test_clearing_criterion_one_at_zero_cost_is_not_clearing_the_verdict() -> None:
+    """Criterion 1 is one of six, and criterion 2 is asked of the same counterfactual.
+
+    A rule that fired on criterion 1 alone would invite the reading that the verdict
+    was about to turn. The deflation says otherwise at this trial count, and the
+    report prints both.
+    """
+    item = _rescue(gross="200", fees="50", p95=-9.0, monthly=_noisy(40, "0.004", "0.05"))
+    assert item.clears_criterion_one is True
+    assert item.deflated_at_zero is not None
+    assert item.survives_deflation_at_zero is False
+
+
+def test_the_counterfactual_records_the_model_it_was_computed_under() -> None:
+    """A modelled figure that does not say so is indistinguishable from a measured one."""
+    payload_json = _rescue(
+        gross="200", fees="50", p95=0.1, monthly=_noisy(40, "0.001", "0.05")
+    ).as_json()
+    assert "equal instalments" in str(payload_json["model"])
+    assert "approximate in the volatility" in str(payload_json["model"])

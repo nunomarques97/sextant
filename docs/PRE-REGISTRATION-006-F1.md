@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v1.9`. Part 1, the specification, committed before any funding number was
+**Version `v2.0`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
@@ -13,8 +13,11 @@ execution is counted, written after the first execution was found void and befor
 the second had been read. `v1.9` adds section 30: it fixes the *role* that may declare a run void
 as the Product Owner and never the Developer, and it makes section 12's spread sample conditional
 on rule S1, a computed condition on the result file. Both were written before any figure of the
-second execution had been read. Neither changes a variant, cell, criterion, threshold or
-budget.**
+second execution had been read. `v2.0` adds section 31, which generalises rule S1 so it governs
+every family and records two findings F1 measured. **Unlike every amendment before it, `v2.0` was
+registered after this family's figures had been read**, on the Product Owner's instruction, and it
+changes F1's acquisition answer from no to yes. Section 31.4 states why that cannot move an F1
+result. No amendment in this document changes a variant, cell, criterion, threshold or budget.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -1861,3 +1864,108 @@ the null constructs, declared expectations D1 and D2, rules C1 to C3, section 12
 themselves, and every threshold in sections 6, 7, 8, 11 and 14 are **unchanged**. 30.1 changes who
 may declare a run void. 30.2 adds one condition on one acquisition. 30.3 records a correction to
 an argument. None of them grants a trial, relaxes a threshold, or touches a computed value.
+
+
+## 31. Amendment 9 — rule S1 generalised, and two findings that travel to every family
+
+**Registered after F1's figures were read, on the Product Owner's instruction. That is stated
+first because every other amendment in this document was written before the numbers it governs
+existed, and this one was not.** What it may and may not do is bounded in 31.4, and the bound is
+the reason it is admissible at all: it governs an *acquisition*, and no acquisition in this task
+can change a computed result.
+
+### 31.1 What was wrong with amendment 8's version
+
+Amendment 8 registered rule S1 as: acquire the spread sample if some variant earns a positive net
+return at research fees. On F1 that was **false**, so the sample was not acquired.
+
+But the assumed spread sits *inside* the charges that produced the negative net. The assumption
+therefore helped prevent the measurement that could have corrected it, and the report named that
+circularity. A rule with that shape answers a question about the run rather than about the
+assumption.
+
+### 31.2 The generalised rule
+
+**An assumed cost is measured only when its assumption could plausibly be carrying the verdict,
+and the test is computed rather than argued.**
+
+> **Rule S1 (amendment 9).** Set the assumed cost to zero and re-evaluate the run. The sample is
+> acquired when some variant then reaches a net return **and** a Sharpe that would themselves
+> clear **criterion 1**: strictly positive net return over the scored window, and an annualised
+> Sharpe above the 95th percentile of that variant's own exposure-matched null.
+
+**A sign change is not enough, and that is the whole point of the bar.** A variant that crosses
+zero and lands at a return too small to clear its own null has not been rescued by the
+assumption; it has been rescued by rounding. Measuring the assumption would change nothing about
+the verdict, and acquiring data to refine a cost line on such a variant is acquiring data no rule
+reads.
+
+**How the counterfactual is computed.** The removed cost is added back in equal instalments
+across the scored months, each converted to a return on that month's opening equity along the
+realised path. That is exact in the total and in the sign of the net return, and approximate in
+the volatility, because the true charge follows each month's turnover and is lumpier than a
+constant. **From F2 the runner records per-month assumed costs**, the test is computed exactly,
+and this model is retired. Where the model is used, the report says so beside the figure.
+
+### 31.3 What it decides for F1, which is not what the instruction expected
+
+**The rule fires.** With spread and slippage set to zero, two of the nine variants clear
+criterion 1:
+
+| variant | net at zero assumed cost | Sharpe at zero | its null's 95th percentile | clears |
+|---|---:|---:|---:|---|
+| `carry-basket-5` | +1.48% | 0.091 | -1.262 | **yes** |
+| `carry-rank90-10-quarterly` | +1.72% | 0.097 | -1.560 | **yes** |
+| the other seven | -8.33% to -80.52% | -0.256 to -0.863 | -1.262 to -1.575 | no |
+
+**The mechanism does not match the intent it was written with, and the reason is that the null
+bar is negative.** The instruction registering this rule expected it to stay unfired, on the
+reasoning that a variant landing at 18.70 or 39.48 EUR over 56 months is too small to clear its
+own null. On this data it is not: the exposure-matched null is *itself* losing, at a 95th
+percentile Sharpe between -1.26 and -1.58, so a counterfactual Sharpe near zero clears it
+comfortably. The bar is a low one here in absolute terms, and criterion 1 was never designed to
+be an absolute bar.
+
+**Both readings are recorded rather than one being chosen quietly.** The rule as written fires.
+The intent as stated would not have. Which of the two governs the acquisition is the Product
+Owner's to settle, and until it is settled the sample is not acquired, because a 1.8 to 3.2 GB
+download made on a reading of a rule its own author did not expect is exactly the kind of
+decision this apparatus exists to make visible rather than convenient.
+
+### 31.4 What amendment 9 cannot do, and why a post-hoc acquisition rule is admissible
+
+**It cannot change an F1 number.** Every variant remains costed at the registered assumption in
+every cell, under invariant 12. Section 12's sample sits *beside* the assumption and is never
+substituted into the cost model. So the strongest thing an acquisition can produce is a labelled
+measurement printed next to a labelled assumption.
+
+**It grants no trial, relaxes no threshold, adds no variant and touches no criterion.** Criterion
+1 appears in the rule as a *bar for a counterfactual*, not as a criterion being re-evaluated: no
+variant's criterion 1 answer changes, and the verdict letter is unaffected.
+
+**It is reported as post-hoc wherever it appears.** The results document labels the rule with the
+version that registered it and states that it was registered after the figures were read. A
+reader must never have to reconstruct that ordering from git to discover it.
+
+### 31.5 Two findings carried into F2 and F3 rather than rediscovered
+
+**The currency leg is reported as its own line in every family, and is never folded into fees.**
+F1 measured it at 20.3 per cent of the best variant's toll against 13.7 per cent in exchange
+fees. A euro-funded account trading USDT-quoted instruments pays a currency toll larger than the
+venue's own; it scales with turnover rather than sitting fixed per run; and it will land
+identically on any family quoted away from the account's currency, which is all of F2, F3 and
+F6. Folding it into fees would hide the larger of the two and would misattribute a structural
+cost of this account to the venue's schedule.
+
+**The family-level result is the headline, not the best variant's.** Across F1's nine variants
+the price legs returned 2,094.76 of the 2,113.62 received in funding, leaving **18.86** on 1,500
+of equity. The best variant cleared 227.53. The family-level figure is the finding, and it is
+stated in these terms: *the premium is compensation for the basis risk that earns it, priced
+close to exactly*. A best-variant headline would have reported the opposite impression from the
+same run, and every family from here reports the grid before it reports its best member.
+
+### 31.6 What this does not touch
+
+The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6, the seed counts,
+the null constructs, declared expectations D1 and D2, rules C1 to C3, section 12's sampling rules
+and every threshold in sections 6, 7, 8, 11 and 14 are **unchanged**.

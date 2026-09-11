@@ -13,7 +13,7 @@ ancestry is checkable with `git merge-base --is-ancestor`.
 - everything denominated in **EUR**
 - **verdict: (B)**
 
-> **This run read `v1.7.1`; the specification is now `v1.9`.** Amendments 7 and 8 were registered while the grid
+> **This run read `v1.7.1`; the specification is now `v2.0`.** Amendments 7 and 8 were registered while the grid
 > was running and neither changes a computed value: amendment 7 fixes how a void
 > execution is counted in the trial registry, and amendment 8 fixes who may
 > declare one void and makes the spread sample conditional on rule S1. No
@@ -305,21 +305,91 @@ roughly 82%. Even with both lines deleted they earn 18.70 and 39.48 EUR on
 total rather than a year. That is a sign change and not an edge: neither comes
 near criterion 1, whose bar is the 95th percentile of the variant's own null.
 
-### 7.3 The circularity in rule S1, named
+### 7.3 Rule S1, and the circularity it had to break
 
-Rule S1 acquires the spread sample only if some variant earns a positive net
-return at research fees. No variant did, so the sample was not acquired. **But the
-assumed spread is inside the charges that produced that negative net.** The
-assumption therefore helped prevent the measurement that could have corrected it,
-and a rule with that shape is worth stating rather than leaving for a reader to
-notice.
+**Amendment 8's version of rule S1** acquired the spread sample if some variant
+earned a positive net return at research fees. No variant did, so it was false.
+**But the assumed spread is inside the charges that produced that negative net**,
+so the assumption helped prevent the measurement that could have corrected it.
 
-The figures above are what breaks it. Seven of the nine lose with both assumed
-lines set to zero, so for those seven the circularity is harmless: no measurement
-could have changed their sign. It is live only for the two that flip, and only
-at a reduction of about four fifths. Whether that justifies acquiring the sample
-is a rule for the Product Owner to write, and it is not decided by this run's
-numbers - which is the same discipline rule S1 itself was registered under.
+**Amendment 9 replaces the test with the counterfactual** and the bar is criterion
+1 itself: set the assumed cost to zero, re-evaluate, and acquire when some variant
+would then clear a positive net return *and* a Sharpe above its own null. A sign
+change alone is not a rescue.
+
+### 7.4 Rule S1: could the assumed cost be carrying the verdict?
+
+Amendment 9, registered **after** these figures had been read and labelled as such
+everywhere it appears. It governs an acquisition and can move no number in this
+document: every variant stays costed at the registered assumption in every cell,
+under invariant 12.
+
+Spread and slippage are set to zero and the run re-evaluated. The bar is criterion 1
+applied to that counterfactual: a positive net return **and** a Sharpe above the 95th
+percentile of the variant's own exposure-matched null.
+
+| variant | net as run | net at zero | Sharpe at zero | its null's p95 | clears |
+|---|---:|---:|---:|---:|---|
+| `carry-basket-10` | -16.11% | -8.77% | -0.404 | -1.575 | no |
+| `carry-basket-5` | -5.74% | 1.48% | 0.091 | -1.262 | yes |
+| `carry-positive-10` | -57.13% | -32.89% | -0.854 | -1.575 | no |
+| `carry-premium-10` | -91.81% | -80.52% | -0.701 | -1.575 | no |
+| `carry-rank30-10` | -57.13% | -32.89% | -0.854 | -1.575 | no |
+| `carry-rank30-5` | -72.31% | -53.95% | -0.863 | -1.262 | no |
+| `carry-rank90-10` | -31.09% | -8.33% | -0.256 | -1.575 | no |
+| `carry-rank90-10-quarterly` (18 rebalances) | -15.49% | 1.72% | 0.097 | -1.560 | yes |
+| `carry-rank90-5` | -35.60% | -11.93% | -0.358 | -1.262 | no |
+
+**Rule S1 as written: yes.** Two of the nine variants clear criterion 1 once the assumed cost is removed, so by the registered rule the spread sample is to be acquired.
+
+#### The rule fires, and its author expected it not to
+
+**This is reported rather than resolved, because the two readings disagree.**
+The rule was registered on the reasoning that a variant landing at a small
+positive figure is *rescued by rounding rather than by the assumption*, and
+would fail to clear its own null. On this data it does clear it.
+
+**The reason is that the null bar is negative.** The exposure-matched null is
+itself losing over this window, at a 95th-percentile Sharpe between
+-1.575 and -1.262, so a counterfactual Sharpe near
+zero clears it comfortably. Criterion 1 is a
+comparison against chance in this market, not an absolute bar, and at zero
+assumed cost these two variants beat chance while earning almost nothing.
+
+In absolute terms the two are still tiny: they earn 18.70 and 39.48 EUR on
+1,500 of equity across 56 months. Whether that is *the assumption carrying the
+verdict* or *rounding* is precisely what the two readings disagree about.
+
+**The verdict letter does not move either way, and that is computed rather
+than argued.** Criterion 1 is one of six. Asking criterion 2 of the same
+counterfactual:
+
+| variant | Sharpe at zero, per month | expected max under the trial count | DSR | clears 0.95 |
+|---|---:|---:|---:|---|
+| `carry-basket-5` | 0.0263 | 1.8818 | 0.0000 | no |
+| `carry-rank90-10-quarterly` (18 rebalances) | 0.0280 | 1.8619 | 0.0000 | no |
+
+Both columns are per month, which is the unit the deflation works in: an
+annualised 0.09 is a monthly 0.026. Both deflated Sharpes are **0.0000**
+against a threshold of 0.95, because the expected maximum under the registry's
+honest trial count is about seventy times the counterfactual's own Sharpe.
+**So even with spread and slippage
+deleted entirely, no variant clears all six criteria and F1's verdict stays
+(B).** What the acquisition could buy is a measured cost line beside a variant
+that beats a losing null while earning 1.5 per cent over four and a half years.
+
+**Until the Product Owner settles which reading governs, the sample is not
+acquired.** A 1.8 to 3.2 GB download made on a reading of a rule that its own
+author did not expect is the kind of decision this apparatus exists to make
+visible rather than convenient.
+
+**The counterfactual is modelled, not measured.** The removed cost is added back in
+equal instalments across the scored months, on each month's opening equity along
+the realised path. That is exact in the total and in the sign of the net return,
+and approximate in the volatility, because the real charge follows each month's
+turnover. From F2 the runner records per-month assumed costs and the same test is
+computed exactly. The conclusion here does not rest on the approximation: the two
+clearing Sharpes sit more than a full point above their null bars.
 
 ## 8. Regime stability
 
@@ -706,9 +776,19 @@ No variant's out-of-sample net Sharpe exceeded the 95th percentile of its own ex
 
 ### What this verdict rests on
 
-**The premium is real.** Six of the nine variants cleared a positive carry before any charge: the
-funding received exceeded what the price legs gave back. This is the first
-positive gross result in this project, and it is what theory predicts for a
+**The family-level result is the headline, not the best variant's.** Across the
+nine variants the book received 2,113.62 in
+funding and the price legs gave back 99.1%
+of it, leaving **18.85** on 1,500 of equity before a single charge. That is
+the finding:
+**the premium is compensation for the basis risk that earns it, priced close to
+exactly.** The best single variant cleared
+267.06, and reporting that
+figure in front would give the opposite impression from the same run.
+
+**The premium is real.** Six of the nine variants cleared a positive carry before any charge: for those,
+the funding received exceeded what the price legs gave back. This is the first
+positive gross result anywhere in this project, and it is what theory predicts for a
 hedged carry. F1 does not say the effect is absent.
 
 **It dies in the toll, and 56.5% of that toll
@@ -720,10 +800,19 @@ numbers this project chose, and section 7.2 states what it would have produced h
 they been chosen lower.
 
 **What survives that caveat.** Seven of the nine variants lose with spread and slippage deleted entirely, so
-for those the assumption changes nothing at all. The remaining variants turn
-positive only at roughly a fifth of the assumed cost, and then by amounts far below
-criterion 1's bar. **(B) is therefore robust to the assumption it rests on**, which
-is the claim that had to be checked before the letter could be trusted.
+for those the assumption changes nothing at all. Two do turn positive, and by rule
+S1 as amendment 9 writes it they clear criterion 1 in that counterfactual. **They
+still fail criterion 2 with a deflated Sharpe of 0.0000 against a bar of 0.95**, so
+no variant clears all six even with the assumed cost deleted. **(B) is therefore
+robust to the assumption it rests on**, which is the claim that had to be checked
+before the letter could be trusted. Section 7.4 carries the arithmetic.
+
+**The currency leg is reported separately wherever it appears, and always will be.**
+At 20.9% of the toll against
+14.1% in exchange fees, a euro-funded account
+trading instruments quoted elsewhere pays a currency toll larger than the venue's
+own. It scales with turnover rather than sitting fixed per run, and it will land the
+same way on every family quoted away from the account's currency. Section 31.5.
 
 This is one family's verdict, not the task's. The task's verdict lives in
 `docs/VERDICT-006.md` and is written once every family has been run or reported

@@ -134,7 +134,7 @@ MAXIMUM_RE_EXECUTIONS = 2
 #: The version of the pre-registration this code implements. Held here as well as in
 #: the configuration so a report can cite the specification's current version beside
 #: the version the run it describes actually read, without either being retyped.
-REGISTERED_VERSION = "v1.9"
+REGISTERED_VERSION = "v2.0"
 
 #: Section 30, amendment 8. Who may declare a run void, and who may not. Two roles
 #: rather than one sentence of prose, because the prose outlives the conversation it
@@ -144,12 +144,23 @@ REGISTERED_VERSION = "v1.9"
 VOID_DECLARED_BY_ROLE = "product-owner"
 VOID_NEVER_DECLARED_BY_ROLE = "developer"
 
-#: Section 30, amendment 8. Rule S1: the section 12 spread sample is acquired only if
-#: some registered variant earns a strictly positive net return at research fees. A
-#: computed condition on the result file, exactly as rule C3 is, so the acquisition is
-#: not a judgement made after a number exists.
+#: Section 30, amendment 8, generalised by section 31, amendment 9. Rule S1: the
+#: section 12 spread sample is acquired only if the assumed cost could plausibly be
+#: carrying the verdict, and that is decided by computation rather than by argument.
+#: Set the assumed cost to zero, re-evaluate, and acquire when some variant would then
+#: clear criterion 1. A sign change alone is not a rescue: a variant that crosses zero
+#: and lands below its own null was rescued by rounding.
 SPREAD_TRIGGER_RULE = "S1"
 SPREAD_TRIGGER_THRESHOLD = Decimal(0)
+
+#: Amendment 9's bar, named so the condition cannot be read as "positive net return".
+#: The counterfactual must clear criterion 1 itself, which is the null comparison and
+#: the positive return together.
+SPREAD_TRIGGER_BAR = "criterion-1"
+
+#: The family from which the runner records per-month assumed costs, making amendment
+#: 9's test exact rather than modelled. F1's result file carries totals only.
+EXACT_RESCUE_TEST_FROM = "F2"
 
 #: The size rule S1 implies when it fires: six symbols on six days, which is section
 #: 12's own registered sample and already the minimum. No subsampling rule is added,
@@ -583,12 +594,58 @@ def _spread_trigger_checks(raw: Mapping[str, object]) -> list[tuple[str, object,
             str(SPREAD_SAMPLE_SYMBOL_DAYS),
         ),
         (
+            "spread_sample.acquisition.generalised_by",
+            _text(block["generalised_by"]),
+            "amendment-9",
+        ),
+        (
+            "spread_sample.acquisition.per_month_assumed_costs_required_from",
+            _text(block["per_month_assumed_costs_required_from"]),
+            EXACT_RESCUE_TEST_FROM,
+        ),
+        (
+            "spread_sample.acquisition.condition names criterion 1",
+            "criterion 1" in _text(block["condition"]),
+            True,
+        ),
+        (
+            "spread_sample.acquisition.condition sets the assumed cost to zero",
+            "ZERO" in _text(block["condition"]),
+            True,
+        ),
+        (
             "spread_sample.acquisition.cells_excluded",
             tuple(
                 _text(item)
                 for item in _sequence(block["cells_excluded"], "acquisition.cells_excluded")
             ),
             (EXECUTION_SENSITIVITY.label,),
+        ),
+    ]
+
+
+def _every_family_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Section 31's two reporting rules, which outlive this family.
+
+    Guarded because they are the two things F1 measured that F2 onward would otherwise
+    rediscover: a currency leg larger than the venue's own fees, and a family-level
+    result that reads differently from its best variant's.
+    """
+    block = _mapping(raw["every_family_reports"], "every_family_reports")
+    currency = _mapping(block["currency_leg_as_its_own_line"], "currency_leg_as_its_own_line")
+    headline = _mapping(
+        block["family_level_result_is_the_headline"], "family_level_result_is_the_headline"
+    )
+    return [
+        (
+            "every_family_reports.currency_leg_as_its_own_line.rule",
+            "NEVER folded into fees" in _text(currency["rule"]),
+            True,
+        ),
+        (
+            "every_family_reports.family_level_result_is_the_headline.rule",
+            "not its best variant" in _text(headline["rule"]),
+            True,
         ),
     ]
 
@@ -918,6 +975,7 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.append(("version", _text(raw["version"]), REGISTERED_VERSION))
     checks.extend(_void_run_checks(raw))
     checks.extend(_spread_trigger_checks(raw))
+    checks.extend(_every_family_checks(raw))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
     for band in ("deep", "mid", "thin", "unknown"):
         checks.append(
@@ -1252,6 +1310,7 @@ __all__ = [
     "D2B_THRESHOLD_ROUND_TRIPS",
     "ENGINE_LOOKBACK_DAYS",
     "ENGINE_VERSION",
+    "EXACT_RESCUE_TEST_FROM",
     "EXECUTION_FEE_OF_EQUITY_BPS",
     "FAMILY",
     "FOLD_COUNT",
@@ -1269,6 +1328,7 @@ __all__ = [
     "RESEARCH_FEE_OF_EQUITY_BPS",
     "RESULTS_PATH",
     "SPREAD_SAMPLE_SYMBOL_DAYS",
+    "SPREAD_TRIGGER_BAR",
     "SPREAD_TRIGGER_RULE",
     "SPREAD_TRIGGER_THRESHOLD",
     "THINNER_EVIDENCE_VARIANT",
