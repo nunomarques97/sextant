@@ -24,7 +24,7 @@ third as many decisions is not comparable to its siblings on the number alone.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 
@@ -43,11 +43,15 @@ from sextant.app.spike_006_f1 import (
     round_trip_fee_bps,
 )
 from sextant.app.spike_006_f1_analysis import (
+    CostLines,
+    Toll,
     analyse,
     capacity_report,
+    combined_toll,
     depth_sample_is_needed,
     excluding_month,
     spread_acquisition,
+    tolls,
 )
 from sextant.app.spike_006_f1_contraction import CONTRACTION_RESULTS
 from sextant.app.spike_006_f1_depth import DEPTH_RESULTS
@@ -92,6 +96,7 @@ def render(
         _headline_section(payload),
         _cadence_section(payload),
         _decomposition_section(payload),
+        _toll_section(payload),
         _regime_section(payload),
         _recent_section(payload),
         _contraction_section(payload, contraction),
@@ -610,6 +615,203 @@ def _decomposition_section(payload: Mapping[str, object]) -> str:
     return NEWLINE.join(lines)
 
 
+#: The multipliers the spread-and-slippage sensitivity is reported at. One of them is
+#: zero, which is not a plausible world and is there as a bound: a run that loses with
+#: both lines deleted cannot be rescued by any spread measurement whatsoever.
+SENSITIVITY_MULTIPLIERS = (Decimal(1), Decimal("0.5"), Decimal("0.25"), Decimal(0))
+
+
+def _toll_section(payload: Mapping[str, object]) -> str:
+    """What the charges are made of, and how much of that is an assumption.
+
+    Section 7 shows the charges as one number. That number is where the family dies,
+    so its composition decides what the verdict claims: a toll made of published fees
+    is a statement about this account, and a toll made of spread and slippage is a
+    statement resting on two configured figures.
+    """
+    cell = headline_cell().label
+    items = tolls(payload, cell=cell)
+    if not items:
+        return ""
+    combined = combined_toll(items)
+    parts: tuple[tuple[str, Callable[[CostLines], Decimal]], ...] = (
+        ("exchange fees", lambda line: line.fees),
+        ("spread (assumed)", lambda line: line.spread),
+        ("slippage (assumed)", lambda line: line.slippage),
+        ("FX conversion", lambda line: line.conversion),
+        ("delisting haircut", lambda line: line.delisting),
+    )
+    # The variant whose carry cleared the most before any charge: the most favourable
+    # case in the grid, and therefore the one whose toll decides the most.
+    best = max(items, key=lambda item: item.lines.gross_before_costs)
+    lines = [
+        "### 7.1 What the toll is made of",
+        "",
+        "The charges column is where this family dies, so here it is itemised. **Funding is",
+        "not in these totals**: a receipt is booked as a negative cost line and the funding",
+        "stream sits on the return side of the identity above.",
+        "",
+        f"The second pair of columns is `{best.variant}`, whose carry cleared the most",
+        f"before any charge: {_money(best.lines.gross_before_costs)} EUR of price move plus",
+        "funding. It is the most favourable case in the grid.",
+        "",
+        "| part | all nine, EUR | share | the best case, EUR | share |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for name, pick in parts:
+        whole, one = pick(combined), pick(best.lines)
+        lines.append(
+            f"| {name} "
+            f"| {_money(whole)} | {_share(whole, combined.charges)} "
+            f"| {_money(one)} | {_share(one, best.lines.charges)} |"
+        )
+    lines.extend(
+        [
+            f"| **total charged** | **{_money(combined.charges)}** | 100% "
+            f"| **{_money(best.lines.charges)}** | 100% |",
+            "",
+            "**Two of the five are assumptions, and together they are "
+            f"{_share(combined.assumed, combined.charges)} of the toll.** Spread and slippage",
+            "are configured values under invariant 12 rather than measurements. Published",
+            f"exchange fees are {_share(combined.fees, combined.charges)} of the toll, and the",
+            f"conversion leg is {_share(combined.conversion, combined.charges)}, larger than",
+            "the fees themselves.",
+            "",
+            "**So this verdict does not say the venue's fee schedule ate the premium.** It says",
+            "the total cost of trading it did, and the majority of that total is two numbers",
+            "this project assumed rather than measured. That belongs in the verdict in those",
+            "words, and it is the honest reading of what F1 establishes.",
+            "",
+            "Per variant, in the headline cell:",
+            "",
+            "| variant | fees | spread | slippage | FX | delisting | total | assumed share |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for item in sorted(items, key=lambda entry: entry.variant):
+        line = item.lines
+        lines.append(
+            f"| {_variant_label(item.variant)} "
+            f"| {_money(line.fees)} | {_money(line.spread)} | {_money(line.slippage)} "
+            f"| {_money(line.conversion)} | {_money(line.delisting)} "
+            f"| {_money(line.charges)} | {_share(line.assumed, line.charges)} |"
+        )
+    lines.extend(["", *_sensitivity(items)])
+    return NEWLINE.join(lines)
+
+
+#: Counts up to the size of this grid, as words. A table is figures and a sentence is
+#: prose, and "2 of the nine" reads as a typo rather than as a count.
+_WORDS = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine")
+
+
+def _count(value: int) -> str:
+    """A small count as a word, falling back to the figure where there is no word."""
+    return _WORDS[value] if 0 <= value < len(_WORDS) else str(value)
+
+
+def _sensitivity(items: Sequence[Toll]) -> list[str]:
+    """The spread-and-slippage sensitivity, labelled as a sensitivity throughout."""
+    lines = [
+        "### 7.2 What a cheaper assumption would have produced",
+        "",
+        "**A sensitivity, not a result.** Every variant below is still costed at the",
+        "registered assumption everywhere else in this document, and no criterion is",
+        "recomputed here. The columns scale the spread and slippage lines by a multiplier and",
+        "leave everything else exactly as it ran.",
+        "",
+        "The arithmetic is exact in the charges and approximate in the path. No registered",
+        "variant reads a cost when it decides, so a cheaper world would have held the same",
+        "pairs in the same weights; it would also have compounded a larger equity into every",
+        "later position, so the true figure at a lower assumption is a little better than",
+        "this. The multiplier at which each variant breaks even is in the last column.",
+        "",
+        "| variant | as run | half | a quarter | none at all | breaks even at |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for item in sorted(items, key=lambda entry: entry.variant):
+        line = item.lines
+        cells = "".join(f"| {_money(line.net_at(k))} " for k in SENSITIVITY_MULTIPLIERS)
+        flip = line.flip_multiplier
+        flips = "-" if flip is None else f"{flip:.3f}"
+        lines.append(f"| {_variant_label(item.variant)} {cells}| {flips} |")
+    flipping = [
+        item
+        for item in items
+        if item.lines.flip_multiplier is not None and item.lines.flip_multiplier > 0
+    ]
+    stuck = len(items) - len(flipping)
+    lines.extend(
+        [
+            "",
+            "**A multiplier at or below zero means the run loses with spread and slippage",
+            f"deleted entirely.** {_count(stuck).capitalize()} of the {_count(len(items))} are in",
+            "that position, and for them no spread measurement of any kind could change the",
+            "sign: their carry does not cover the exchange fees, the conversion leg and the",
+            "delisting haircut on their own.",
+            "",
+        ]
+    )
+    if flipping:
+        named = ", ".join(f"`{item.variant}`" for item in flipping)
+        worst = max(
+            item.lines.flip_multiplier
+            for item in flipping
+            if item.lines.flip_multiplier is not None
+        )
+        amounts = [_money(item.lines.net_at(Decimal(0))) for item in flipping]
+        earned = (
+            " and ".join([", ".join(amounts[:-1]), amounts[-1]]) if len(amounts) > 1 else amounts[0]
+        )
+        lines.extend(
+            [
+                f"**{_count(len(flipping)).capitalize()} of the {_count(len(items))} do flip: "
+                f"{named}.** They turn positive only when",
+                f"spread and slippage fall to about {worst:.0%} of the assumption, a reduction of",
+                f"roughly {1 - worst:.0%}. Even with both lines deleted they earn {earned} EUR on",
+                "1,500 of equity over fifty-six months, which is low single-digit per cent in",
+                "total rather than a year. That is a sign change and not an edge: neither comes",
+                "near criterion 1, whose bar is the 95th percentile of the variant's own null.",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "### 7.3 The circularity in rule S1, named",
+            "",
+            "Rule S1 acquires the spread sample only if some variant earns a positive net",
+            "return at research fees. No variant did, so the sample was not acquired. **But the",
+            "assumed spread is inside the charges that produced that negative net.** The",
+            "assumption therefore helped prevent the measurement that could have corrected it,",
+            "and a rule with that shape is worth stating rather than leaving for a reader to",
+            "notice.",
+            "",
+            "The figures above are what breaks it. Seven of the nine lose with both assumed",
+            "lines set to zero, so for those seven the circularity is harmless: no measurement",
+            "could have changed their sign. It is live only for the two that flip, and only",
+            "at a reduction of about four fifths. Whether that justifies acquiring the sample",
+            "is a rule for the Product Owner to write, and it is not decided by this run's",
+            "numbers - which is the same discipline rule S1 itself was registered under.",
+            "",
+        ]
+    )
+    return lines
+
+
+def _variant_label(name: str) -> str:
+    """A variant's name, with the rebalance count where section 28.3 requires it."""
+    if name == THINNER_EVIDENCE_VARIANT:
+        return f"`{name}` (18 rebalances)"
+    return f"`{name}`"
+
+
+def _share(part: Decimal, whole: Decimal) -> str:
+    """One part as a percentage of a total, or a dash over nothing."""
+    if whole == 0:
+        return "-"
+    return f"{part / whole * 100:.1f}%"
+
+
 def _regime_section(payload: Mapping[str, object]) -> str:
     counts = _mapping(payload["regime_month_counts_scored"])
     conclusive = _sequence(payload["conclusive_regimes"])
@@ -864,6 +1066,67 @@ def _deflation_section(payload: Mapping[str, object]) -> str:
     return NEWLINE.join(lines)
 
 
+#: Amendment 5's illustrative carry, in basis points a year, and the two break-evens
+#: it implies. Registered as an illustration before anything ran, and reported beside
+#: the realised figures because that is the comparison the amendment invites.
+ILLUSTRATIVE_CARRY_BPS = Decimal(400)
+
+
+def _turnover_table(payload: Mapping[str, object]) -> list[str]:
+    """Realised turnover for every variant, against both sets of break-evens.
+
+    The arithmetic does not close without it: a break-even is a threshold and says
+    nothing at all until a realised figure is put beside it.
+    """
+    rows = _headline_rows(payload)
+    research = ILLUSTRATIVE_CARRY_BPS / RESEARCH_FEE_OF_EQUITY_BPS
+    execution = ILLUSTRATIVE_CARRY_BPS / EXECUTION_FEE_OF_EQUITY_BPS
+    lines = [
+        "",
+        "### Realised turnover, every variant",
+        "",
+        "Round trips a year, from the fee line the engine charged, by the registered",
+        "definition: fees as basis points of equity a year, divided by the",
+        f"{_fixed(RESEARCH_FEE_OF_EQUITY_BPS, 2)} basis points one full-book round trip costs at",
+        "research fees.",
+        "",
+        f"Amendment 5 registered its break-evens against an illustrative {ILLUSTRATIVE_CARRY_BPS}",
+        f"basis points of gross carry a year: **{research:.1f}** round trips at research fees and",
+        f"**{execution:.1f}** at execution fees. The realised carry is not that figure, so both",
+        "comparisons are shown.",
+        "",
+        f"| variant | round trips/yr | vs {research:.1f} | vs {execution:.1f} |",
+        "|---|---:|---|---|",
+    ]
+    for row in rows:
+        block = _break_even(row)
+        if block is None:
+            continue
+        realised = _number(block["realised_round_trips_per_year"])
+        if realised is None:
+            continue
+        turnover = Decimal(str(realised))
+        lines.append(
+            f"| {_label(row)} | {realised:.2f} "
+            f"| {_inside(turnover, research)} | {_inside(turnover, execution)} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Every variant sits inside the illustrative research break-even and most sit",
+            "outside the execution one. That comparison is against an assumed 4% carry rather",
+            "than against what these variants earned, and the realised break-evens above,",
+            "computed from the realised gross carry, are the binding pair.",
+        ]
+    )
+    return lines
+
+
+def _inside(realised: Decimal, threshold: Decimal) -> str:
+    """Whether realised turnover sits inside a break-even, in words rather than a mark."""
+    return "inside" if realised <= threshold else "**outside**"
+
+
 def _break_even(row: Mapping[str, object]) -> Mapping[str, object] | None:
     """One variant's break-even block as the analysis computed it.
 
@@ -930,12 +1193,39 @@ def _break_even_section(payload: Mapping[str, object]) -> str:
             "",
             _text(outcome["sentence"]),
             "",
+            *_turnover_table(payload),
+            "",
             "**Both break-evens are upper bounds.** Spread and slippage also scale with",
             "turnover, are identical at both venues, and are excluded from the fee arithmetic,",
             "so the break-even on total cost is strictly lower than either figure. The",
-            "conversion leg is excluded too: it is charged twice for a whole run rather than",
-            "per rebalance, and folding a fixed cost into a per-round-trip figure would",
-            "misattribute it to turnover.",
+            "conversion leg is excluded too, but **not for the reason amendment 5 gives**:",
+            "see the correction below.",
+            "",
+            "### 12.1 A correction to amendment 5's justification",
+            "",
+            "Section 27.2 excludes the conversion leg from the fee arithmetic and says it is",
+            "*charged twice for a whole run rather than per rebalance, so folding a fixed cost",
+            "into a per-round-trip figure would misattribute it to turnover*. **That premise is",
+            "wrong.** The engine charges the conversion twice per *position*, on the way in and",
+            "on the way out, so it scales with traded notional exactly as a fee does. In this",
+            "run the conversion line is 10.0000 basis points of turnover for every one of the",
+            "nine variants, to four decimal places, which is the registered rate and not a",
+            "coincidence.",
+            "",
+            "**What this changes, and what it does not.** The registered *definition* of the",
+            "break-even is unaffected: it was defined on the fee line alone and that is what was",
+            "computed, so no figure in this document moves. What changes is the reading. The",
+            "excluded conversion is not a fixed overhead sitting outside the turnover question;",
+            "it is a turnover-scaling charge about half again the size of the exchange fees",
+            "themselves, and its exclusion makes the break-evens a **looser** upper bound than",
+            "section 27.2 claims. A reader recomputing at another fee schedule should add it to",
+            "the fee line rather than treat it as a constant.",
+            "",
+            "This is a defect in a justification, not in a computation, and it is reported",
+            "rather than repaired in place: amendment 5 was registered before the run and its",
+            "text is not edited afterwards. It is not a voiding reason under section 29.2 -",
+            "every registered parameter was read by the code path that ran, and the conversion",
+            "rate the ledger charged is the registered one.",
             "",
             "### Declared expectation D2",
             "",
@@ -1275,6 +1565,52 @@ def _criteria_section(payload: Mapping[str, object]) -> str:
     return NEWLINE.join(lines)
 
 
+def _what_the_verdict_rests_on(payload: Mapping[str, object]) -> list[str]:
+    """What this letter claims and what it does not, given the toll's composition.
+
+    A negative verdict is not one statement. "The premium does not exist" and "the
+    premium exists and the cost of taking it exceeds it" are different findings with
+    different consequences, and which one this is depends on what the charges are made
+    of. Section 7.1 computes that, and the verdict has to carry it rather than leave a
+    reader to derive it eight sections earlier.
+    """
+    items = tolls(payload, cell=headline_cell().label)
+    if not items:
+        return []
+    combined = combined_toll(items)
+    earning = [item for item in items if item.lines.gross_before_costs > 0]
+    stuck = [
+        item
+        for item in items
+        if item.lines.flip_multiplier is None or item.lines.flip_multiplier <= 0
+    ]
+    return [
+        "### What this verdict rests on",
+        "",
+        f"**The premium is real.** {_count(len(earning)).capitalize()} of the "
+        f"{_count(len(items))} variants cleared a positive carry before any charge: the",
+        "funding received exceeded what the price legs gave back. This is the first",
+        "positive gross result in this project, and it is what theory predicts for a",
+        "hedged carry. F1 does not say the effect is absent.",
+        "",
+        f"**It dies in the toll, and {_share(combined.assumed, combined.charges)} of that toll",
+        "is assumed rather than measured.** Spread and slippage are configured values under",
+        f"invariant 12; published exchange fees are only "
+        f"{_share(combined.fees, combined.charges)} of what was charged. So this verdict is",
+        "**not** the statement that a retail fee schedule consumed the premium, and it is",
+        "not purely a statement about the market either. It rests substantially on two",
+        "numbers this project chose, and section 7.2 states what it would have produced had",
+        "they been chosen lower.",
+        "",
+        f"**What survives that caveat.** {_count(len(stuck)).capitalize()} of the "
+        f"{_count(len(items))} variants lose with spread and slippage deleted entirely, so",
+        "for those the assumption changes nothing at all. The remaining variants turn",
+        "positive only at roughly a fifth of the assumed cost, and then by amounts far below",
+        "criterion 1's bar. **(B) is therefore robust to the assumption it rests on**, which",
+        "is the claim that had to be checked before the letter could be trusted.",
+    ]
+
+
 def _verdict_section(payload: Mapping[str, object]) -> str:
     verdict = _mapping(payload["verdict"])
     ones = _sequence(verdict["variants_clearing_criterion_1"])
@@ -1291,6 +1627,8 @@ def _verdict_section(payload: Mapping[str, object]) -> str:
             + (", ".join(f"`{_text(item)}`" for item in ones) if ones else "none"),
             "- variants clearing all six: "
             + (", ".join(f"`{_text(item)}`" for item in alls) if alls else "none"),
+            "",
+            *_what_the_verdict_rests_on(payload),
             "",
             "This is one family's verdict, not the task's. The task's verdict lives in",
             "`docs/VERDICT-006.md` and is written once every family has been run or reported",

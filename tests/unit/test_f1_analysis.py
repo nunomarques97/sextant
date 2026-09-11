@@ -38,13 +38,16 @@ from sextant.app.spike_006_f1_analysis import (
     CostLines,
     ResultsIncomplete,
     SpreadAcquisition,
+    Toll,
     analyse,
     break_even_of,
     capacity_of,
+    combined_toll,
     depth_sample_is_needed,
     excluding_month,
     opening_instants,
     spread_acquisition,
+    tolls,
     verdict,
 )
 from sextant.app.spike_006_f1_report import _contraction_section, _samples_section
@@ -744,3 +747,90 @@ def test_the_carry_and_the_ledger_total_are_not_subtracted_from_each_other() -> 
     double_counted = block.gross - block.costs
     assert double_counted != block.net
     assert double_counted == block.net + block.funding, "off by the funding, twice counted"
+
+
+# ---------------------------------------------------------------------------
+# What the toll is made of, and what rests on an assumption
+# ---------------------------------------------------------------------------
+
+
+def _toll() -> Toll:
+    """One run's charges, from the fixture's own cost block."""
+    return tolls(
+        payload(deterministic=[run(construct="v", gross="200", fees="50")], nulls=[]),
+        cell=HEADLINE,
+    )[0]
+
+
+def test_funding_is_not_one_of_the_charges() -> None:
+    """The line that decides what a negative verdict claims, asserted rather than assumed."""
+    line = _toll().lines
+    assert (
+        line.charges == line.fees + line.spread + line.slippage + line.conversion + line.delisting
+    )
+    assert line.charges == line.assumed + line.contractual
+    assert line.funding_received not in (line.charges, -line.charges)
+
+
+def test_the_assumed_share_is_spread_and_slippage_and_nothing_else() -> None:
+    """Invariant 12's two configured lines, separated from the published ones."""
+    line = _toll().lines
+    assert line.assumed == line.spread + line.slippage
+    assert line.contractual == line.fees + line.conversion + line.delisting
+
+
+def test_scaling_the_assumption_moves_only_the_two_assumed_lines() -> None:
+    """A sensitivity that touched a published fee would not be a sensitivity on spread."""
+    line = _toll().lines
+    assert line.net_at(Decimal(1)) == line.net
+    assert line.net_at(Decimal(0)) == line.net + line.assumed
+    halved = line.net_at(Decimal("0.5"))
+    assert halved - line.net == line.assumed / 2
+
+
+def test_the_flip_multiplier_is_where_the_sign_turns() -> None:
+    """The number the circularity in rule S1 turns on, so it gets its own assertion."""
+    line = _toll().lines
+    flip = line.flip_multiplier
+    assert flip is not None
+    assert line.net_at(flip) == Decimal(0)
+
+
+def test_a_run_that_loses_with_the_assumption_deleted_reports_a_multiplier_at_or_below_zero() -> (
+    None
+):
+    """The stronger statement: no spread measurement could change this variant's sign."""
+    losing = tolls(
+        payload(deterministic=[run(construct="v", gross="-500", fees="50")], nulls=[]),
+        cell=HEADLINE,
+    )[0]
+    flip = losing.lines.flip_multiplier
+    assert flip is not None
+    assert flip <= 0
+    assert losing.lines.net_at(Decimal(0)) < 0
+
+
+def test_the_combined_toll_adds_the_parts_and_not_the_totals() -> None:
+    """A family-level statement needs a family-level total, summed line by line."""
+    items = tolls(
+        payload(
+            deterministic=[
+                run(construct="a", gross="200", fees="50"),
+                run(construct="b", gross="100", fees="20"),
+            ],
+            nulls=[],
+        ),
+        cell=HEADLINE,
+    )
+    combined = combined_toll(items)
+    assert combined.fees == Decimal(70)
+    assert combined.charges == sum(item.lines.charges for item in items)
+    assert combined.net == sum((item.lines.net for item in items), Decimal(0))
+
+
+def test_the_toll_records_its_shares_and_says_funding_is_not_in_them() -> None:
+    payload_json = _toll().as_json()
+    shares = payload_json["shares"]
+    assert isinstance(shares, dict)
+    assert set(shares) == {"fees", "spread", "slippage", "fx_conversion", "delisting_haircut"}
+    assert "Funding is not a part of this total" in str(payload_json["note"])

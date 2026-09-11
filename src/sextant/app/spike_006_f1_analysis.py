@@ -25,7 +25,7 @@ beside it.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -432,6 +432,51 @@ class CostLines:
         """The identity the page prints: price plus funding, less what was charged."""
         return self.market_gain + self.funding_received - self.charges
 
+    @property
+    def assumed(self) -> Decimal:
+        """Spread and slippage: the two charge lines that are configured, not observed.
+
+        Invariant 12 names them assumptions and the report labels them everywhere. This
+        property exists so the share of the toll that rests on an assumption can be
+        stated as a number rather than left for a reader to add up.
+        """
+        return self.spread + self.slippage
+
+    @property
+    def contractual(self) -> Decimal:
+        """Fees, conversion and the delisting haircut: everything not assumed.
+
+        The conversion charge sits here rather than with the assumptions because its
+        rate is a published one, even though it is applied under a policy. The haircut
+        is a registered stress rather than a schedule, and is named where it is used.
+        """
+        return self.fees + self.conversion + self.delisting
+
+    def net_at(self, multiplier: Decimal) -> Decimal:
+        """Net PnL with spread and slippage scaled, the book held exactly as it ran.
+
+        Exact in the charges and approximate in the path. No registered variant reads a
+        cost when it decides, so a cheaper world would have traded the same pairs in the
+        same weights; but it would have compounded a larger equity into every later
+        position, so the realised figure at a lower assumption would be slightly better
+        than this arithmetic. It is a sensitivity, and it is never a result.
+        """
+        return (
+            self.market_gain + self.funding_received - self.contractual - multiplier * self.assumed
+        )
+
+    @property
+    def flip_multiplier(self) -> Decimal | None:
+        """The spread-and-slippage multiplier at which this run breaks even.
+
+        Below 1 means a cheaper assumption would turn the sign; at or below 0 means the
+        run loses even with spread and slippage deleted entirely, which is a stronger
+        statement than any sensitivity. None where nothing was charged on either line.
+        """
+        if self.assumed == 0:
+            return None
+        return (self.market_gain + self.funding_received - self.contractual) / self.assumed
+
 
 def _costs_of(row: Mapping[str, object]) -> CostLines:
     """One run's cost breakdown, itemised, never collapsed to a total."""
@@ -711,6 +756,94 @@ def _signs_by_variant(
             continue
         out[variant] = all(value > 0 for value in returns) or all(value < 0 for value in returns)
     return out
+
+
+# ---------------------------------------------------------------------------
+# What the toll is made of
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Toll:
+    """One run's charges, itemised, with each part as a share of the whole.
+
+    Built because the composition decides what a negative verdict claims. A toll made
+    of published fees is a statement about this account's cost structure, which moves
+    with venue and tier. A toll made of spread and slippage is a statement resting on
+    two configured numbers, and a verdict resting on those has to say so.
+    """
+
+    variant: str
+    cell: str
+    lines: CostLines
+
+    def share(self, part: Decimal) -> Decimal | None:
+        """One part as a share of the total charged, or None over nothing."""
+        if self.lines.charges == 0:
+            return None
+        return part / self.lines.charges
+
+    def as_json(self) -> dict[str, object]:
+        parts = {
+            "fees": self.lines.fees,
+            "spread": self.lines.spread,
+            "slippage": self.lines.slippage,
+            "fx_conversion": self.lines.conversion,
+            "delisting_haircut": self.lines.delisting,
+        }
+        return {
+            "variant": self.variant,
+            "cell_id": self.cell,
+            "charges_total": str(self.lines.charges),
+            "parts": {name: str(value) for name, value in parts.items()},
+            "shares": {
+                name: None if self.share(value) is None else str(self.share(value))
+                for name, value in parts.items()
+            },
+            "assumed_share": None
+            if self.share(self.lines.assumed) is None
+            else str(self.share(self.lines.assumed)),
+            "flip_multiplier": None
+            if self.lines.flip_multiplier is None
+            else str(self.lines.flip_multiplier),
+            "note": (
+                "Funding is not a part of this total. The ledger books a receipt as a "
+                "negative cost line; charges here are what the book paid to trade and to "
+                "hold, and the funding stream sits on the return side of the identity."
+            ),
+        }
+
+
+def tolls(payload: Mapping[str, object], *, cell: str) -> tuple[Toll, ...]:
+    """Every variant's charges in one cell, itemised."""
+    return tuple(
+        Toll(variant=_text(row["construct"]), cell=cell, lines=_costs_of(row))
+        for row in _rows(payload, "deterministic")
+        if _text(row.get("kind")) == "variant" and _text(row["cell_id"]) == cell
+    )
+
+
+def combined_toll(items: Sequence[Toll]) -> CostLines:
+    """The nine added together, so the composition can be stated for the family.
+
+    A family-level statement needs a family-level total. One variant's composition is
+    one variant's, and the spread of turnover across the nine is wide enough that the
+    largest and the smallest do not have the same shape.
+    """
+
+    def total(pick: Callable[[CostLines], Decimal]) -> Decimal:
+        return sum((pick(item.lines) for item in items), Decimal(0))
+
+    return CostLines(
+        market_gain=total(lambda line: line.market_gain),
+        funding_received=total(lambda line: line.funding_received),
+        fees=total(lambda line: line.fees),
+        spread=total(lambda line: line.spread),
+        slippage=total(lambda line: line.slippage),
+        conversion=total(lambda line: line.conversion),
+        delisting=total(lambda line: line.delisting),
+        total=total(lambda line: line.total),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1121,6 +1254,7 @@ __all__ = [
     "Decomposition",
     "ResultsIncomplete",
     "SpreadAcquisition",
+    "Toll",
     "VariantRow",
     "Verdict",
     "WithoutAMonth",
@@ -1128,11 +1262,13 @@ __all__ = [
     "break_even_of",
     "capacity_of",
     "capacity_report",
+    "combined_toll",
     "depth_sample_is_needed",
     "excluding_month",
     "monthly_of",
     "opening_instants",
     "regime_labels",
     "spread_acquisition",
+    "tolls",
     "verdict",
 ]

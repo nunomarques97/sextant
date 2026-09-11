@@ -223,6 +223,104 @@ in most variants it is large. The price legs of a hedged pair should hold only t
 basis, and they give most of it back. What the two leave is then smaller than the
 cost of trading it.
 
+### 7.1 What the toll is made of
+
+The charges column is where this family dies, so here it is itemised. **Funding is
+not in these totals**: a receipt is booked as a negative cost line and the funding
+stream sits on the return side of the identity above.
+
+The second pair of columns is `carry-rank90-10-quarterly`, whose carry cleared the most
+before any charge: 267.06 EUR of price move plus
+funding. It is the most favourable case in the grid.
+
+| part | all nine, EUR | share | the best case, EUR | share |
+|---|---:|---:|---:|---:|
+| exchange fees | 810.43 | 14.1% | 61.76 | 12.4% |
+| spread (assumed) | 2,260.68 | 39.3% | 189.63 | 38.0% |
+| slippage (assumed) | 991.73 | 17.2% | 82.23 | 16.5% |
+| FX conversion | 1,201.69 | 20.9% | 91.57 | 18.3% |
+| delisting haircut | 490.67 | 8.5% | 74.25 | 14.9% |
+| **total charged** | **5,755.21** | 100% | **499.44** | 100% |
+
+**Two of the five are assumptions, and together they are 56.5% of the toll.** Spread and slippage
+are configured values under invariant 12 rather than measurements. Published
+exchange fees are 14.1% of the toll, and the
+conversion leg is 20.9%, larger than
+the fees themselves.
+
+**So this verdict does not say the venue's fee schedule ate the premium.** It says
+the total cost of trading it did, and the majority of that total is two numbers
+this project assumed rather than measured. That belongs in the verdict in those
+words, and it is the honest reading of what F1 establishes.
+
+Per variant, in the headline cell:
+
+| variant | fees | spread | slippage | FX | delisting | total | assumed share |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `carry-basket-10` | 50.46 | 74.86 | 37.41 | 74.73 | 0.00 | 237.46 | 47.3% |
+| `carry-basket-5` | 47.18 | 69.88 | 34.94 | 69.88 | 0.00 | 221.88 | 47.2% |
+| `carry-positive-10` | 121.27 | 369.30 | 160.06 | 179.78 | 58.86 | 889.28 | 59.5% |
+| `carry-premium-10` | 96.88 | 237.30 | 105.43 | 143.92 | 53.91 | 637.44 | 53.8% |
+| `carry-rank30-10` | 121.27 | 369.30 | 160.06 | 179.78 | 58.86 | 889.28 | 59.5% |
+| `carry-rank30-5` | 118.73 | 371.24 | 160.51 | 176.11 | 109.53 | 936.12 | 56.8% |
+| `carry-rank90-10` | 95.14 | 285.87 | 124.01 | 141.04 | 47.82 | 693.88 | 59.1% |
+| `carry-rank90-10-quarterly` (18 rebalances) | 61.76 | 189.63 | 82.23 | 91.57 | 74.25 | 499.44 | 54.4% |
+| `carry-rank90-5` | 97.75 | 293.28 | 127.08 | 144.89 | 87.43 | 750.43 | 56.0% |
+
+### 7.2 What a cheaper assumption would have produced
+
+**A sensitivity, not a result.** Every variant below is still costed at the
+registered assumption everywhere else in this document, and no criterion is
+recomputed here. The columns scale the spread and slippage lines by a multiplier and
+leave everything else exactly as it ran.
+
+The arithmetic is exact in the charges and approximate in the path. No registered
+variant reads a cost when it decides, so a cheaper world would have held the same
+pairs in the same weights; it would also have compounded a larger equity into every
+later position, so the true figure at a lower assumption is a little better than
+this. The multiplier at which each variant breaks even is in the last column.
+
+| variant | as run | half | a quarter | none at all | breaks even at |
+|---|---:|---:|---:|---:|---:|
+| `carry-basket-10` | -241.72 | -185.58 | -157.51 | -129.44 | -1.153 |
+| `carry-basket-5` | -86.12 | -33.71 | -7.50 | 18.70 | 0.178 |
+| `carry-positive-10` | -857.00 | -592.32 | -459.98 | -327.64 | -0.619 |
+| `carry-premium-10` | -1,377.11 | -1,205.74 | -1,120.06 | -1,034.38 | -3.018 |
+| `carry-rank30-10` | -857.00 | -592.32 | -459.98 | -327.64 | -0.619 |
+| `carry-rank30-5` | -1,084.70 | -818.82 | -685.89 | -552.95 | -1.040 |
+| `carry-rank90-10` | -466.36 | -261.42 | -158.95 | -56.48 | -0.138 |
+| `carry-rank90-10-quarterly` (18 rebalances) | -232.38 | -96.45 | -28.49 | 39.48 | 0.145 |
+| `carry-rank90-5` | -533.96 | -323.78 | -218.69 | -113.60 | -0.270 |
+
+**A multiplier at or below zero means the run loses with spread and slippage
+deleted entirely.** Seven of the nine are in
+that position, and for them no spread measurement of any kind could change the
+sign: their carry does not cover the exchange fees, the conversion leg and the
+delisting haircut on their own.
+
+**Two of the nine do flip: `carry-basket-5`, `carry-rank90-10-quarterly`.** They turn positive only when
+spread and slippage fall to about 18% of the assumption, a reduction of
+roughly 82%. Even with both lines deleted they earn 18.70 and 39.48 EUR on
+1,500 of equity over fifty-six months, which is low single-digit per cent in
+total rather than a year. That is a sign change and not an edge: neither comes
+near criterion 1, whose bar is the 95th percentile of the variant's own null.
+
+### 7.3 The circularity in rule S1, named
+
+Rule S1 acquires the spread sample only if some variant earns a positive net
+return at research fees. No variant did, so the sample was not acquired. **But the
+assumed spread is inside the charges that produced that negative net.** The
+assumption therefore helped prevent the measurement that could have corrected it,
+and a rule with that shape is worth stating rather than leaving for a reader to
+notice.
+
+The figures above are what breaks it. Seven of the nine lose with both assumed
+lines set to zero, so for those seven the circularity is harmless: no measurement
+could have changed their sign. It is live only for the two that flip, and only
+at a reduction of about four fifths. Whether that justifies acquiring the sample
+is a rule for the Product Owner to write, and it is not decided by this run's
+numbers - which is the same discipline rule S1 itself was registered under.
+
 ## 8. Regime stability
 
 Months are counted over the **scored** window. Counting them over the whole usable
@@ -377,12 +475,67 @@ ran: highest out-of-sample net Sharpe in the headline cell.
 
 The best variant's gross carry pays for 8.33 full-book round trips a year at research fees and 1.77 at execution fees, against 3.00 realised, so it clears the research schedule and not the execution one. Both figures are upper bounds: spread and slippage also scale with turnover and are excluded.
 
+
+### Realised turnover, every variant
+
+Round trips a year, from the fee line the engine charged, by the registered
+definition: fees as basis points of equity a year, divided by the
+22.50 basis points one full-book round trip costs at
+research fees.
+
+Amendment 5 registered its break-evens against an illustrative 400
+basis points of gross carry a year: **17.8** round trips at research fees and
+**3.8** at execution fees. The realised carry is not that figure, so both
+comparisons are shown.
+
+| variant | round trips/yr | vs 17.8 | vs 3.8 |
+|---|---:|---|---|
+| `carry-basket-10` | 3.20 | inside | inside |
+| `carry-basket-5` | 3.00 | inside | inside |
+| `carry-positive-10` | 7.70 | inside | **outside** |
+| `carry-premium-10` | 6.15 | inside | **outside** |
+| `carry-rank30-10` | 7.70 | inside | **outside** |
+| `carry-rank30-5` | 7.54 | inside | **outside** |
+| `carry-rank90-10` | 6.04 | inside | **outside** |
+| `carry-rank90-10-quarterly` (18 rebalances) | 3.92 | inside | **outside** |
+| `carry-rank90-5` | 6.21 | inside | **outside** |
+
+Every variant sits inside the illustrative research break-even and most sit
+outside the execution one. That comparison is against an assumed 4% carry rather
+than against what these variants earned, and the realised break-evens above,
+computed from the realised gross carry, are the binding pair.
+
 **Both break-evens are upper bounds.** Spread and slippage also scale with
 turnover, are identical at both venues, and are excluded from the fee arithmetic,
 so the break-even on total cost is strictly lower than either figure. The
-conversion leg is excluded too: it is charged twice for a whole run rather than
-per rebalance, and folding a fixed cost into a per-round-trip figure would
-misattribute it to turnover.
+conversion leg is excluded too, but **not for the reason amendment 5 gives**:
+see the correction below.
+
+### 12.1 A correction to amendment 5's justification
+
+Section 27.2 excludes the conversion leg from the fee arithmetic and says it is
+*charged twice for a whole run rather than per rebalance, so folding a fixed cost
+into a per-round-trip figure would misattribute it to turnover*. **That premise is
+wrong.** The engine charges the conversion twice per *position*, on the way in and
+on the way out, so it scales with traded notional exactly as a fee does. In this
+run the conversion line is 10.0000 basis points of turnover for every one of the
+nine variants, to four decimal places, which is the registered rate and not a
+coincidence.
+
+**What this changes, and what it does not.** The registered *definition* of the
+break-even is unaffected: it was defined on the fee line alone and that is what was
+computed, so no figure in this document moves. What changes is the reading. The
+excluded conversion is not a fixed overhead sitting outside the turnover question;
+it is a turnover-scaling charge about half again the size of the exchange fees
+themselves, and its exclusion makes the break-evens a **looser** upper bound than
+section 27.2 claims. A reader recomputing at another fee schedule should add it to
+the fee line rather than treat it as a constant.
+
+This is a defect in a justification, not in a computation, and it is reported
+rather than repaired in place: amendment 5 was registered before the run and its
+text is not edited afterwards. It is not a voiding reason under section 29.2 -
+every registered parameter was read by the code path that ran, and the conversion
+rate the ledger charged is the registered one.
 
 ### Declared expectation D2
 
@@ -550,6 +703,27 @@ No variant's out-of-sample net Sharpe exceeded the 95th percentile of its own ex
 
 - variants clearing criterion 1: none
 - variants clearing all six: none
+
+### What this verdict rests on
+
+**The premium is real.** Six of the nine variants cleared a positive carry before any charge: the
+funding received exceeded what the price legs gave back. This is the first
+positive gross result in this project, and it is what theory predicts for a
+hedged carry. F1 does not say the effect is absent.
+
+**It dies in the toll, and 56.5% of that toll
+is assumed rather than measured.** Spread and slippage are configured values under
+invariant 12; published exchange fees are only 14.1% of what was charged. So this verdict is
+**not** the statement that a retail fee schedule consumed the premium, and it is
+not purely a statement about the market either. It rests substantially on two
+numbers this project chose, and section 7.2 states what it would have produced had
+they been chosen lower.
+
+**What survives that caveat.** Seven of the nine variants lose with spread and slippage deleted entirely, so
+for those the assumption changes nothing at all. The remaining variants turn
+positive only at roughly a fifth of the assumed cost, and then by amounts far below
+criterion 1's bar. **(B) is therefore robust to the assumption it rests on**, which
+is the claim that had to be checked before the letter could be trusted.
 
 This is one family's verdict, not the task's. The task's verdict lives in
 `docs/VERDICT-006.md` and is written once every family has been run or reported
