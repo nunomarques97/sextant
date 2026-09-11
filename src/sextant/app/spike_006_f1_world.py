@@ -633,21 +633,20 @@ def monthly_instants(first: Month, last_end: Month) -> tuple[Timestamp, ...]:
     return tuple(instants)
 
 
-def _carry_universe(
+def carry_policies(
     *,
-    instants: Sequence[Timestamp],
-    spot_instruments: Mapping[InstrumentKey, Instrument],
-    perp_instruments: Mapping[InstrumentKey, Instrument],
     spot_histories: Mapping[InstrumentKey, InstrumentHistory],
     perp_histories: Mapping[InstrumentKey, InstrumentHistory],
     spot_calendar: BinanceListingCalendar,
     perp_calendar: BinanceListingCalendar,
     funding: RealisedFunding,
-    scaled: tuple[str, ...],
-    without_premium: tuple[str, ...],
-    without_bars: tuple[str, ...],
-) -> tuple[CarryUniverse, Census]:
-    """Two policies, evaluated independently, intersected on base asset."""
+) -> tuple[UniversePolicy, UniversePolicy]:
+    """The registered rule cascade for each leg, in the registered order.
+
+    Extracted so the same rule list serves the rebalance instants and any other
+    instant a rule-fixed sample has to be selected at. Two copies of a cascade is two
+    cascades: the one that ran and the one a sample was chosen by.
+    """
     perpetual_policy = UniversePolicy.of(
         "carry/perpetual",
         (
@@ -681,6 +680,66 @@ def _carry_universe(
             ),
             ExcludedAssetClassRule(excluded_bases=frozenset(EXCLUDED_BASES)),
         ),
+    )
+    return perpetual_policy, spot_policy
+
+
+def carry_bases_at(world: World, at: Timestamp) -> tuple[str, ...]:
+    """The carry universe's base assets at an instant that need not be a rebalance.
+
+    The universe the grid ran on is keyed by rebalance instant. A sample whose rule
+    names a different date - the depth sample's 2022-12-31, for one - has to be
+    selected at that date and not at the nearest rebalance, or the sample is not the
+    sample that was registered. Same cascade, same order, one instant.
+    """
+    perpetual_policy, spot_policy = carry_policies(
+        spot_histories=world.spot_histories,
+        perp_histories=world.perpetual_histories,
+        spot_calendar=world.spot_calendar,
+        perp_calendar=world.perpetual_calendar,
+        funding=world.funding,
+    )
+    spot_candidates = tuple(
+        item
+        for item in world.instruments.values()
+        if item.key in world.spot_histories and not has_leveraged_stem(item.base)
+    )
+    perp_candidates = tuple(
+        item
+        for item in world.instruments.values()
+        if item.key in world.perpetual_histories and not has_leveraged_stem(item.base)
+    )
+    perp_bases = {
+        world.instruments[key].base
+        for key in perpetual_policy.evaluate(perp_candidates, at).members
+    }
+    spot_bases = {
+        world.instruments[key].base for key in spot_policy.evaluate(spot_candidates, at).members
+    }
+    return tuple(sorted(perp_bases & spot_bases))
+
+
+def _carry_universe(
+    *,
+    instants: Sequence[Timestamp],
+    spot_instruments: Mapping[InstrumentKey, Instrument],
+    perp_instruments: Mapping[InstrumentKey, Instrument],
+    spot_histories: Mapping[InstrumentKey, InstrumentHistory],
+    perp_histories: Mapping[InstrumentKey, InstrumentHistory],
+    spot_calendar: BinanceListingCalendar,
+    perp_calendar: BinanceListingCalendar,
+    funding: RealisedFunding,
+    scaled: tuple[str, ...],
+    without_premium: tuple[str, ...],
+    without_bars: tuple[str, ...],
+) -> tuple[CarryUniverse, Census]:
+    """Two policies, evaluated independently, intersected on base asset."""
+    perpetual_policy, spot_policy = carry_policies(
+        spot_histories=spot_histories,
+        perp_histories=perp_histories,
+        spot_calendar=spot_calendar,
+        perp_calendar=perp_calendar,
+        funding=funding,
     )
     perp_candidates = tuple(
         item for item in perp_instruments.values() if not has_leveraged_stem(item.base)

@@ -60,9 +60,11 @@ import io
 import zipfile
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 from urllib.parse import quote
 from xml.etree import ElementTree
 
@@ -109,6 +111,94 @@ class FuturesTree(StrEnum):
         kline family and does.
         """
         return self is not FuturesTree.FUNDING_RATE
+
+
+@runtime_checkable
+class PublishedObject(Protocol):
+    """What :meth:`BinanceFuturesArchive.download` needs of an object.
+
+    Monthly and daily objects differ only in how they are keyed, and the download
+    path cares about neither: it wants a URL, a name for an error message, the
+    sibling digest's URL and the size the listing promised. A protocol rather than a
+    union so that a third grain later needs no edit here.
+    """
+
+    @property
+    def url(self) -> str: ...
+
+    @property
+    def checksum_url(self) -> str: ...
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def size_bytes(self) -> int: ...
+
+
+class FuturesDailyTree(StrEnum):
+    """Object families published one file per day rather than one per month.
+
+    ``bookDepth``
+        A snapshot of resting depth at ten distances from mid - one, two, three,
+        four and five per cent on each side - taken twice a minute. ``notional`` is
+        cumulative *to* that distance, so the value at one per cent already
+        contains everything nearer. This is the only tree in the archive that says
+        anything about what size the book would actually have absorbed, and it
+        exists only from 2023-01-01: capacity before that date is not measurable
+        from published data, which is why rule C3 exists at all.
+    """
+
+    BOOK_DEPTH = "bookDepth"
+
+    @property
+    def prefix(self) -> str:
+        """Where in the bucket this family lives."""
+        return f"data/futures/um/daily/{self.value}"
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesDailyObject:
+    """One published day for one symbol."""
+
+    tree: FuturesDailyTree
+    symbol: str
+    day: str
+    """The calendar day the object covers, ``YYYY-MM-DD``, as the venue keys it."""
+    key: str
+    size_bytes: int
+
+    @property
+    def url(self) -> str:
+        """The public download URL."""
+        return f"{DOWNLOAD_HOST}/{self.key}"
+
+    @property
+    def checksum_url(self) -> str:
+        """The sibling object holding the publisher's own SHA-256."""
+        return f"{self.url}.CHECKSUM"
+
+    @property
+    def name(self) -> str:
+        """The file name the venue publishes it under."""
+        return self.key.rsplit("/", 1)[-1]
+
+
+@dataclass(frozen=True, slots=True)
+class DepthSnapshotRow:
+    """One distance band of one snapshot, exactly as published.
+
+    ``notional`` stays decimal text for the same reason a funding rate does: the
+    published precision is the venue's to change, and a number parsed at a width
+    chosen here would silently truncate it. ``percentage`` is signed, negative on
+    the bid side, and is never abs()-ed on the way in - a caller that wants one
+    side must say so.
+    """
+
+    at: Timestamp
+    percentage: int
+    depth: str
+    notional: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -297,9 +387,52 @@ class BinanceFuturesArchive:
                 )
         return tuple(sorted(found, key=lambda item: item.month))
 
+    def daily_objects(
+        self,
+        tree: FuturesDailyTree,
+        symbol: str,
+        *,
+        first: str = "",
+        last: str = "",
+    ) -> tuple[FuturesDailyObject, ...]:
+        """Every published day for one symbol and tree, ascending, optionally bounded.
+
+        ``first`` and ``last`` are inclusive ``YYYY-MM-DD`` bounds and filter the
+        listing rather than the request, because the bucket is keyed by name and a
+        prefix cannot express a range. A day the publisher never published is simply
+        absent from the result: that is an empty answer about coverage, not a failure,
+        and the two must not be collapsed.
+        """
+        prefix = f"{tree.prefix}/{symbol}/"
+        found: list[FuturesDailyObject] = []
+        for page in self._list(prefix, delimiter=None):
+            for element in page.iter(f"{_S3_NS}Contents"):
+                key = element.findtext(f"{_S3_NS}Key") or ""
+                if not key.endswith(".zip"):
+                    continue
+                stem = key.rsplit("/", 1)[-1][: -len(".zip")]
+                day = stem.rsplit("-", 3)
+                if len(day) != 4:
+                    continue
+                date = "-".join(day[1:])
+                if first and date < first:
+                    continue
+                if last and date > last:
+                    continue
+                found.append(
+                    FuturesDailyObject(
+                        tree=tree,
+                        symbol=symbol,
+                        day=date,
+                        key=key,
+                        size_bytes=int(element.findtext(f"{_S3_NS}Size") or 0),
+                    )
+                )
+        return tuple(sorted(found, key=lambda item: item.day))
+
     # -- downloading ---------------------------------------------------------
 
-    def download(self, item: FuturesObject, destination: Path) -> DownloadOutcome:
+    def download(self, item: PublishedObject, destination: Path) -> DownloadOutcome:
         """Fetch one object to disk, verify it, and report both digests.
 
         Three checks, in this order: the ZIP's own central directory and CRC,
@@ -329,7 +462,7 @@ class BinanceFuturesArchive:
         destination.write_bytes(payload)
         return DownloadOutcome(digest=digest, publisher_digest=published)
 
-    def published_digest(self, item: FuturesObject) -> str | None:
+    def published_digest(self, item: PublishedObject) -> str | None:
         """The publisher's own SHA-256 for this object, when it publishes one.
 
         Returns None when the sibling is absent or unreadable rather than
@@ -390,6 +523,12 @@ _FUNDING_CALC_TIME = 0
 _FUNDING_INTERVAL = 1
 _FUNDING_RATE = 2
 _FUNDING_COLUMNS = 3
+
+_DEPTH_TIMESTAMP = 0
+_DEPTH_PERCENTAGE = 1
+_DEPTH_DEPTH = 2
+_DEPTH_NOTIONAL = 3
+_DEPTH_COLUMNS = 4
 
 _KLINE_OPEN_TIME = 0
 _KLINE_CLOSE = 4
@@ -506,3 +645,42 @@ def _epoch_millis(raw: str, source: str) -> int:
             raise ArchiveError(f"{source}: microsecond epoch {value} is not a whole ms")
         return value // 1000
     return value
+
+
+def parse_book_depth(payload: bytes, *, source: str = "") -> tuple[DepthSnapshotRow, ...]:
+    """Every snapshot band of one day, in publication order.
+
+    Four columns: the snapshot instant, the signed distance from mid in per cent, the
+    resting base quantity to that distance and its notional. The instant is a naive
+    ``YYYY-MM-DD HH:MM:SS`` in UTC - this tree publishes no epoch column at all - and
+    is attached to UTC here, at the adapter boundary, so nothing downstream ever holds
+    a naive datetime.
+
+    A day is published with roughly 1,440 minutes of snapshots when coverage is
+    complete and with materially fewer when it is not. The gap is the publisher's and
+    is reported rather than filled.
+    """
+    rows: list[DepthSnapshotRow] = []
+    for row in _csv_rows(payload):
+        if len(row) < _DEPTH_COLUMNS:
+            raise ArchiveError(f"{source or 'bookDepth'}: {len(row)} columns, expected 4")
+        stamp = row[_DEPTH_TIMESTAMP].strip()
+        try:
+            at = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+        except ValueError as error:
+            raise ArchiveError(f"{source or 'bookDepth'}: unreadable instant {stamp!r}") from error
+        try:
+            percentage = int(row[_DEPTH_PERCENTAGE])
+        except ValueError as error:
+            raise ArchiveError(
+                f"{source or 'bookDepth'}: unreadable distance {row[_DEPTH_PERCENTAGE]!r}"
+            ) from error
+        rows.append(
+            DepthSnapshotRow(
+                at=Timestamp(at),
+                percentage=percentage,
+                depth=row[_DEPTH_DEPTH].strip(),
+                notional=row[_DEPTH_NOTIONAL].strip(),
+            )
+        )
+    return tuple(rows)

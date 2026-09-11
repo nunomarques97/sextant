@@ -29,9 +29,11 @@ from decimal import Decimal
 from pathlib import Path
 
 from sextant.app.spike_006_f1 import (
+    ACCOUNT_EQUITY,
     CADENCE_PAIR,
     EXECUTION_FEE_OF_EQUITY_BPS,
     MARGIN_FRACTION,
+    MAX_POSITIONS,
     REGISTERED_VERSION,
     RESEARCH_FEE_OF_EQUITY_BPS,
     RESULTS_PATH,
@@ -46,6 +48,7 @@ from sextant.app.spike_006_f1_analysis import (
     depth_sample_is_needed,
     spread_acquisition,
 )
+from sextant.app.spike_006_f1_depth import DEPTH_RESULTS
 from sextant.engine.execution.breakeven import BreakEvenUndefined, d2a_holds
 
 REPORT_PATH = Path("docs") / "SPIKE-006-F1-RESULTS.md"
@@ -53,10 +56,19 @@ REPORT_PATH = Path("docs") / "SPIKE-006-F1-RESULTS.md"
 NEWLINE = chr(10)
 
 
-def render(results_path: Path = RESULTS_PATH, report_path: Path = REPORT_PATH) -> Path:
+def render(
+    results_path: Path = RESULTS_PATH,
+    report_path: Path = REPORT_PATH,
+    depth_path: Path = DEPTH_RESULTS,
+) -> Path:
     """Read the result file and write the report beside it."""
     with results_path.open(encoding="utf-8") as handle:
         payload = _mapping(json.load(handle))
+    depth = (
+        _mapping(json.loads(depth_path.read_text(encoding="utf-8")))
+        if depth_path.is_file()
+        else None
+    )
     sections = [
         _preamble(payload),
         _provenance_section(payload),
@@ -73,6 +85,7 @@ def render(results_path: Path = RESULTS_PATH, report_path: Path = REPORT_PATH) -
         _break_even_section(payload),
         _criteria_section(payload),
         _samples_section(payload),
+        _depth_section(depth),
         _verdict_section(payload),
     ]
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -936,6 +949,137 @@ def _samples_section(payload: Mapping[str, object]) -> str:
     return NEWLINE.join(lines)
 
 
+def _unpublished(depth: Mapping[str, object]) -> str:
+    """Which symbol-days the venue never published, named rather than counted.
+
+    A gap described only by its size is a gap a reader cannot check.
+    """
+    absent = depth.get("days_not_published")
+    if not isinstance(absent, dict) or not absent:
+        return "None, in fact: every requested symbol-day was published."
+    parts = [
+        f"`{symbol}` on {', '.join(str(day) for day in days)}"
+        for symbol, days in sorted(absent.items())
+        if isinstance(days, list) and days
+    ]
+    return "; ".join(parts) + "."
+
+
+def _depth_section(depth: Mapping[str, object] | None) -> str:
+    """What the acquired sample measured, and the three things it cannot say.
+
+    Empty when no sample exists, which is the ordinary case: rule C3 asks for one only
+    when a variant earned inside the depth window, and the section is written by the
+    acquisition rather than by the grid.
+    """
+    if depth is None:
+        return NEWLINE.join(
+            [
+                "## 15. Capacity, measured",
+                "",
+                "No depth sample exists. Section 14's rule C3 did not ask for one, so nothing",
+                "was acquired and no capacity figure is reported as measured.",
+                "",
+            ]
+        )
+    leg = ACCOUNT_EQUITY.amount / (Decimal(MAX_POSITIONS) * (Decimal(1) + MARGIN_FRACTION))
+    per_symbol = [_mapping(item) for item in _sequence(depth["per_symbol"])]
+    thinnest = min(
+        (item for item in per_symbol if item["median_across_days_within_1pct"] is not None),
+        key=lambda item: Decimal(_text(item["median_across_days_within_1pct"])),
+        default=None,
+    )
+    lines = [
+        "## 15. Capacity, measured",
+        "",
+        "Rule C3 asked for this and section 12 fixed its shape before anything ran.",
+        f"**{_text(depth['symbol_days_fetched'])} symbol-days** were acquired of "
+        f"{_text(depth['symbol_days_requested'])} requested, "
+        f"{_text(depth['megabytes_fetched'])} MB, and every one of them was verified",
+        "against the publisher's own SHA-256. The `bookTicker` spread sample of the same",
+        "section was **not** acquired, because rule S1 was false.",
+        "",
+        f"- window: **{_text(depth['depth_window'])}** (rule C1: no capacity figure omits it)",
+        f"- symbols: the **{_text(depth['symbol_count'])}** deepest carry-universe perpetuals "
+        f"by trailing 30-day median quote turnover at {_text(depth['symbols_selected_at'])}",
+        f"- days: the first of each month, {len(_sequence(depth['days_requested']))} of them",
+        "- figures: resting notional on **both sides**, cumulative to the stated distance",
+        "  from mid, median across the day's minutes and then across the days",
+        "",
+        "| symbol | days measured | days with an opening window | median within 1% | within 5% |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for item in sorted(per_symbol, key=lambda entry: _text(entry["symbol"])):
+        lines.append(
+            f"| `{_text(item['symbol'])}` "
+            f"| {_text(item['days_measured'])} "
+            f"| {_text(item['days_with_an_opening_window'])} "
+            f"| {_money(item['median_across_days_within_1pct'])} "
+            f"| {_money(item['median_across_days_within_5pct'])} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Across every measured day: "
+            f"**{_money(depth['median_of_every_measured_day_within_1pct'])}** within 1 per cent "
+            f"and **{_money(depth['median_of_every_measured_day_within_5pct'])}** within 5, "
+            "in USDT.",
+            "",
+            "### What it means at this account, and what it does not",
+            "",
+            f"One leg of one pair is **{leg:,.2f} EUR** at the registered equity, position count",
+            "and margin fraction. Against the thinnest of the twenty that is a fraction of a",
+            "basis point of what rests within one per cent of mid:",
+            "",
+        ]
+    )
+    if thinnest is not None:
+        floor = Decimal(_text(thinnest["median_across_days_within_1pct"]))
+        share = (leg / floor * 100).quantize(Decimal("0.0001"))
+        lines.extend(
+            [
+                f"| thinnest of the twenty | `{_text(thinnest['symbol'])}` |",
+                "|---|---:|",
+                f"| its median resting notional within 1% | {_money(floor)} |",
+                f"| one leg, as a share of it | {share}% |",
+                "",
+                "No FX conversion is applied to that comparison. The depth is in USDT and the",
+                "leg in EUR, and no plausible rate moves a figure of this size by an order of",
+                "magnitude. The units are stated rather than blended.",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "**Depth is not what stops this family.** One leg is under two hundredths of a",
+            "per cent of what rests within one per cent of mid on the thinnest symbol sampled,",
+            "so no capacity constraint could have produced the returns in section 5. What does",
+            "stop it is in sections 7 and 12: the funding stream is real and is roughly",
+            "cancelled by the basis, and the costs then exceed what is left.",
+            "",
+            "**Three things this sample cannot say.** These are the twenty *deepest* members,",
+            "so the median across them is an upper bound on what a median universe member",
+            "offers, and the universe ran to 340 pairs. It measures the **perpetual leg only**,",
+            "and a cash-and-carry needs both legs to fill. And it is seventeen days inside a",
+            "seventeen-month stretch of a window running from 2021 to 2026: rule C2 makes any",
+            "figure outside that window an extrapolation, and none is offered here.",
+            "",
+            "**Three days were never published.** "
+            + _unpublished(depth)
+            + " A day the venue did not publish is absent from the median rather than "
+            "counted as a zero, and the day count beside each figure says how many it "
+            "was taken over.",
+            "",
+            "**The opening window is mostly absent.** The venue's publication frequently starts",
+            "hours into the day, so the 00:00-00:05 UTC figures the statistic asks for exist on",
+            "about ten of the seventeen days. Where they are absent the figure is null, never",
+            "zero: no snapshot is not an empty book.",
+            "",
+        ]
+    )
+    return NEWLINE.join(lines)
+
+
 def _yes(value: bool) -> str:
     """A boolean as the word a reader reads, so no section spells it differently."""
     return "yes" if value else "no"
@@ -995,7 +1139,7 @@ def _verdict_section(payload: Mapping[str, object]) -> str:
     alls = _sequence(verdict["variants_clearing_all_six"])
     return NEWLINE.join(
         [
-            "## 15. Verdict for family F1",
+            "## 16. Verdict for family F1",
             "",
             f"### ({_text(verdict['letter'])})",
             "",

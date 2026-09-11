@@ -136,12 +136,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     f1.add_argument(
         "stage",
-        choices=("verify", "ordering", "dataset", "run", "report"),
+        choices=("verify", "ordering", "dataset", "run", "depth", "report"),
         help="`verify` runs the drift guard and the commit gate; `ordering` prints the "
         "audit lines the report quotes, and is rerun after the results are committed; "
         "`dataset` measures the acquisition and writes pre-registration part 2; "
         "`run` executes the registered 36-trial grid and writes the result file; "
-        "`report` renders that file as the results document.",
+        "`depth` acquires the order-book sample, but only when rule C3 asked for one; "
+        "`report` renders the result file as the results document.",
     )
     f1.add_argument(
         "--seeds",
@@ -311,6 +312,39 @@ def _command_futures(stage: str) -> int:
     return EXIT_OK
 
 
+def _command_f1_depth() -> int:
+    """Acquire the depth sample, and refuse to acquire it when the rule did not ask.
+
+    Rule C3 decides this from the executed result file, not from whoever is running
+    the command. A stage that downloaded 160 MB because it was invoked would make the
+    registered condition decorative.
+    """
+    import json as _json
+
+    from sextant.app import spike_006_f1_depth
+    from sextant.app.spike_006_f1 import RESULTS_PATH
+    from sextant.app.spike_006_f1_analysis import analyse, capacity_report, depth_sample_is_needed
+    from sextant.app.spike_006_f1_world import build_world
+
+    if not RESULTS_PATH.is_file():
+        print(f"  no result file at {RESULTS_PATH.as_posix()}; rule C3 has nothing to read.")
+        return EXIT_ORDERING_UNVERIFIED
+    payload = _json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+    rows = analyse(payload)
+    capacity = capacity_report(payload, rows)
+    if not depth_sample_is_needed(capacity):
+        print("  rule C3 reports capacity UNESTABLISHED for every variant.")
+        print("  the depth sample is not acquired, and that is the rule's answer.")
+        return EXIT_OK
+    measured = sorted({item.variant for item in capacity if item.verdict.needs_depth_data})
+    print(f"  rule C3 lands on a measured outcome for: {', '.join(measured)}")
+    sample = spike_006_f1_depth.acquire(build_world(), raw_root=spike_006_f1_depth.DEPTH_ROOT)
+    written = spike_006_f1_depth.write(sample, spike_006_f1_depth.DEPTH_RESULTS)
+    print(f"  {sample.megabytes} MB over {len(sample.fetched)} symbol-days")
+    print(f"  written: {written.as_posix()}")
+    return EXIT_OK
+
+
 def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
     """The F1 guards, runnable on their own with no dataset present.
 
@@ -348,6 +382,8 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
 
         spike_006_f1_run.execute(repository_root=root, seed_override=seeds)
         return EXIT_OK
+    if stage == "depth":
+        return _command_f1_depth()
     if stage == "report":
         from sextant.app import spike_006_f1_report
 

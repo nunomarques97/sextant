@@ -413,7 +413,80 @@ Either way the configured spread remains labelled an assumption under invariant
 12. An unmeasured spread is never reported as a measured one, and a decision not
 to measure is not a claim that the assumption was right.
 
-## 15. Verdict for family F1
+## 15. Capacity, measured
+
+Rule C3 asked for this and section 12 fixed its shape before anything ran.
+**337 symbol-days** were acquired of 340 requested, 139.2 MB, and every one of them was verified
+against the publisher's own SHA-256. The `bookTicker` spread sample of the same
+section was **not** acquired, because rule S1 was false.
+
+- window: **2023-01-01/2024-05-17** (rule C1: no capacity figure omits it)
+- symbols: the **20** deepest carry-universe perpetuals by trailing 30-day median quote turnover at 2022-12-31
+- days: the first of each month, 17 of them
+- figures: resting notional on **both sides**, cumulative to the stated distance
+  from mid, median across the day's minutes and then across the days
+
+| symbol | days measured | days with an opening window | median within 1% | within 5% |
+|---|---:|---:|---:|---:|
+| `ADAUSDT` | 17 | 10 | 4,463,972.06 | 13,405,430.57 |
+| `APEUSDT` | 17 | 10 | 1,902,861.32 | 5,710,914.99 |
+| `AXSUSDT` | 17 | 10 | 1,288,078.22 | 5,002,568.64 |
+| `BNBUSDT` | 17 | 10 | 10,397,988.25 | 28,237,407.11 |
+| `BTCUSDT` | 17 | 10 | 202,645,925.51 | 790,056,978.96 |
+| `CHZUSDT` | 17 | 10 | 1,085,632.01 | 3,336,980.07 |
+| `DOGEUSDT` | 17 | 10 | 6,934,641.55 | 22,351,413.88 |
+| `DYDXUSDT` | 17 | 10 | 2,356,982.39 | 7,106,881.39 |
+| `EOSUSDT` | 17 | 10 | 2,465,849.41 | 8,916,748.71 |
+| `ETCUSDT` | 17 | 10 | 3,064,270.68 | 10,898,760.02 |
+| `ETHUSDT` | 17 | 10 | 99,372,684.66 | 360,271,026.09 |
+| `FTMUSDT` | 16 | 9 | 2,371,881.70 | 5,995,245.82 |
+| `LINKUSDT` | 17 | 10 | 4,715,214.73 | 14,133,804.41 |
+| `LTCUSDT` | 17 | 10 | 6,037,944.05 | 19,132,775.04 |
+| `MASKUSDT` | 17 | 10 | 1,685,619.08 | 3,849,459.73 |
+| `MATICUSDT` | 16 | 9 | 5,769,136.73 | 13,356,015.81 |
+| `OCEANUSDT` | 17 | 10 | 826,386.28 | 2,035,450.66 |
+| `SOLUSDT` | 17 | 10 | 6,905,897.69 | 20,444,856.49 |
+| `WAVESUSDT` | 17 | 10 | 771,613.25 | 2,102,039.71 |
+| `XRPUSDT` | 16 | 9 | 10,235,598.13 | 27,924,631.63 |
+
+Across every measured day: **3,727,759.52** within 1 per cent and **11,082,780.04** within 5, in USDT.
+
+### What it means at this account, and what it does not
+
+One leg of one pair is **125.00 EUR** at the registered equity, position count
+and margin fraction. Against the thinnest of the twenty that is a fraction of a
+basis point of what rests within one per cent of mid:
+
+| thinnest of the twenty | `WAVESUSDT` |
+|---|---:|
+| its median resting notional within 1% | 771,613.25 |
+| one leg, as a share of it | 0.0162% |
+
+No FX conversion is applied to that comparison. The depth is in USDT and the
+leg in EUR, and no plausible rate moves a figure of this size by an order of
+magnitude. The units are stated rather than blended.
+
+**Depth is not what stops this family.** One leg is under two hundredths of a
+per cent of what rests within one per cent of mid on the thinnest symbol sampled,
+so no capacity constraint could have produced the returns in section 5. What does
+stop it is in sections 7 and 12: the funding stream is real and is roughly
+cancelled by the basis, and the costs then exceed what is left.
+
+**Three things this sample cannot say.** These are the twenty *deepest* members,
+so the median across them is an upper bound on what a median universe member
+offers, and the universe ran to 340 pairs. It measures the **perpetual leg only**,
+and a cash-and-carry needs both legs to fill. And it is seventeen days inside a
+seventeen-month stretch of a window running from 2021 to 2026: rule C2 makes any
+figure outside that window an extrapolation, and none is offered here.
+
+**Three days were never published.** `FTMUSDT` on 2023-11-01; `MATICUSDT` on 2023-11-01; `XRPUSDT` on 2023-11-01. A day the venue did not publish is absent from the median rather than counted as a zero, and the day count beside each figure says how many it was taken over.
+
+**The opening window is mostly absent.** The venue's publication frequently starts
+hours into the day, so the 00:00-00:05 UTC figures the statistic asks for exist on
+about ten of the seventeen days. Where they are absent the figure is null, never
+zero: no snapshot is not an empty book.
+
+## 16. Verdict for family F1
 
 ### (B)
 
