@@ -120,7 +120,14 @@ verified. Never report done without evidence.
   `research/spike-006-f1-estimator.json` (rule E1's spread estimator, refused by its
   own acceptance test), `research/spike-006-f1-extended.json` (rule M1's mid and thin
   band sample), `research/spike-006-f1-bands.json` (rule B1's re-cut and the band
-  occupancy that decided M1) and `research/spike-006-f1-contraction.json` beside it.
+  occupancy that decided M1), `research/spike-006-f1-tick-metadata.json` (rule T1's
+  snapshot of the venue's own price increments, an assumption and not a measurement),
+  `research/spike-006-f1-tick.json` (rules T2 and T3, which WITHDRAW B1's re-cut: on the
+  venue's ticks the correlation falls to 0.327 at p 0.33, and nine of eleven sampled
+  instruments need no band at all because their spread is one tick),
+  `research/spike-006-f1-thin.json` (rule T4: the thin band IS traded, 114
+  instrument-instants, every one after 2025-12) and
+  `research/spike-006-f1-contraction.json` beside it.
   Why the two standard low-frequency spread estimators cannot work on this market:
   `docs/SPREAD-ESTIMATORS.md`. The task verdict across all
   six families will be `docs/VERDICT-006.md`, written once every family is run or
