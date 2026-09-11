@@ -292,10 +292,14 @@ def _provenance_section(payload: Mapping[str, object]) -> str:
             "Run `sextant spike-006-f1 ordering` after this document is committed to print",
             "the ancestry check between the configuration's commit and the results' commit.",
             "",
-            "That command reports the **newest** commit touching the configuration, which is",
-            "amendment 8's and not the one whose bytes this run read. Both are ancestors of the",
-            "results commit, which is the property being checked. The SHA in the table above is",
-            "the one recorded at run time, and it is the one that describes the bytes.",
+            "That command reports the **newest** commit touching the configuration, which since",
+            "amendment 8 has been a later one than the commit whose bytes this run read: every",
+            "amendment from 8 onward was registered after this family's figures existed, says so",
+            "in its own section, and governs an acquisition or a later family rather than an F1",
+            "figure. So the command answers NO and that is the expected answer. The property",
+            "that matters is the one the table above records: the SHA captured at run time, which",
+            "describes the bytes the run actually read and is an ancestor of the results commit.",
+            "Anything in the configuration newer than that SHA could not have reached this run.",
             "",
         ]
     )
