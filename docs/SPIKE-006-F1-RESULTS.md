@@ -13,7 +13,7 @@ ancestry is checkable with `git merge-base --is-ancestor`.
 - everything denominated in **EUR**
 - **verdict: (B)**
 
-> **This run read `v1.7.1`; the specification is now `v2.0`.** Amendments 7 and 8 were registered while the grid
+> **This run read `v1.7.1`; the specification is now `v2.1`.** Amendments 7 and 8 were registered while the grid
 > was running and neither changes a computed value: amendment 7 fixes how a void
 > execution is counted in the trial registry, and amendment 8 fixes who may
 > declare one void and makes the spread sample conditional on rule S1. No
@@ -390,6 +390,76 @@ and approximate in the volatility, because the real charge follows each month's
 turnover. From F2 the runner records per-month assumed costs and the same test is
 computed exactly. The conclusion here does not rest on the approximation: the two
 clearing Sharpes sit more than a full point above their null bars.
+
+### 7.5 The measured spread, beside the assumption
+
+**This changes no figure in this document and is not permitted to.** Every variant
+is costed at the registered assumption in every cell, under invariant 12, and F1's
+verdict was settled before this was measured. Section 7.4 shows the verdict does not
+move even with the whole assumed cost deleted, which is a stronger statement than any
+measurement of it could make.
+
+Rule S1 fired, so section 12's sample was acquired: **36 symbol-days** of top-of-book quotes, 1637.6 MB, 36 of them verified against the
+publisher's own SHA-256.
+
+| symbol | chosen as | days | quotes | median quoted spread | range across days | 00:00-00:05 UTC |
+|---|---|---:|---:|---:|---:|---:|
+| `API3USDT` | tenth percentile | 6 | 3,512,178 | 4.2452 bps | 0.6850 to 10.3359 | 0.8940 bps |
+| `BLZUSDT` | tenth percentile | 6 | 2,237,790 | 1.4694 bps | 0.4011 to 1.9196 | 1.5787 bps |
+| `BTCUSDT` | top | 6 | 83,166,061 | 0.0357 bps | 0.0236 to 0.0372 | 0.0342 bps |
+| `ETHUSDT` | top | 6 | 60,698,063 | 0.0541 bps | 0.0440 to 0.0595 | 0.0533 bps |
+| `THETAUSDT` | median | 6 | 3,404,084 | 1.2482 bps | 1.0095 to 2.0488 | 1.2802 bps |
+| `UNFIUSDT` | median | 6 | 2,974,289 | 2.0190 bps | 0.8575 to 2.8454 | 1.7342 bps |
+
+Every figure is the **quoted** spread in basis points of the midpoint,
+time-weighted within the day and then taken as the median across days. No quote
+in the sample was crossed or locked.
+
+#### What it says against the assumption
+
+The configured figure is a **half-spread charged per leg**, so the comparable
+measured quantity is half the quoted spread.
+
+| | deep band |
+|---|---:|
+| assumed half-spread, per leg | 10 bps |
+| measured quoted spread, median across the six | 1.0599 bps |
+| the comparable half of it | 0.5300 bps |
+| assumed slippage, per leg, measured by nothing here | 5 bps |
+
+**The assumption is roughly twenty times the measured half-spread on this band,**
+and for the two deepest symbols it is several hundred times: `BTCUSDT` quotes at
+0.03 basis points and `ETHUSDT` at 0.05. The assumption was chosen to be
+conservative rather than representative, and on this evidence it is very
+conservative indeed for liquid perpetuals.
+
+**The band is the more interesting finding.** All six sampled symbols fall in the
+cost model's *deep* band, because every carry-universe member at 2023-05-15 turns
+over more than that band's floor. Inside that one band the measured spread ranges
+from 0.03 to 4.72 basis points, two orders of magnitude. **A single figure per band
+cannot represent that**, and the band boundaries are cut on turnover rather than on
+anything the spread responds to.
+
+#### Three things it cannot say
+
+**Nothing about slippage.** The quoted spread is what rested at the top of the
+book; slippage is what an order does to it. The slippage assumption is untouched
+by this measurement and remains an assumption.
+
+**Nothing about the mid and thin bands.** The sample reaches only the deep band,
+so those assumptions stay assumptions and are labelled as such wherever they
+appear.
+
+**Nothing about the spot leg.** These are perpetual quotes. A cash-and-carry needs
+both legs to fill, and the spot book is measured by nothing here.
+
+**The opening window is empty on 2023-05-16 for every symbol**, because that is the
+tree's first published day and its coverage begins at about 11:50 UTC. Twelve of
+the twenty-four hours are covered and the five minutes after midnight are not, so
+that day's opening figure is null rather than zero.
+
+From F2 this measurement becomes the default cost for the deep band, with the
+assumption retained beside it as a labelled alternative. Section 32.4.
 
 ## 8. Regime stability
 

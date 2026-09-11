@@ -39,6 +39,12 @@ from sextant.engine.execution.depth import (
     across_days,
     summarise_day,
 )
+from sextant.engine.execution.spread import (
+    OPENING_MILLIS,
+    Quote,
+    QuoteUnreadable,
+    SpreadAccumulator,
+)
 
 DAY = "2023-01-01"
 
@@ -324,3 +330,95 @@ def test_the_capacity_section_says_so_when_no_sample_was_acquired() -> None:
     section = _depth_section(None)
     assert "No depth sample exists" in section
     assert "did not ask" in section
+
+
+# ---------------------------------------------------------------------------
+# The spread reduction: fed, never materialised
+# ---------------------------------------------------------------------------
+
+
+def _quote(seconds: float, *, bid: str, ask: str) -> Quote:
+    """One quote at a clock offset, from decimal text at the published scale."""
+    scale = 10**8
+    return Quote(
+        at_millis=int(seconds * 1000),
+        bid=int(Decimal(bid) * scale),
+        ask=int(Decimal(ask) * scale),
+    )
+
+
+def test_the_spread_is_the_quoted_distance_over_the_midpoint() -> None:
+    """100.00 by 100.01 is one basis point of a midpoint of 100.005, less a hair."""
+    acc = SpreadAccumulator(window="whole day")
+    acc.add(_quote(0, bid="100.00", ask="100.01"))
+    summary = acc.summary()
+    assert summary.median_bps is not None
+    assert Decimal("0.9999") < summary.median_bps < Decimal("1.0")
+
+
+def test_a_quote_weighs_the_time_until_the_next_one() -> None:
+    """Time-weighted means what it says: a quote that rested a second counts a second."""
+    acc = SpreadAccumulator(window="whole day", ends_millis=2000)
+    acc.add(_quote(0, bid="100.00", ask="100.02"))
+    acc.add(_quote(1, bid="100.00", ask="100.04"))
+    summary = acc.summary()
+    assert summary.covered_millis == 2000
+    assert summary.time_weighted_mean_bps is not None
+    # One second at about 2 bps and one at about 4, so the mean sits in between.
+    assert Decimal(2) < summary.time_weighted_mean_bps < Decimal(4)
+
+
+def test_a_quote_superseded_in_the_same_millisecond_weighs_nothing() -> None:
+    """Two quotes at one instant: the first never rested, so it cannot be weighted."""
+    acc = SpreadAccumulator(window="whole day", ends_millis=1000)
+    acc.add(_quote(0, bid="100.00", ask="110.00"))
+    acc.add(_quote(0, bid="100.00", ask="100.02"))
+    summary = acc.summary()
+    assert summary.time_weighted_mean_bps is not None
+    assert summary.time_weighted_mean_bps < Decimal(10)
+
+
+def test_the_opening_window_takes_only_its_own_quotes() -> None:
+    acc = SpreadAccumulator(window="opening", ends_millis=OPENING_MILLIS)
+    acc.add(_quote(60, bid="100.00", ask="100.02"))
+    acc.add(_quote(600, bid="100.00", ask="100.50"))
+    summary = acc.summary()
+    assert summary.quotes == 1
+    assert summary.median_bps is not None
+    assert summary.median_bps < Decimal(10)
+
+
+def test_a_window_with_no_quote_answers_nothing_rather_than_zero() -> None:
+    """The tree's first published day starts at midday, and zero is a claim."""
+    summary = SpreadAccumulator(window="opening", ends_millis=OPENING_MILLIS).summary()
+    assert summary.quotes == 0
+    assert summary.median_bps is None
+    assert summary.time_weighted_mean_bps is None
+    assert summary.is_evaluable is False
+
+
+def test_a_crossed_quote_is_counted_and_not_averaged_in() -> None:
+    """A locked or crossed book is a fact about the feed, not a negative spread."""
+    acc = SpreadAccumulator(window="whole day")
+    acc.add(_quote(0, bid="100.01", ask="100.00"))
+    acc.add(_quote(1, bid="100.00", ask="100.02"))
+    summary = acc.summary()
+    assert summary.crossed_quotes == 1
+    assert summary.quotes == 1
+
+
+def test_a_non_positive_price_is_refused_rather_than_reduced() -> None:
+    acc = SpreadAccumulator(window="whole day")
+    with pytest.raises(QuoteUnreadable, match="non-positive"):
+        acc.add(Quote(at_millis=0, bid=0, ask=100))
+
+
+def test_the_median_is_exact_over_a_counted_distribution() -> None:
+    """Seven million quotes a day, so the median comes from counts rather than a list."""
+    acc = SpreadAccumulator(window="whole day")
+    for index, ask in enumerate(("100.01", "100.02", "100.03")):
+        acc.add(_quote(index, bid="100.00", ask=ask))
+    summary = acc.summary()
+    assert summary.quotes == 3
+    assert summary.median_bps is not None
+    assert Decimal("1.99") < summary.median_bps < Decimal("2.0")

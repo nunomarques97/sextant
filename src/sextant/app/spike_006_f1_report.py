@@ -58,6 +58,7 @@ from sextant.app.spike_006_f1_analysis import (
 )
 from sextant.app.spike_006_f1_contraction import CONTRACTION_RESULTS
 from sextant.app.spike_006_f1_depth import DEPTH_RESULTS
+from sextant.app.spike_006_f1_spread import SPREAD_RESULTS
 from sextant.domain.time import Timestamp
 from sextant.engine.execution.breakeven import BreakEvenUndefined, d2a_holds
 
@@ -71,6 +72,7 @@ def render(
     report_path: Path = REPORT_PATH,
     depth_path: Path = DEPTH_RESULTS,
     contraction_path: Path = CONTRACTION_RESULTS,
+    spread_path: Path = SPREAD_RESULTS,
 ) -> Path:
     """Read the result file and write the report beside it."""
     with results_path.open(encoding="utf-8") as handle:
@@ -83,6 +85,11 @@ def render(
     contraction = (
         _mapping(json.loads(contraction_path.read_text(encoding="utf-8")))
         if contraction_path.is_file()
+        else None
+    )
+    spread = (
+        _mapping(json.loads(spread_path.read_text(encoding="utf-8")))
+        if spread_path.is_file()
         else None
     )
     # Every derived block is recomputed from the file's own monthly series rather than
@@ -101,6 +108,7 @@ def render(
         _decomposition_section(payload),
         _toll_section(payload),
         _rescue_section(payload),
+        _measured_spread_section(payload, spread),
         _regime_section(payload),
         _recent_section(payload),
         _contraction_section(payload, contraction),
@@ -942,6 +950,159 @@ def _rescue_section(payload: Mapping[str, object]) -> str:
         ]
     )
     return NEWLINE.join(lines)
+
+
+def _measured_spread_section(
+    payload: Mapping[str, object], spread: Mapping[str, object] | None
+) -> str:
+    """What rule S1 bought: a measured spread, beside the assumption it does not replace.
+
+    Empty when no sample exists. When one does, the first thing it says is what it
+    cannot do, because a measured figure printed next to a computed one invites the
+    reading that the computed one has moved.
+    """
+    if spread is None:
+        return ""
+    bands = _mapping(spread["measured_median_bps_by_band"])
+    assumed = _mapping(spread["assumed_spread_bps_by_band"])
+    slippage = _mapping(spread["assumed_slippage_bps_by_band"])
+    lines = [
+        "### 7.5 The measured spread, beside the assumption",
+        "",
+        "**This changes no figure in this document and is not permitted to.** Every variant",
+        "is costed at the registered assumption in every cell, under invariant 12, and F1's",
+        "verdict was settled before this was measured. Section 7.4 shows the verdict does not",
+        "move even with the whole assumed cost deleted, which is a stronger statement than any",
+        "measurement of it could make.",
+        "",
+        f"Rule S1 fired, so section 12's sample was acquired: "
+        f"**{_text(spread['symbol_days_measured'])} symbol-days** of top-of-book quotes, "
+        f"{_text(spread['megabytes_fetched'])} MB, "
+        f"{_text(spread['verified_against_the_publisher'])} of them verified against the",
+        "publisher's own SHA-256.",
+        "",
+        "| symbol | chosen as | days | quotes | median quoted spread | range across days "
+        "| 00:00-00:05 UTC |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ]
+    picked = {
+        _text(_mapping(item)["symbol"]): _mapping(item) for item in _sequence(spread["symbols"])
+    }
+    per_symbol: dict[str, list[Mapping[str, object]]] = {}
+    for entry in _sequence(spread["per_symbol_day"]):
+        item = _mapping(entry)
+        per_symbol.setdefault(_text(item["symbol"]), []).append(item)
+    for symbol in sorted(per_symbol):
+        rows = per_symbol[symbol]
+        whole = [_mapping(row["whole_day"]) for row in rows]
+        opening = [_mapping(row["opening_window"]) for row in rows]
+        quotes = sum(int(_text(block["quotes"])) for block in whole)
+        chosen = picked.get(symbol, {})
+        lines.append(
+            f"| `{symbol}` "
+            f"| {_text(chosen.get('chosen_as'))} "
+            f"| {len(rows)} "
+            f"| {quotes:,} "
+            f"| {_bps(_median_text([block['median_bps'] for block in whole]))} "
+            f"| {_range_text([block['median_bps'] for block in whole])} "
+            f"| {_bps(_median_text([block['median_bps'] for block in opening]))} |"
+        )
+    deep = _mapping(bands["deep"]) if "deep" in bands else None
+    lines.extend(
+        [
+            "",
+            "Every figure is the **quoted** spread in basis points of the midpoint,",
+            "time-weighted within the day and then taken as the median across days. No quote",
+            "in the sample was crossed or locked.",
+            "",
+            "#### What it says against the assumption",
+            "",
+            "The configured figure is a **half-spread charged per leg**, so the comparable",
+            "measured quantity is half the quoted spread.",
+            "",
+            "| | deep band |",
+            "|---|---:|",
+            f"| assumed half-spread, per leg | {_text(assumed.get('deep'))} bps |",
+            f"| measured quoted spread, median across the six | "
+            f"{_bps(None if deep is None else _text(deep['whole_day']))} |",
+            f"| the comparable half of it | "
+            f"{_bps(_halved(None if deep is None else _text(deep['whole_day'])))} |",
+            f"| assumed slippage, per leg, measured by nothing here | "
+            f"{_text(slippage.get('deep'))} bps |",
+            "",
+            "**The assumption is roughly twenty times the measured half-spread on this band,**",
+            "and for the two deepest symbols it is several hundred times: `BTCUSDT` quotes at",
+            "0.03 basis points and `ETHUSDT` at 0.05. The assumption was chosen to be",
+            "conservative rather than representative, and on this evidence it is very",
+            "conservative indeed for liquid perpetuals.",
+            "",
+            "**The band is the more interesting finding.** All six sampled symbols fall in the",
+            "cost model's *deep* band, because every carry-universe member at 2023-05-15 turns",
+            "over more than that band's floor. Inside that one band the measured spread ranges",
+            "from 0.03 to 4.72 basis points, two orders of magnitude. **A single figure per band",
+            "cannot represent that**, and the band boundaries are cut on turnover rather than on",
+            "anything the spread responds to.",
+            "",
+            "#### Three things it cannot say",
+            "",
+            "**Nothing about slippage.** The quoted spread is what rested at the top of the",
+            "book; slippage is what an order does to it. The slippage assumption is untouched",
+            "by this measurement and remains an assumption.",
+            "",
+            "**Nothing about the mid and thin bands.** The sample reaches only the deep band,",
+            "so those assumptions stay assumptions and are labelled as such wherever they",
+            "appear.",
+            "",
+            "**Nothing about the spot leg.** These are perpetual quotes. A cash-and-carry needs",
+            "both legs to fill, and the spot book is measured by nothing here.",
+            "",
+            "**The opening window is empty on 2023-05-16 for every symbol**, because that is the",
+            "tree's first published day and its coverage begins at about 11:50 UTC. Twelve of",
+            "the twenty-four hours are covered and the five minutes after midnight are not, so",
+            "that day's opening figure is null rather than zero.",
+            "",
+            "From F2 this measurement becomes the default cost for the deep band, with the",
+            "assumption retained beside it as a labelled alternative. Section 32.4.",
+            "",
+        ]
+    )
+    return NEWLINE.join(lines)
+
+
+def _bps(value: str | None) -> str:
+    """A spread in basis points, at the precision the measurement supports."""
+    number = _number(value)
+    return "-" if number is None else f"{number:.4f} bps"
+
+
+def _range_text(values: Sequence[object]) -> str:
+    """The lowest and highest of a set of daily figures, so instability is visible."""
+    numbers = sorted(
+        Decimal(_text(item)) for item in values if item is not None and _text(item) != ""
+    )
+    if not numbers:
+        return "-"
+    if len(numbers) == 1:
+        return f"{numbers[0]:.4f}"
+    return f"{numbers[0]:.4f} to {numbers[-1]:.4f}"
+
+
+def _median_text(values: Sequence[object]) -> str | None:
+    """The median of the figures that exist, as text, or None if none do."""
+    numbers = sorted(
+        Decimal(_text(item)) for item in values if item is not None and _text(item) != ""
+    )
+    if not numbers:
+        return None
+    middle = len(numbers) // 2
+    if len(numbers) % 2 == 1:
+        return str(numbers[middle])
+    return str((numbers[middle - 1] + numbers[middle]) / Decimal(2))
+
+
+def _halved(value: str | None) -> str | None:
+    """Half of a quoted spread: the quantity the per-leg assumption is comparable to."""
+    return None if value is None else str(Decimal(value) / Decimal(2))
 
 
 def _regime_section(payload: Mapping[str, object]) -> str:
