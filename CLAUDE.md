@@ -115,8 +115,10 @@ verified. Never report done without evidence.
   `docs/PRE-REGISTRATION-006-F1.md` and `config/spike-006-f1.yaml` were committed
   before the grid ran; `docs/SPIKE-006-F1-RESULTS.md` is every number;
   `research/spike-006-f1.json` is what it was computed from, with
-  `research/spike-006-f1-depth.json` (the capacity sample rule C3 asked for) and
-  `research/spike-006-f1-contraction.json` beside it. The task verdict across all
+  `research/spike-006-f1-depth.json` (the capacity sample rule C3 asked for),
+  `research/spike-006-f1-spread.json` (the quoted-spread sample rule S1 fired for),
+  `research/spike-006-f1-estimator.json` (rule E1's spread estimator, refused by its
+  own acceptance test) and `research/spike-006-f1-contraction.json` beside it. The task verdict across all
   six families will be `docs/VERDICT-006.md`, written once every family is run or
   reported as not reached.
 - Which bytes the Binance results were computed from:

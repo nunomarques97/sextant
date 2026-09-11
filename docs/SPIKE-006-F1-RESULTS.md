@@ -13,7 +13,7 @@ ancestry is checkable with `git merge-base --is-ancestor`.
 - everything denominated in **EUR**
 - **verdict: (B)**
 
-> **This run read `v1.7.1`; the specification is now `v2.1`.** Amendments 7 and 8 were registered while the grid
+> **This run read `v1.7.1`; the specification is now `v2.2`.** Amendments 7 and 8 were registered while the grid
 > was running and neither changes a computed value: amendment 7 fixes how a void
 > execution is counted in the trial registry, and amendment 8 fixes who may
 > declare one void and makes the spread sample conditional on rule S1. No
@@ -378,10 +378,36 @@ deleted entirely, no variant clears all six criteria and F1's verdict stays
 (B).** What the acquisition could buy is a measured cost line beside a variant
 that beats a losing null while earning 1.5 per cent over four and a half years.
 
-**Until the Product Owner settles which reading governs, the sample is not
-acquired.** A 1.8 to 3.2 GB download made on a reading of a rule that its own
-author did not expect is the kind of decision this apparatus exists to make
-visible rather than convenient.
+#### How it was settled, and what now applies
+
+**The rule as written was honoured: the sample was acquired.** The Product
+Owner's instruction was to follow the rule as written rather than to amend a
+rule to avoid the action it requires after seeing that it requires it. The
+drafting defect is recorded in pre-registration section 32.1 and attributed
+to its author rather than edited away.
+
+**From F2 the floor is anchored to zero, and it would have left this
+unfired.** Amendment 11 settles rule S1: the counterfactual Sharpe must exceed
+**zero** by one standard error of its own estimate *and* clear its null. Both
+clauses. Amendment 10's first form of the floor was anchored to the null, and
+on these figures the two disagree:
+
+| variant | Sharpe at zero | 1 standard error | its null's p95 | null-anchored bar | clears zero by 1 s.e. |
+|---|---:|---:|---:|---:|---|
+| `carry-basket-5` | 0.091 | 0.484 | -1.262 | -0.778 | no |
+| `carry-rank90-10-quarterly` (18 rebalances) | 0.097 | 0.472 | -1.560 | -1.088 | no |
+
+**Adding one standard error to a bar at -1.26 gives -0.78, which no
+profitable strategy needs to reach.** That is why the anchor moved: the
+exposure-matched null is itself losing over this window, so a bar stated
+relative to it is a bar below zero. Both forms stay in the record and both stay
+computable, because a superseded bar nobody can compute is one a later reader
+has to take on trust.
+
+**The choice could not save anybody any work, which is the only reason it is
+safe to have made after the figures existed.** The sample the zero-anchored
+floor would have prevented had already been acquired, measured and reported in
+section 7.5 before the anchor was settled.
 
 **The counterfactual is modelled, not measured.** The removed cost is added back in
 equal instalments across the scored months, on each month's opening equity along
@@ -458,8 +484,129 @@ tree's first published day and its coverage begins at about 11:50 UTC. Twelve of
 the twenty-four hours are covered and the five minutes after midnight are not, so
 that day's opening figure is null rather than zero.
 
-From F2 this measurement becomes the default cost for the deep band, with the
-assumption retained beside it as a labelled alternative. Section 32.4.
+**What becomes of this measurement is settled in section 7.6 and not here.**
+Amendment 10 made it the default cost for the deep band from F2. Amendment 11
+superseded that with an estimator, on the reasoning that six symbol-days cannot be
+a default for a five-year window, and rule E1 then refused the estimator. So the
+registered consequence is that the assumption is kept, and what the default should
+be from F2 is an open question with three computed options. Section 7.6.
+
+### 7.6 Rule E1: an estimated spread, and why it is not adopted
+
+**The band structure is the defect section 7.5 found, and a better constant cannot
+repair it.** The bands are cut on quote turnover, spread does not respond to
+turnover, and two orders of magnitude of measured spread sit inside a single band.
+So amendment 11 registered a replacement: an estimate per instrument and per period,
+from daily high, low and close, which the archive holds for every instrument across
+the whole window.
+
+**The estimator, the comparison and the acceptance test were committed before this
+was computed.** Abdi and Ranaldo (2017) is the registered estimator; Corwin and
+Schultz (2012) is computed beside it and is never substituted for it. Three clauses,
+all of which must hold.
+
+| clause | statistic | bar | holds |
+|---|---:|---:|---|
+| ordering, Spearman's rho across the six symbols | 0.943 | at least 0.771 | yes |
+| magnitude, median absolute log2 of estimated over measured | 6.413 | at most 1 | no |
+| positivity, share of instrument-periods estimated positive | 42.6% | at least 90% | no |
+
+**Rule E1: NOT ADOPTED.** Two of the three clauses fail. The banded **assumption** is kept, labelled an assumption exactly as it is now. No third estimator is tried, no clause is relaxed, and the comparison estimator is not promoted.
+
+#### What the estimator actually produced
+
+| symbol | chosen as | measured | estimated | estimated / measured | comparison |
+|---|---|---:|---:|---:|---:|
+| `API3USDT` | tenth percentile | 4.2452 bps | 223.3866 bps | 52.6x | 204.1418 bps |
+| `BLZUSDT` | tenth percentile | 1.4694 bps | 108.8944 bps | 74.1x | 191.1401 bps |
+| `BTCUSDT` | top | 0.0357 bps | 0.0000 bps | 0.0x | 93.6643 bps |
+| `ETHUSDT` | top | 0.0541 bps | 29.0188 bps | 536.2x | 101.3290 bps |
+| `THETAUSDT` | median | 1.2482 bps | 17.1980 bps | 13.8x | 112.1903 bps |
+| `UNFIUSDT` | median | 2.0190 bps | 197.9054 bps | 98.0x | 204.9793 bps |
+
+**The ordering clause holds and the magnitude clause fails by a factor of 85.**
+That combination is itself the finding: the estimator ranks these six symbols
+almost correctly - one adjacent swap - while being one to three orders of
+magnitude out on the level. It carries information about which instrument is
+wider, and none about how wide.
+
+#### Why, and why a longer window is not the answer
+
+**Each two-day term estimates the squared spread plus noise whose scale is the
+daily variance.** So whether the estimator can resolve anything is a ratio, not a
+judgement. Resolving a squared spread at one standard error needs the term count
+to reach the square of that ratio:
+
+| symbol | scatter of the two-day terms | squared measured spread | two-day pairs needed |
+|---|---:|---:|---:|
+| `API3USDT` | 2.666e-03 | 1.802e-07 | 2.188e+08 |
+| `BLZUSDT` | 3.666e-03 | 2.159e-08 | 2.884e+10 |
+| `BTCUSDT` | 5.619e-04 | 1.276e-11 | 1.939e+15 |
+| `ETHUSDT` | 6.521e-04 | 2.929e-11 | 4.955e+14 |
+| `THETAUSDT` | 1.651e-03 | 1.558e-08 | 1.124e+10 |
+| `UNFIUSDT` | 2.208e-03 | 4.076e-08 | 2.935e+09 |
+
+**`BTCUSDT` would need about two thousand million million two-day pairs**, which
+is some five trillion years of daily bars. A thirty-day window against a
+thirty-year one is not the difference, and no choice of period rescues this.
+
+**The implementation is not the explanation, and that is tested rather than
+asserted.** `tests/unit/test_spread_estimator.py` simulates a quote-driven market
+with a known spread and recovers it from **both** estimators at 100 and at 50
+basis points, then shows both break down as the spread falls relative to the
+volatility. These estimators were validated on equities, where a spread of tens of
+basis points sits against daily moves of one or two per cent. A perpetual quoting
+0.036 bps against four per cent daily volatility is four orders of magnitude
+outside that regime.
+
+#### What the comparison estimator did, since it is not promoted
+
+Corwin-Schultz ranks the six identically, at rho 0.943, and returns a strictly
+positive figure in 92.2% of
+instrument-periods, which would clear the positivity clause the registered
+estimator fails. **It is still not adopted, and nothing was left on the table:**
+its levels are 48 to 2,622 times the measurement, worse on the magnitude clause
+than the estimator that was registered. Its higher positivity share is not a
+virtue here. It floors less often because it is systematically large, and a cost
+model that always charges about 100 bps is not better than one that sometimes
+charges nothing.
+
+**Of the instrument-periods asked for, 45,004 had too few usable pairs**
+to estimate at all, against 20,615
+that could be estimated, across
+951 stored perpetuals and
+sixty-nine month ends. That is a listing-history artefact rather than a data
+defect: most of these instruments did not exist for most of the window. Section
+33.4 registered the substitution for that case and it is the banded assumption,
+labelled as one.
+
+#### What this leaves open, and it is the Product Owner's to settle
+
+**Amendment 11 superseded amendment 10's measured default in favour of an
+estimator that has now failed its own test.** Amendment 10 had made the measured
+deep-band figure the default from F2; section 33.4 replaced that on the reasoning
+that six symbol-days cannot be a default for a five-year window, and registered an
+estimator instead. The estimator is refused. So the registered consequence stands
+- the assumption is kept - and it is worth saying plainly what the assumption is:
+**10 bps of half-spread on the deep band, against a measured 0.53.**
+
+**Three options exist and the Developer chooses none of them.** Keep the
+assumption, as rule E1's failure clause says. Revert to amendment 10's measured
+deep-band figure, which rule E1 superseded but did not disprove. Or run F2 at both
+and report the pair. All three are computed and none is substituted; the choice
+belongs to the Product Owner before F2 runs.
+
+#### What none of this touches
+
+**No F1 figure.** Every cell is costed at the registered assumption and stays
+that way. Section 7.4 shows F1's verdict survives deleting the assumed cost
+entirely, which is a stronger statement than any estimate of it could be.
+
+**Slippage.** It is an intraday quantity, daily bars cannot calibrate it, and it
+remains an assumption at its registered figures.
+
+**The spot leg, and the mid and thin bands.** The calibration is against perpetual
+quotes in the deep band, because that is what section 12 registered.
 
 ## 8. Regime stability
 
@@ -716,6 +863,45 @@ correction requires a positive net return as well, and it makes the criterion
 stricter rather than looser.
 
 `N_eff` is the effective observation count after the series' own autocorrelation.
+
+### 13.1 Criterion 1 strengthened: a supplementary reading, not a re-scoring
+
+**F1 was judged on criterion 1 as registered when it ran**: a Sharpe above the 95th
+percentile of the variant's own exposure-matched null, **and** a strictly positive net
+return. That is the form the table above uses and the form the verdict rests on.
+Nothing below changes a letter.
+
+**Amendment 11 strengthens the absolute clause from F2.** "Strictly positive" would
+pass a variant earning 18.70 EUR on 1,500 across 56 months, which is a positive number
+and is not a return distinguishable from nothing. From F2 the clause requires the mean
+scored-month return to exceed **one standard error of itself**: the mean over its own
+standard deviation, times the root of the observation count, above one.
+
+| variant | mean-return t | above 1 | 1 as registered | 1 strengthened |
+|---|---:|---|---|---|
+| `carry-basket-10` | -1.72 | no | no | no |
+| `carry-basket-5` | -0.53 | no | no | no |
+| `carry-positive-10` | -3.90 | no | no | no |
+| `carry-premium-10` | -2.64 | no | no | no |
+| `carry-rank30-10` | -3.90 | no | no | no |
+| `carry-rank30-5` | -3.13 | no | no | no |
+| `carry-rank90-10` | -2.56 | no | no | no |
+| `carry-rank90-10-quarterly` (18 rebalances) | -1.47 | no | no | no |
+| `carry-rank90-5` | -2.82 | no | no | no |
+
+**It changes nothing here, and it could not have.** No variant clears criterion 1
+in the headline cell under the weaker form, and the strengthened clause is strictly
+narrower: a mean exceeding its own standard error is positive, so everything the
+new clause admits the old clause already admitted. The change can only ever remove
+a pass, on any data, in any family.
+
+**That property is the whole reason it is safe to register after these figures were
+read.** An amendment that could only ever make a bar harder cannot have been chosen
+to let something through. Amendment 11 registers it as rule P1 rather than as a
+patch to this one criterion, because the same confusion between *better than a
+losing null* and *makes money* has now appeared in three places: SEXTANT-004's
+exposure-matched null, criterion 1 as written here, and both of the first two
+attempts at a floor for rule S1.
 
 ## 14. What the two sample rules decided
 

@@ -58,6 +58,7 @@ from sextant.app.spike_006_f1_analysis import (
 )
 from sextant.app.spike_006_f1_contraction import CONTRACTION_RESULTS
 from sextant.app.spike_006_f1_depth import DEPTH_RESULTS
+from sextant.app.spike_006_f1_estimator import ESTIMATOR_RESULTS
 from sextant.app.spike_006_f1_spread import SPREAD_RESULTS
 from sextant.domain.time import Timestamp
 from sextant.engine.execution.breakeven import BreakEvenUndefined, d2a_holds
@@ -73,6 +74,7 @@ def render(
     depth_path: Path = DEPTH_RESULTS,
     contraction_path: Path = CONTRACTION_RESULTS,
     spread_path: Path = SPREAD_RESULTS,
+    estimator_path: Path = ESTIMATOR_RESULTS,
 ) -> Path:
     """Read the result file and write the report beside it."""
     with results_path.open(encoding="utf-8") as handle:
@@ -92,6 +94,11 @@ def render(
         if spread_path.is_file()
         else None
     )
+    estimator = (
+        _mapping(json.loads(estimator_path.read_text(encoding="utf-8")))
+        if estimator_path.is_file()
+        else None
+    )
     # Every derived block is recomputed from the file's own monthly series rather than
     # read back. The runner writes them too, for a reader of the file, but a page that
     # trusted them would silently print an older schema's field names for a run made
@@ -109,6 +116,7 @@ def render(
         _toll_section(payload),
         _rescue_section(payload),
         _measured_spread_section(payload, spread),
+        _estimator_section(estimator),
         _regime_section(payload),
         _recent_section(payload),
         _contraction_section(payload, contraction),
@@ -930,10 +938,36 @@ def _rescue_section(payload: Mapping[str, object]) -> str:
                 "(B).** What the acquisition could buy is a measured cost line beside a variant",
                 "that beats a losing null while earning 1.5 per cent over four and a half years.",
                 "",
-                "**Until the Product Owner settles which reading governs, the sample is not",
-                "acquired.** A 1.8 to 3.2 GB download made on a reading of a rule that its own",
-                "author did not expect is the kind of decision this apparatus exists to make",
-                "visible rather than convenient.",
+                "#### How it was settled, and what now applies",
+                "",
+                "**The rule as written was honoured: the sample was acquired.** The Product",
+                "Owner's instruction was to follow the rule as written rather than to amend a",
+                "rule to avoid the action it requires after seeing that it requires it. The",
+                "drafting defect is recorded in pre-registration section 32.1 and attributed",
+                "to its author rather than edited away.",
+                "",
+                "**From F2 the floor is anchored to zero, and it would have left this",
+                "unfired.** Amendment 11 settles rule S1: the counterfactual Sharpe must exceed",
+                "**zero** by one standard error of its own estimate *and* clear its null. Both",
+                "clauses. Amendment 10's first form of the floor was anchored to the null, and",
+                "on these figures the two disagree:",
+                "",
+                "| variant | Sharpe at zero | 1 standard error | its null's p95 "
+                "| null-anchored bar | clears zero by 1 s.e. |",
+                "|---|---:|---:|---:|---:|---|",
+                *_anchor_table(clearing),
+                "",
+                "**Adding one standard error to a bar at -1.26 gives -0.78, which no",
+                "profitable strategy needs to reach.** That is why the anchor moved: the",
+                "exposure-matched null is itself losing over this window, so a bar stated",
+                "relative to it is a bar below zero. Both forms stay in the record and both stay",
+                "computable, because a superseded bar nobody can compute is one a later reader",
+                "has to take on trust.",
+                "",
+                "**The choice could not save anybody any work, which is the only reason it is",
+                "safe to have made after the figures existed.** The sample the zero-anchored",
+                "floor would have prevented had already been acquired, measured and reported in",
+                "section 7.5 before the anchor was settled.",
                 "",
             ]
         )
@@ -950,6 +984,230 @@ def _rescue_section(payload: Mapping[str, object]) -> str:
         ]
     )
     return NEWLINE.join(lines)
+
+
+def _anchor_table(items: Sequence[Rescue]) -> list[str]:
+    """The two floors side by side, on the variants that made the rule fire."""
+    rows: list[str] = []
+    for item in items:
+        bar = (
+            None
+            if item.null_p95 is None or item.standard_error_at_zero is None
+            else item.null_p95 + item.standard_error_at_zero
+        )
+        rows.append(
+            f"| {_variant_label(item.variant)} "
+            f"| {_fixed(item.sharpe_at_zero)} "
+            f"| {_fixed(item.standard_error_at_zero)} "
+            f"| {_fixed(item.null_p95)} "
+            f"| {_fixed(bar)} "
+            f"| {_mark(item.clears_zero_by_a_standard_error)} |"
+        )
+    return rows
+
+
+def _estimator_section(estimator: Mapping[str, object] | None) -> str:
+    """Rule E1: the estimated spread that was registered, computed, and refused.
+
+    Empty when no calibration exists. When one does it reports all three clauses whatever
+    they say, because a rule whose result is only printed when it passes is not a rule.
+    """
+    if estimator is None:
+        return ""
+    clauses = _mapping(estimator["clauses"])
+    ordering = _mapping(clauses["ordering"])
+    magnitude = _mapping(clauses["magnitude"])
+    positivity = _mapping(clauses["positivity"])
+    registered = _mapping(positivity["registered_estimator"])
+    comparison = _mapping(positivity["comparison_estimator"])
+    adopted = bool(estimator["all_three_hold"])
+    lines = [
+        "### 7.6 Rule E1: an estimated spread, and why it is not adopted",
+        "",
+        "**The band structure is the defect section 7.5 found, and a better constant cannot",
+        "repair it.** The bands are cut on quote turnover, spread does not respond to",
+        "turnover, and two orders of magnitude of measured spread sit inside a single band.",
+        "So amendment 11 registered a replacement: an estimate per instrument and per period,",
+        "from daily high, low and close, which the archive holds for every instrument across",
+        "the whole window.",
+        "",
+        "**The estimator, the comparison and the acceptance test were committed before this",
+        "was computed.** Abdi and Ranaldo (2017) is the registered estimator; Corwin and",
+        "Schultz (2012) is computed beside it and is never substituted for it. Three clauses,",
+        "all of which must hold.",
+        "",
+        "| clause | statistic | bar | holds |",
+        "|---|---:|---:|---|",
+        f"| ordering, Spearman's rho across the six symbols "
+        f"| {_fixed(_number(ordering['statistic']))} "
+        f"| at least {_text(ordering['floor'])} | {_mark(bool(ordering['holds']))} |",
+        f"| magnitude, median absolute log2 of estimated over measured "
+        f"| {_fixed(_number(magnitude['statistic']))} | at most {_text(magnitude['ceiling'])} "
+        f"| {_mark(bool(magnitude['holds']))} |",
+        f"| positivity, share of instrument-periods estimated positive "
+        f"| {_share_of(registered['share_strictly_positive'])} "
+        f"| at least {_percent_of(positivity['floor'])} | {_mark(bool(positivity['holds']))} |",
+        "",
+        f"**Rule E1: {'ADOPTED' if adopted else 'NOT ADOPTED'}.** "
+        + (
+            "All three clauses hold, so the estimate becomes the default spread cost from F2."
+            if adopted
+            else "Two of the three clauses fail. The banded **assumption** is kept, labelled "
+            "an assumption exactly as it is now. No third estimator is tried, no clause is "
+            "relaxed, and the comparison estimator is not promoted."
+        ),
+        "",
+        "#### What the estimator actually produced",
+        "",
+        "| symbol | chosen as | measured | estimated | estimated / measured | comparison |",
+        "|---|---|---:|---:|---:|---:|",
+    ]
+    for entry in _sequence(_mapping(estimator["calibration"])["per_symbol"]):
+        row = _mapping(entry)
+        lines.append(
+            f"| `{_text(row['symbol'])}` "
+            f"| {_text(row['chosen_as'])} "
+            f"| {_bps(_optional_text(row['measured_median_quoted_spread_bps']))} "
+            f"| {_bps(_optional_text(row['estimated_median_bps']))} "
+            f"| {_multiple(row['estimated_over_measured'])} "
+            f"| {_bps(_optional_text(row['comparison_estimated_median_bps']))} |"
+        )
+    lines.extend(
+        [
+            "",
+            "**The ordering clause holds and the magnitude clause fails by a factor of 85.**",
+            "That combination is itself the finding: the estimator ranks these six symbols",
+            "almost correctly - one adjacent swap - while being one to three orders of",
+            "magnitude out on the level. It carries information about which instrument is",
+            "wider, and none about how wide.",
+            "",
+            "#### Why, and why a longer window is not the answer",
+            "",
+            "**Each two-day term estimates the squared spread plus noise whose scale is the",
+            "daily variance.** So whether the estimator can resolve anything is a ratio, not a",
+            "judgement. Resolving a squared spread at one standard error needs the term count",
+            "to reach the square of that ratio:",
+            "",
+            "| symbol | scatter of the two-day terms | squared measured spread "
+            "| two-day pairs needed |",
+            "|---|---:|---:|---:|",
+        ]
+    )
+    for entry in _sequence(_mapping(estimator["resolution"])["per_symbol"]):
+        row = _mapping(entry)
+        lines.append(
+            f"| `{_text(row['symbol'])}` "
+            f"| {_scientific(row['two_day_term_standard_deviation'])} "
+            f"| {_scientific(row['measured_squared_proportional_spread'])} "
+            f"| {_scientific(row['two_day_pairs_needed_to_resolve_it'])} |"
+        )
+    lines.extend(
+        [
+            "",
+            "**`BTCUSDT` would need about two thousand million million two-day pairs**, which",
+            "is some five trillion years of daily bars. A thirty-day window against a",
+            "thirty-year one is not the difference, and no choice of period rescues this.",
+            "",
+            "**The implementation is not the explanation, and that is tested rather than",
+            "asserted.** `tests/unit/test_spread_estimator.py` simulates a quote-driven market",
+            "with a known spread and recovers it from **both** estimators at 100 and at 50",
+            "basis points, then shows both break down as the spread falls relative to the",
+            "volatility. These estimators were validated on equities, where a spread of tens of",
+            "basis points sits against daily moves of one or two per cent. A perpetual quoting",
+            "0.036 bps against four per cent daily volatility is four orders of magnitude",
+            "outside that regime.",
+            "",
+            "#### What the comparison estimator did, since it is not promoted",
+            "",
+            f"Corwin-Schultz ranks the six identically, at rho "
+            f"{_fixed(_number(ordering['comparison_statistic']))}, and returns a strictly",
+            f"positive figure in {_share_of(comparison['share_strictly_positive'])} of",
+            "instrument-periods, which would clear the positivity clause the registered",
+            "estimator fails. **It is still not adopted, and nothing was left on the table:**",
+            "its levels are 48 to 2,622 times the measurement, worse on the magnitude clause",
+            "than the estimator that was registered. Its higher positivity share is not a",
+            "virtue here. It floors less often because it is systematically large, and a cost",
+            "model that always charges about 100 bps is not better than one that sometimes",
+            "charges nothing.",
+            "",
+            f"**Of the instrument-periods asked for, "
+            f"{_count_of(registered['too_few_pairs_to_estimate'])} had too few usable pairs**",
+            f"to estimate at all, against {_count_of(registered['instrument_periods_asked_for'])}",
+            "that could be estimated, across",
+            f"{_count_of(registered['instruments_scanned'])} stored perpetuals and",
+            "sixty-nine month ends. That is a listing-history artefact rather than a data",
+            "defect: most of these instruments did not exist for most of the window. Section",
+            "33.4 registered the substitution for that case and it is the banded assumption,",
+            "labelled as one.",
+            "",
+            "#### What this leaves open, and it is the Product Owner's to settle",
+            "",
+            "**Amendment 11 superseded amendment 10's measured default in favour of an",
+            "estimator that has now failed its own test.** Amendment 10 had made the measured",
+            "deep-band figure the default from F2; section 33.4 replaced that on the reasoning",
+            "that six symbol-days cannot be a default for a five-year window, and registered an",
+            "estimator instead. The estimator is refused. So the registered consequence stands",
+            "- the assumption is kept - and it is worth saying plainly what the assumption is:",
+            "**10 bps of half-spread on the deep band, against a measured 0.53.**",
+            "",
+            "**Three options exist and the Developer chooses none of them.** Keep the",
+            "assumption, as rule E1's failure clause says. Revert to amendment 10's measured",
+            "deep-band figure, which rule E1 superseded but did not disprove. Or run F2 at both",
+            "and report the pair. All three are computed and none is substituted; the choice",
+            "belongs to the Product Owner before F2 runs.",
+            "",
+            "#### What none of this touches",
+            "",
+            "**No F1 figure.** Every cell is costed at the registered assumption and stays",
+            "that way. Section 7.4 shows F1's verdict survives deleting the assumed cost",
+            "entirely, which is a stronger statement than any estimate of it could be.",
+            "",
+            "**Slippage.** It is an intraday quantity, daily bars cannot calibrate it, and it",
+            "remains an assumption at its registered figures.",
+            "",
+            "**The spot leg, and the mid and thin bands.** The calibration is against perpetual",
+            "quotes in the deep band, because that is what section 12 registered.",
+            "",
+        ]
+    )
+    return NEWLINE.join(lines)
+
+
+def _multiple(value: object) -> str:
+    """A ratio, as a multiple. `-` when it does not exist."""
+    number = _number(_optional_text(value))
+    return "-" if number is None else f"{number:,.1f}x"
+
+
+def _scientific(value: object) -> str:
+    """A figure that spans fifteen orders of magnitude, in the only notation that fits."""
+    text = _optional_text(value)
+    if text is None:
+        return "-"
+    return f"{float(text):.3e}"
+
+
+def _share_of(value: object) -> str:
+    """A share held as a fraction, printed as a percentage."""
+    number = _number(_optional_text(value))
+    return "-" if number is None else f"{number * 100:.1f}%"
+
+
+def _percent_of(value: object) -> str:
+    """A registered fraction, printed as a percentage, without arithmetic on text."""
+    number = _number(_text(value))
+    return "-" if number is None else f"{number * 100:.0f}%"
+
+
+def _count_of(value: object) -> str:
+    """An integer with thousands separators."""
+    text = _optional_text(value)
+    return "-" if text is None else f"{int(float(text)):,}"
+
+
+def _optional_text(value: object) -> str | None:
+    """The text of a value that may be null in the file."""
+    return None if value is None else _text(value)
 
 
 def _measured_spread_section(
@@ -1061,8 +1319,12 @@ def _measured_spread_section(
             "the twenty-four hours are covered and the five minutes after midnight are not, so",
             "that day's opening figure is null rather than zero.",
             "",
-            "From F2 this measurement becomes the default cost for the deep band, with the",
-            "assumption retained beside it as a labelled alternative. Section 32.4.",
+            "**What becomes of this measurement is settled in section 7.6 and not here.**",
+            "Amendment 10 made it the default cost for the deep band from F2. Amendment 11",
+            "superseded that with an estimator, on the reasoning that six symbol-days cannot be",
+            "a default for a five-year window, and rule E1 then refused the estimator. So the",
+            "registered consequence is that the assumption is kept, and what the default should",
+            "be from F2 is an open question with three computed options. Section 7.6.",
             "",
         ]
     )
@@ -1853,9 +2115,72 @@ def _criteria_section(payload: Mapping[str, object]) -> str:
             "",
             "`N_eff` is the effective observation count after the series' own autocorrelation.",
             "",
+            *_strengthened_criterion(rows),
         ]
     )
     return NEWLINE.join(lines)
+
+
+def _strengthened_criterion(rows: Sequence[Mapping[str, object]]) -> list[str]:
+    """Amendment 11's criterion 1, re-read against figures it did not govern.
+
+    A supplementary reading and never a re-scoring, so the first line says which form
+    produced the verdict. Empty when the result file predates the block, because a section
+    that silently prints nothing is worse than one that is not there.
+    """
+    blocks = [
+        (row, _mapping(_mapping(row["criteria"])["supplementary_1_strengthened"]))
+        for row in rows
+        if "supplementary_1_strengthened" in _mapping(row["criteria"])
+    ]
+    if not blocks:
+        return []
+    out = [
+        "### 13.1 Criterion 1 strengthened: a supplementary reading, not a re-scoring",
+        "",
+        "**F1 was judged on criterion 1 as registered when it ran**: a Sharpe above the 95th",
+        "percentile of the variant's own exposure-matched null, **and** a strictly positive net",
+        "return. That is the form the table above uses and the form the verdict rests on.",
+        "Nothing below changes a letter.",
+        "",
+        '**Amendment 11 strengthens the absolute clause from F2.** "Strictly positive" would',
+        "pass a variant earning 18.70 EUR on 1,500 across 56 months, which is a positive number",
+        "and is not a return distinguishable from nothing. From F2 the clause requires the mean",
+        "scored-month return to exceed **one standard error of itself**: the mean over its own",
+        "standard deviation, times the root of the observation count, above one.",
+        "",
+        "| variant | mean-return t | above 1 | 1 as registered | 1 strengthened |",
+        "|---|---:|---|---|---|",
+    ]
+    for row, block in blocks:
+        criteria = _mapping(row["criteria"])
+        out.append(
+            f"| {_label(row)} "
+            f"| {_fixed(_number(_optional_text(block['mean_return_t_statistic'])), 2)} "
+            f"| {_mark(block['return_is_distinguishable_from_zero'])} "
+            f"| {_mark(criteria.get('1_beats_exposure_matched_null_and_is_positive'))} "
+            f"| {_mark(block['criterion_1_would_hold'])} |"
+        )
+    out.extend(
+        [
+            "",
+            "**It changes nothing here, and it could not have.** No variant clears criterion 1",
+            "in the headline cell under the weaker form, and the strengthened clause is strictly",
+            "narrower: a mean exceeding its own standard error is positive, so everything the",
+            "new clause admits the old clause already admitted. The change can only ever remove",
+            "a pass, on any data, in any family.",
+            "",
+            "**That property is the whole reason it is safe to register after these figures were",
+            "read.** An amendment that could only ever make a bar harder cannot have been chosen",
+            "to let something through. Amendment 11 registers it as rule P1 rather than as a",
+            "patch to this one criterion, because the same confusion between *better than a",
+            "losing null* and *makes money* has now appeared in three places: SEXTANT-004's",
+            "exposure-matched null, criterion 1 as written here, and both of the first two",
+            "attempts at a floor for rule S1.",
+            "",
+        ]
+    )
+    return out
 
 
 def _what_the_verdict_rests_on(payload: Mapping[str, object]) -> list[str]:

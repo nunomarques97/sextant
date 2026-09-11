@@ -82,6 +82,23 @@ class PerformanceStatistics:
         )
         return per_period * float(np.sqrt(self.annualisation))
 
+    @property
+    def mean_return_t_statistic(self) -> float:
+        """The mean return over the standard error of that mean.
+
+        ``mean / (sd / sqrt(n))``, which is the per-period Sharpe times the root of the
+        observation count. Greater than one means the mean return exceeds one standard
+        error of itself, which is the absolute clause rule P1 pairs with every
+        null comparison from F2: "better than a losing null" and "distinguishable from
+        nothing" are different claims, and a criterion that states only the first cannot
+        tell them apart.
+
+        Not annualised, and it must not be: annualising a mean and its standard error
+        scales both, so the ratio is the same number at every frequency. A version of
+        this that carried an annualisation factor would be a version with a bug.
+        """
+        return self.sharpe_per_period * float(np.sqrt(float(self.observations)))
+
 
 def summarise(series: ReturnSeries) -> PerformanceStatistics | None:
     """Summarise a return series, or ``None`` when it is too short to summarise.

@@ -1,0 +1,1208 @@
+{
+  "all_three_hold": false,
+  "calibration": {
+    "against": "research/spike-006-f1-spread.json",
+    "both_sides_are_medians": "the estimate across the six calibration months, the measurement across the six sampled days",
+    "per_symbol": [
+      {
+        "absolute_log2_ratio": 5.717572592428493,
+        "chosen_as": "tenth percentile",
+        "comparison_estimated_median_bps": 204.14179015663015,
+        "estimate_is_zero": false,
+        "estimated_median_bps": 223.38659874466967,
+        "estimated_over_measured": 52.6212127195668,
+        "measured_median_quoted_spread_bps": 4.2451815,
+        "measured_squared_proportional_spread": 1.8021565967942253e-07,
+        "symbol": "API3USDT",
+        "two_day_pairs_needed_to_resolve_it": 218843539.101223,
+        "two_day_term_standard_deviation": 0.0026659953688988546
+      },
+      {
+        "absolute_log2_ratio": 6.211603737563915,
+        "chosen_as": "tenth percentile",
+        "comparison_estimated_median_bps": 191.14007652059485,
+        "estimate_is_zero": false,
+        "estimated_median_bps": 108.89442187257325,
+        "estimated_over_measured": 74.1103810364165,
+        "measured_median_quoted_spread_bps": 1.4693545000000001,
+        "measured_squared_proportional_spread": 2.1590026466702506e-08,
+        "symbol": "BLZUSDT",
+        "two_day_pairs_needed_to_resolve_it": 28837933588.948544,
+        "two_day_term_standard_deviation": 0.003666361159062547
+      },
+      {
+        "absolute_log2_ratio": null,
+        "chosen_as": "top",
+        "comparison_estimated_median_bps": 93.66427925631486,
+        "estimate_is_zero": true,
+        "estimated_median_bps": 0.0,
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.035722000000000004,
+        "measured_squared_proportional_spread": 1.2760612840000002e-11,
+        "symbol": "BTCUSDT",
+        "two_day_pairs_needed_to_resolve_it": 1939202020776898.2,
+        "two_day_term_standard_deviation": 0.0005619310884434241
+      },
+      {
+        "absolute_log2_ratio": 9.066516083490571,
+        "chosen_as": "top",
+        "comparison_estimated_median_bps": 101.32895490853662,
+        "estimate_is_zero": false,
+        "estimated_median_bps": 29.018781378496648,
+        "estimated_over_measured": 536.1586257078098,
+        "measured_median_quoted_spread_bps": 0.0541235,
+        "measured_squared_proportional_spread": 2.92935325225e-11,
+        "symbol": "ETHUSDT",
+        "two_day_pairs_needed_to_resolve_it": 495493154091229.7,
+        "two_day_term_standard_deviation": 0.0006520645286772048
+      },
+      {
+        "absolute_log2_ratio": 3.784304525574166,
+        "chosen_as": "median",
+        "comparison_estimated_median_bps": 112.1903283968895,
+        "estimate_is_zero": false,
+        "estimated_median_bps": 17.19803174092851,
+        "estimated_over_measured": 13.778095001166474,
+        "measured_median_quoted_spread_bps": 1.2482155,
+        "measured_squared_proportional_spread": 1.55804193444025e-08,
+        "symbol": "THETAUSDT",
+        "two_day_pairs_needed_to_resolve_it": 11235177725.066116,
+        "two_day_term_standard_deviation": 0.001651464018324183
+      },
+      {
+        "absolute_log2_ratio": 6.615054831357901,
+        "chosen_as": "median",
+        "comparison_estimated_median_bps": 204.9793216328212,
+        "estimate_is_zero": false,
+        "estimated_median_bps": 197.9053988535373,
+        "estimated_over_measured": 98.02343724171718,
+        "measured_median_quoted_spread_bps": 2.01896,
+        "measured_squared_proportional_spread": 4.0761994816e-08,
+        "symbol": "UNFIUSDT",
+        "two_day_pairs_needed_to_resolve_it": 2935437392.3317103,
+        "two_day_term_standard_deviation": 0.0022084717101880243
+      }
+    ],
+    "per_symbol_month": [
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 136.82961662098572,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.00018722343984645928,
+          "non_positive_terms": 10,
+          "relative_spread": 0.01368296166209857,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-05",
+        "corwin-schultz-2012": {
+          "basis_points": 164.0907781575118,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.01640907781575118,
+          "non_positive_terms": 9,
+          "relative_spread": 0.01640907781575118,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 17.999936937687618,
+        "measured_median_quoted_spread_bps": 7.601672,
+        "sampled_day": "2023-05-16",
+        "symbol": "API3USDT",
+        "two_day_term_standard_deviation": 0.001338438696039959,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 181.34915320110093,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0003288751536675637,
+          "non_positive_terms": 9,
+          "relative_spread": 0.018134915320110093,
+          "two_day_pairs": 29
+        },
+        "calibration_month": "2023-06",
+        "corwin-schultz-2012": {
+          "basis_points": 206.72990758480196,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.020672990758480198,
+          "non_positive_terms": 7,
+          "relative_spread": 0.020672990758480198,
+          "two_day_pairs": 29
+        },
+        "estimated_over_measured": 22.460093757068083,
+        "measured_median_quoted_spread_bps": 8.074283,
+        "sampled_day": "2023-06-01",
+        "symbol": "API3USDT",
+        "two_day_term_standard_deviation": 0.0026209559394879964,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 30
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 600.4809227341038,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0036057733856760077,
+          "non_positive_terms": 13,
+          "relative_spread": 0.06004809227341038,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-08",
+        "corwin-schultz-2012": {
+          "basis_points": 201.55367272845834,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.020155367272845833,
+          "non_positive_terms": 13,
+          "relative_spread": 0.020155367272845833,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 58.09653103194461,
+        "measured_median_quoted_spread_bps": 10.335917,
+        "sampled_day": "2023-08-01",
+        "symbol": "API3USDT",
+        "two_day_term_standard_deviation": 0.01991360914595642,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -0.0002715733637424671,
+          "non_positive_terms": 13,
+          "relative_spread": 0.0,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-10",
+        "corwin-schultz-2012": {
+          "basis_points": 142.9663239572921,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.014296632395729212,
+          "non_positive_terms": 8,
+          "relative_spread": 0.014296632395729212,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.888691,
+        "sampled_day": "2023-10-01",
+        "symbol": "API3USDT",
+        "two_day_term_standard_deviation": 0.0015108100904831529,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 274.675659234551,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0007544671777593518,
+          "non_positive_terms": 13,
+          "relative_spread": 0.0274675659234551,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-12",
+        "corwin-schultz-2012": {
+          "basis_points": 232.69336894877375,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.023269336894877375,
+          "non_positive_terms": 9,
+          "relative_spread": 0.023269336894877375,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 401.0132932058956,
+        "measured_median_quoted_spread_bps": 0.684954,
+        "sampled_day": "2023-12-01",
+        "symbol": "API3USDT",
+        "two_day_term_standard_deviation": 0.002711034798309713,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 265.4240442882384,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0007044992328632476,
+          "non_positive_terms": 10,
+          "relative_spread": 0.026542404428823843,
+          "two_day_pairs": 28
+        },
+        "calibration_month": "2024-02",
+        "corwin-schultz-2012": {
+          "basis_points": 251.76698001260277,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.025176698001260277,
+          "non_positive_terms": 6,
+          "relative_spread": 0.025176698001260277,
+          "two_day_pairs": 28
+        },
+        "estimated_over_measured": 351.262384435005,
+        "measured_median_quoted_spread_bps": 0.755629,
+        "sampled_day": "2024-02-01",
+        "symbol": "API3USDT",
+        "two_day_term_standard_deviation": 0.004113840999949296,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 29
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 217.7888437451465,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.00047431980459847846,
+          "non_positive_terms": 14,
+          "relative_spread": 0.02177888437451465,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-05",
+        "corwin-schultz-2012": {
+          "basis_points": 173.07200653873713,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.017307200653873714,
+          "non_positive_terms": 8,
+          "relative_spread": 0.017307200653873714,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 133.3630795254202,
+        "measured_median_quoted_spread_bps": 1.633052,
+        "sampled_day": "2023-05-16",
+        "symbol": "BLZUSDT",
+        "two_day_term_standard_deviation": 0.0018394996049322084,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -2.9348983980089382e-05,
+          "non_positive_terms": 16,
+          "relative_spread": 0.0,
+          "two_day_pairs": 29
+        },
+        "calibration_month": "2023-06",
+        "corwin-schultz-2012": {
+          "basis_points": 163.0608235321841,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.01630608235321841,
+          "non_positive_terms": 10,
+          "relative_spread": 0.01630608235321841,
+          "two_day_pairs": 29
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 1.601409,
+        "sampled_day": "2023-06-01",
+        "symbol": "BLZUSDT",
+        "two_day_term_standard_deviation": 0.0030045984422012776,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 30
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 360.147040525554,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0012970589079931505,
+          "non_positive_terms": 17,
+          "relative_spread": 0.0360147040525554,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-08",
+        "corwin-schultz-2012": {
+          "basis_points": 443.0543819932069,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.04430543819932069,
+          "non_positive_terms": 10,
+          "relative_spread": 0.04430543819932069,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 187.6186023565455,
+        "measured_median_quoted_spread_bps": 1.91957,
+        "sampled_day": "2023-08-01",
+        "symbol": "BLZUSDT",
+        "two_day_term_standard_deviation": 0.022181646634045354,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -0.002071267098172736,
+          "non_positive_terms": 17,
+          "relative_spread": 0.0,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-10",
+        "corwin-schultz-2012": {
+          "basis_points": 209.20814650245256,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.020920814650245256,
+          "non_positive_terms": 12,
+          "relative_spread": 0.020920814650245256,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 1.240156,
+        "sampled_day": "2023-10-01",
+        "symbol": "BLZUSDT",
+        "two_day_term_standard_deviation": 0.008169068940890199,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 424.73104154845123,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0018039645765483216,
+          "non_positive_terms": 12,
+          "relative_spread": 0.04247310415484512,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-12",
+        "corwin-schultz-2012": {
+          "basis_points": 361.2212955353873,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.03612212955353873,
+          "non_positive_terms": 3,
+          "relative_spread": 0.03612212955353873,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 1058.9182260450693,
+        "measured_median_quoted_spread_bps": 0.401099,
+        "sampled_day": "2023-12-01",
+        "symbol": "BLZUSDT",
+        "two_day_term_standard_deviation": 0.004328123875923817,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -1.276644332351244e-06,
+          "non_positive_terms": 12,
+          "relative_spread": 0.0,
+          "two_day_pairs": 28
+        },
+        "calibration_month": "2024-02",
+        "corwin-schultz-2012": {
+          "basis_points": 141.42766358727684,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.014142766358727684,
+          "non_positive_terms": 6,
+          "relative_spread": 0.014142766358727684,
+          "two_day_pairs": 28
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 1.3373,
+        "sampled_day": "2024-02-01",
+        "symbol": "BLZUSDT",
+        "two_day_term_standard_deviation": 0.0011561241680056763,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 29
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 51.273148678087644,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 2.6289357753652805e-05,
+          "non_positive_terms": 15,
+          "relative_spread": 0.005127314867808764,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-05",
+        "corwin-schultz-2012": {
+          "basis_points": 92.5369969328752,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.00925369969328752,
+          "non_positive_terms": 7,
+          "relative_spread": 0.00925369969328752,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 1385.1243665906918,
+        "measured_median_quoted_spread_bps": 0.037017,
+        "sampled_day": "2023-05-16",
+        "symbol": "BTCUSDT",
+        "two_day_term_standard_deviation": 0.00035089706818065326,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -4.253595794802055e-05,
+          "non_positive_terms": 12,
+          "relative_spread": 0.0,
+          "two_day_pairs": 29
+        },
+        "calibration_month": "2023-06",
+        "corwin-schultz-2012": {
+          "basis_points": 105.1716288166046,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.01051716288166046,
+          "non_positive_terms": 11,
+          "relative_spread": 0.01051716288166046,
+          "two_day_pairs": 29
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.037207,
+        "sampled_day": "2023-06-01",
+        "symbol": "BTCUSDT",
+        "two_day_term_standard_deviation": 0.001093457317577115,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 30
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -7.289946427994657e-05,
+          "non_positive_terms": 14,
+          "relative_spread": 0.0,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-08",
+        "corwin-schultz-2012": {
+          "basis_points": 61.0548801965688,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.00610548801965688,
+          "non_positive_terms": 6,
+          "relative_spread": 0.00610548801965688,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.034563,
+        "sampled_day": "2023-08-01",
+        "symbol": "BTCUSDT",
+        "two_day_term_standard_deviation": 0.0006020454487461782,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -8.144642523514495e-05,
+          "non_positive_terms": 16,
+          "relative_spread": 0.0,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-10",
+        "corwin-schultz-2012": {
+          "basis_points": 94.79156157975451,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.009479156157975451,
+          "non_positive_terms": 7,
+          "relative_spread": 0.009479156157975451,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.036881,
+        "sampled_day": "2023-10-01",
+        "symbol": "BTCUSDT",
+        "two_day_term_standard_deviation": 0.00031253428577085587,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 90.2886333499551,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 8.152037312202624e-05,
+          "non_positive_terms": 12,
+          "relative_spread": 0.00902886333499551,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-12",
+        "corwin-schultz-2012": {
+          "basis_points": 111.81756727228318,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.011181756727228319,
+          "non_positive_terms": 7,
+          "relative_spread": 0.011181756727228319,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 3467.8381222136695,
+        "measured_median_quoted_spread_bps": 0.026036,
+        "sampled_day": "2023-12-01",
+        "symbol": "BTCUSDT",
+        "two_day_term_standard_deviation": 0.0005218167281406702,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -0.00029805979794520924,
+          "non_positive_terms": 15,
+          "relative_spread": 0.0,
+          "two_day_pairs": 28
+        },
+        "calibration_month": "2024-02",
+        "corwin-schultz-2012": {
+          "basis_points": 74.4832790021087,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0074483279002108705,
+          "non_positive_terms": 12,
+          "relative_spread": 0.0074483279002108705,
+          "two_day_pairs": 28
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.023587,
+        "sampled_day": "2024-02-01",
+        "symbol": "BTCUSDT",
+        "two_day_term_standard_deviation": 0.0010256373632756314,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 29
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 131.4041534039513,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0001726705153180917,
+          "non_positive_terms": 8,
+          "relative_spread": 0.013140415340395131,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-05",
+        "corwin-schultz-2012": {
+          "basis_points": 108.6542473268255,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.01086542473268255,
+          "non_positive_terms": 6,
+          "relative_spread": 0.01086542473268255,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 2390.035529355244,
+        "measured_median_quoted_spread_bps": 0.05498,
+        "sampled_day": "2023-05-16",
+        "symbol": "ETHUSDT",
+        "two_day_term_standard_deviation": 0.0006557775157174677,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -3.6062486257299298e-06,
+          "non_positive_terms": 12,
+          "relative_spread": 0.0,
+          "two_day_pairs": 29
+        },
+        "calibration_month": "2023-06",
+        "corwin-schultz-2012": {
+          "basis_points": 106.63312721082113,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.010663312721082114,
+          "non_positive_terms": 10,
+          "relative_spread": 0.010663312721082114,
+          "two_day_pairs": 29
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.053701,
+        "sampled_day": "2023-06-01",
+        "symbol": "ETHUSDT",
+        "two_day_term_standard_deviation": 0.0006483515416369419,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 30
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 58.037562756993296,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 3.368358690771936e-05,
+          "non_positive_terms": 15,
+          "relative_spread": 0.00580375627569933,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-08",
+        "corwin-schultz-2012": {
+          "basis_points": 70.42403274122773,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.007042403274122774,
+          "non_positive_terms": 7,
+          "relative_spread": 0.007042403274122774,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 1064.0113437647728,
+        "measured_median_quoted_spread_bps": 0.054546,
+        "sampled_day": "2023-08-01",
+        "symbol": "ETHUSDT",
+        "two_day_term_standard_deviation": 0.0003626169064599383,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -9.378959785020106e-05,
+          "non_positive_terms": 15,
+          "relative_spread": 0.0,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-10",
+        "corwin-schultz-2012": {
+          "basis_points": 77.17684251970944,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.007717684251970944,
+          "non_positive_terms": 9,
+          "relative_spread": 0.007717684251970944,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.059548,
+        "sampled_day": "2023-10-01",
+        "symbol": "ETHUSDT",
+        "two_day_term_standard_deviation": 0.0005354147549192389,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 106.81011535218195,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.00011408400741546414,
+          "non_positive_terms": 16,
+          "relative_spread": 0.010681011535218195,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-12",
+        "corwin-schultz-2012": {
+          "basis_points": 131.12037638597587,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.013112037638597588,
+          "non_positive_terms": 10,
+          "relative_spread": 0.013112037638597588,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 2232.839605154736,
+        "measured_median_quoted_spread_bps": 0.047836,
+        "sampled_day": "2023-12-01",
+        "symbol": "ETHUSDT",
+        "two_day_term_standard_deviation": 0.0006712618910770879,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -8.551329798972572e-05,
+          "non_positive_terms": 19,
+          "relative_spread": 0.0,
+          "two_day_pairs": 28
+        },
+        "calibration_month": "2024-02",
+        "corwin-schultz-2012": {
+          "basis_points": 96.0247826062521,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.00960247826062521,
+          "non_positive_terms": 12,
+          "relative_spread": 0.00960247826062521,
+          "two_day_pairs": 28
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 0.043978,
+        "sampled_day": "2024-02-01",
+        "symbol": "ETHUSDT",
+        "two_day_term_standard_deviation": 0.0007125063896906051,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 29
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 74.34789234298515,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 5.527609095844109e-05,
+          "non_positive_terms": 11,
+          "relative_spread": 0.007434789234298514,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-05",
+        "corwin-schultz-2012": {
+          "basis_points": 98.91768255305789,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.009891768255305789,
+          "non_positive_terms": 9,
+          "relative_spread": 0.009891768255305789,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 66.96144257408086,
+        "measured_median_quoted_spread_bps": 1.110309,
+        "sampled_day": "2023-05-16",
+        "symbol": "THETAUSDT",
+        "two_day_term_standard_deviation": 0.0007575361152052317,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -0.00040196673010488217,
+          "non_positive_terms": 16,
+          "relative_spread": 0.0,
+          "two_day_pairs": 29
+        },
+        "calibration_month": "2023-06",
+        "corwin-schultz-2012": {
+          "basis_points": 118.06461776170542,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.011806461776170542,
+          "non_positive_terms": 10,
+          "relative_spread": 0.011806461776170542,
+          "two_day_pairs": 29
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 1.195957,
+        "sampled_day": "2023-06-01",
+        "symbol": "THETAUSDT",
+        "two_day_term_standard_deviation": 0.00222214102609115,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 30
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -0.0001448937282708824,
+          "non_positive_terms": 15,
+          "relative_spread": 0.0,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-08",
+        "corwin-schultz-2012": {
+          "basis_points": 106.31603903207358,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.010631603903207358,
+          "non_positive_terms": 10,
+          "relative_spread": 0.010631603903207358,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 1.300474,
+        "sampled_day": "2023-08-01",
+        "symbol": "THETAUSDT",
+        "two_day_term_standard_deviation": 0.001080787010557216,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 34.39606348185702,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 1.1830891830479382e-05,
+          "non_positive_terms": 14,
+          "relative_spread": 0.003439606348185702,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-10",
+        "corwin-schultz-2012": {
+          "basis_points": 105.78256134200872,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.010578256134200872,
+          "non_positive_terms": 10,
+          "relative_spread": 0.010578256134200872,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 22.65496782287651,
+        "measured_median_quoted_spread_bps": 1.518257,
+        "sampled_day": "2023-10-01",
+        "symbol": "THETAUSDT",
+        "two_day_term_standard_deviation": 0.0008315723412911455,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 235.4621545738539,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0005544242623656147,
+          "non_positive_terms": 14,
+          "relative_spread": 0.02354621545738539,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-12",
+        "corwin-schultz-2012": {
+          "basis_points": 224.43229394464717,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.022443229394464716,
+          "non_positive_terms": 12,
+          "relative_spread": 0.022443229394464716,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 233.2370728984031,
+        "measured_median_quoted_spread_bps": 1.00954,
+        "sampled_day": "2023-12-01",
+        "symbol": "THETAUSDT",
+        "two_day_term_standard_deviation": 0.004621780480032072,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -0.0018623752105887078,
+          "non_positive_terms": 10,
+          "relative_spread": 0.0,
+          "two_day_pairs": 28
+        },
+        "calibration_month": "2024-02",
+        "corwin-schultz-2012": {
+          "basis_points": 232.04091366004644,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.023204091366004643,
+          "non_positive_terms": 9,
+          "relative_spread": 0.023204091366004643,
+          "two_day_pairs": 28
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 2.04876,
+        "sampled_day": "2024-02-01",
+        "symbol": "THETAUSDT",
+        "two_day_term_standard_deviation": 0.011733168183439694,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 29
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 168.92864750706707,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0002853688794856691,
+          "non_positive_terms": 10,
+          "relative_spread": 0.016892864750706706,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-05",
+        "corwin-schultz-2012": {
+          "basis_points": 206.86800631940457,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.020686800631940457,
+          "non_positive_terms": 6,
+          "relative_spread": 0.020686800631940457,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 72.20857837216165,
+        "measured_median_quoted_spread_bps": 2.339454,
+        "sampled_day": "2023-05-16",
+        "symbol": "UNFIUSDT",
+        "two_day_term_standard_deviation": 0.0016551813582531363,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 246.7292038740404,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0006087530004431779,
+          "non_positive_terms": 13,
+          "relative_spread": 0.02467292038740404,
+          "two_day_pairs": 29
+        },
+        "calibration_month": "2023-06",
+        "corwin-schultz-2012": {
+          "basis_points": 186.87120708005162,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.018687120708005163,
+          "non_positive_terms": 8,
+          "relative_spread": 0.018687120708005163,
+          "two_day_pairs": 29
+        },
+        "estimated_over_measured": 107.63564384804029,
+        "measured_median_quoted_spread_bps": 2.292263,
+        "sampled_day": "2023-06-01",
+        "symbol": "UNFIUSDT",
+        "two_day_term_standard_deviation": 0.002489761096410317,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 30
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 317.6740034208,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0010091677244939842,
+          "non_positive_terms": 11,
+          "relative_spread": 0.03176740034208,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-08",
+        "corwin-schultz-2012": {
+          "basis_points": 321.7191421923013,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.03217191421923013,
+          "non_positive_terms": 10,
+          "relative_spread": 0.03217191421923013,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 111.64656609363895,
+        "measured_median_quoted_spread_bps": 2.845354,
+        "sampled_day": "2023-08-01",
+        "symbol": "UNFIUSDT",
+        "two_day_term_standard_deviation": 0.005336121518148749,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 0.0,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": true,
+          "mean_term_before_flooring": -0.00030755822894123515,
+          "non_positive_terms": 15,
+          "relative_spread": 0.0,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-10",
+        "corwin-schultz-2012": {
+          "basis_points": 203.09063694623785,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.020309063694623784,
+          "non_positive_terms": 14,
+          "relative_spread": 0.020309063694623784,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 0.0,
+        "measured_median_quoted_spread_bps": 1.454651,
+        "sampled_day": "2023-10-01",
+        "symbol": "UNFIUSDT",
+        "two_day_term_standard_deviation": 0.005315345535046386,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 226.8821502000075,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.0005147551007937876,
+          "non_positive_terms": 13,
+          "relative_spread": 0.02268821502000075,
+          "two_day_pairs": 30
+        },
+        "calibration_month": "2023-12",
+        "corwin-schultz-2012": {
+          "basis_points": 224.14823789228956,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.022414823789228957,
+          "non_positive_terms": 8,
+          "relative_spread": 0.022414823789228957,
+          "two_day_pairs": 30
+        },
+        "estimated_over_measured": 264.5788098731082,
+        "measured_median_quoted_spread_bps": 0.857522,
+        "sampled_day": "2023-12-01",
+        "symbol": "UNFIUSDT",
+        "two_day_term_standard_deviation": 0.0019271823239657316,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 31
+      },
+      {
+        "abdi-ranaldo-2017": {
+          "basis_points": 103.62690588990235,
+          "estimator": "abdi-ranaldo-2017",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.00010738535624314677,
+          "non_positive_terms": 17,
+          "relative_spread": 0.010362690588990234,
+          "two_day_pairs": 28
+        },
+        "calibration_month": "2024-02",
+        "corwin-schultz-2012": {
+          "basis_points": 134.81340016603156,
+          "estimator": "corwin-schultz-2012",
+          "floored_at_zero": false,
+          "mean_term_before_flooring": 0.013481340016603156,
+          "non_positive_terms": 11,
+          "relative_spread": 0.013481340016603156,
+          "two_day_pairs": 28
+        },
+        "estimated_over_measured": 59.362696045043414,
+        "measured_median_quoted_spread_bps": 1.745657,
+        "sampled_day": "2024-02-01",
+        "symbol": "UNFIUSDT",
+        "two_day_term_standard_deviation": 0.0013631418950545593,
+        "unusable_daily_bars": 0,
+        "usable_daily_bars": 29
+      }
+    ],
+    "what_is_compared_is_not_identical": "The estimator estimates an EFFECTIVE spread and the measurement is a QUOTED spread. Where trades print at the touch the two coincide; where they do not, effective is the smaller. An estimate below the measurement by a small factor is consistent with the estimator being right, and this was registered before the numbers rather than offered after them."
+  },
+  "changes_no_f1_figure": "Every F1 cell is costed at the registered assumption and stays that way. Section 7.4 shows F1's verdict survives deleting the assumed cost entirely, which is a stronger statement than any estimate of it could be.",
+  "clauses": {
+    "magnitude": {
+      "ceiling": "1",
+      "holds": false,
+      "statistic": 6.413329284460908
+    },
+    "ordering": {
+      "comparison_statistic": 0.9428571428571428,
+      "floor": "0.771",
+      "holds": true,
+      "statistic": 0.9428571428571428
+    },
+    "positivity": {
+      "comparison_estimator": {
+        "estimator": "corwin-schultz-2012",
+        "floored_at_zero": 1609,
+        "instrument_periods_asked_for": 20615,
+        "instruments_scanned": 951,
+        "minimum_pairs": 20,
+        "note": "A period with too few usable pairs is NOT counted as a failure of this clause: it is the case the registered fallback exists for, and the instrument is charged at the banded assumption, labelled as one. It is counted and reported so the size of that fallback is visible.",
+        "share_strictly_positive": 0.9219500363812758,
+        "strictly_positive": 19006,
+        "too_few_pairs_to_estimate": 45004,
+        "trailing_days": 30,
+        "unusable_daily_bars": 0
+      },
+      "floor": "0.90",
+      "holds": false,
+      "registered_estimator": {
+        "estimator": "abdi-ranaldo-2017",
+        "floored_at_zero": 11825,
+        "instrument_periods_asked_for": 20615,
+        "instruments_scanned": 951,
+        "minimum_pairs": 20,
+        "note": "A period with too few usable pairs is NOT counted as a failure of this clause: it is the case the registered fallback exists for, and the instrument is charged at the banded assumption, labelled as one. It is counted and reported so the size of that fallback is visible.",
+        "share_strictly_positive": 0.42638855202522435,
+        "strictly_positive": 8790,
+        "too_few_pairs_to_estimate": 45004,
+        "trailing_days": 30,
+        "unusable_daily_bars": 0
+      }
+    }
+  },
+  "comparison_estimator": "corwin-schultz-2012",
+  "decision": "NOT ADOPTED. The banded assumption is kept, labelled an assumption exactly as it is now. No third estimator is tried, no clause is relaxed, and the comparison estimator is not promoted.",
+  "registered_estimator": "abdi-ranaldo-2017",
+  "registered_version": "v2.2",
+  "resolution": {
+    "per_symbol": [
+      {
+        "measured_squared_proportional_spread": 1.8021565967942253e-07,
+        "symbol": "API3USDT",
+        "two_day_pairs_needed_to_resolve_it": 218843539.101223,
+        "two_day_term_standard_deviation": 0.0026659953688988546
+      },
+      {
+        "measured_squared_proportional_spread": 2.1590026466702506e-08,
+        "symbol": "BLZUSDT",
+        "two_day_pairs_needed_to_resolve_it": 28837933588.948544,
+        "two_day_term_standard_deviation": 0.003666361159062547
+      },
+      {
+        "measured_squared_proportional_spread": 1.2760612840000002e-11,
+        "symbol": "BTCUSDT",
+        "two_day_pairs_needed_to_resolve_it": 1939202020776898.2,
+        "two_day_term_standard_deviation": 0.0005619310884434241
+      },
+      {
+        "measured_squared_proportional_spread": 2.92935325225e-11,
+        "symbol": "ETHUSDT",
+        "two_day_pairs_needed_to_resolve_it": 495493154091229.7,
+        "two_day_term_standard_deviation": 0.0006520645286772048
+      },
+      {
+        "measured_squared_proportional_spread": 1.55804193444025e-08,
+        "symbol": "THETAUSDT",
+        "two_day_pairs_needed_to_resolve_it": 11235177725.066116,
+        "two_day_term_standard_deviation": 0.001651464018324183
+      },
+      {
+        "measured_squared_proportional_spread": 4.0761994816e-08,
+        "symbol": "UNFIUSDT",
+        "two_day_pairs_needed_to_resolve_it": 2935437392.3317103,
+        "two_day_term_standard_deviation": 0.0022084717101880243
+      }
+    ],
+    "question": "Can either estimator resolve a spread of this size against volatility of this size? Each two-day term estimates the squared spread plus noise whose scale is the daily variance, so the answer is a ratio rather than an opinion.",
+    "the_implementation_is_not_the_explanation": "tests/unit/test_spread_estimator.py simulates a quote-driven market with a known spread and recovers it from both estimators at 100 and at 50 basis points, then shows both break down as the spread falls relative to the volatility. The estimators are implemented correctly and are being asked a question this market cannot answer.",
+    "why_a_longer_window_does_not_fix_it": "The standard error of a mean of n terms falls as the root of n, so resolving a squared spread s2 at one standard error needs n of at least (scatter / s2) squared. The pair counts above are what that comes to. Thirty days against thirty years is not the difference."
+  },
+  "rule": "E1",
+  "what_it_cannot_say": [
+    "Nothing about slippage. It is an intraday quantity and daily bars cannot calibrate it. It remains an assumption at its registered figures.",
+    "Nothing about the spot leg. The 36 measured symbol-days are perpetual quotes, so the calibration speaks for the perpetual leg only.",
+    "Nothing about the mid and thin bands. Every sampled symbol sits in the deep band, so the calibration is a deep-band calibration.",
+    "Nothing from six symbols about the cross-section at large. Six is what section 12 registered and it is enough to rank and to scale, not enough to characterise a distribution."
+  ],
+  "window": {
+    "calibration_months": [
+      "2023-05",
+      "2023-06",
+      "2023-08",
+      "2023-10",
+      "2023-12",
+      "2024-02"
+    ],
+    "positivity_first_month": "2020-11",
+    "positivity_last_month": "2026-07"
+  }
+}

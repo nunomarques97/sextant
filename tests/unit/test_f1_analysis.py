@@ -54,7 +54,12 @@ from sextant.app.spike_006_f1_analysis import (
     tolls,
     verdict,
 )
-from sextant.app.spike_006_f1_report import _contraction_section, _samples_section
+from sextant.app.spike_006_f1_report import (
+    _contraction_section,
+    _estimator_section,
+    _samples_section,
+    _strengthened_criterion,
+)
 from sextant.app.spike_006_f1_run import (
     CarryWithoutFunding,
     Deterministic,
@@ -67,6 +72,7 @@ from sextant.engine.backtest.ledger import CostLines as LedgerCostLines
 from sextant.engine.backtest.ledger import LedgerBuilder, RebalanceOutcome
 from sextant.engine.execution.breakeven import MONTHLY_ROUND_TRIPS
 from sextant.engine.statistics.dsr import corrected_sharpe_standard_error
+from sextant.engine.statistics.metrics import PerformanceStatistics
 
 HEADLINE = "vip0_even"
 
@@ -960,18 +966,53 @@ def test_the_corrected_standard_error_exceeds_the_normal_one_on_a_fat_tailed_ser
 
 
 def test_the_floor_is_stricter_than_criterion_one_alone() -> None:
-    """A counterfactual just above a losing null clears the one and not the other."""
+    """A counterfactual just above a losing null clears the one and not the other.
+
+    F1's recorded case, in miniature: a small positive Sharpe against a null whose 95th
+    percentile is below zero. Criterion 1 is satisfied because the null is losing, and the
+    settled floor is not, because the Sharpe does not exceed *zero* by one standard error
+    of itself.
+    """
     item = _rescue(gross="200", fees="50", p95=-0.2, monthly=_noisy(40, "0.004", "0.05"))
     assert item.sharpe_at_zero is not None
     assert item.standard_error_at_zero is not None
     assert item.clears_criterion_one is True
-    assert item.sharpe_at_zero < -0.2 + item.standard_error_at_zero
+    assert item.sharpe_at_zero < item.standard_error_at_zero
+    assert item.clears_zero_by_a_standard_error is False
     assert item.clears_by_a_standard_error is False
 
 
-def test_clearing_the_null_by_more_than_its_error_bar_clears_the_floor() -> None:
-    item = _rescue(gross="200", fees="50", p95=-9.0, monthly=_noisy(40, "0.004", "0.05"))
+def test_a_sharpe_clear_of_zero_by_its_own_error_bar_clears_the_settled_floor() -> None:
+    """Both clauses hold: it clears zero by a standard error and it clears its null."""
+    item = _rescue(gross="200", fees="50", p95=1.0, monthly=_noisy(40, "0.02", "0.005"))
+    assert item.sharpe_at_zero is not None
+    assert item.standard_error_at_zero is not None
+    assert item.sharpe_at_zero > item.standard_error_at_zero
+    assert item.beats_its_null is True
+    assert item.clears_zero_by_a_standard_error is True
     assert item.clears_by_a_standard_error is True
+
+
+def test_clearing_zero_but_not_the_null_fails_the_floor() -> None:
+    """Both clauses, never either. A strong result its own null also reaches is not one."""
+    item = _rescue(gross="200", fees="50", p95=99.0, monthly=_noisy(40, "0.02", "0.005"))
+    assert item.clears_zero_by_a_standard_error is True
+    assert item.beats_its_null is False
+    assert item.clears_by_a_standard_error is False
+
+
+def test_the_two_anchors_disagree_on_exactly_the_case_that_prompted_the_amendment() -> None:
+    """Amendment 10's floor fires here and amendment 11's does not, on one fixture.
+
+    This is F1's own situation: the exposure-matched null loses over the window, so a bar
+    stated relative to it sits below zero and a variant that merely fails to lose clears
+    it. Both forms stay computable because section 33.1 supersedes amendment 10 rather
+    than deleting it, and a superseded bar nobody can compute is one a later reader has to
+    take on trust.
+    """
+    item = _rescue(gross="200", fees="50", p95=-9.0, monthly=_noisy(40, "0.004", "0.05"))
+    assert item.clears_the_null_by_a_standard_error is True
+    assert item.clears_by_a_standard_error is False
 
 
 def test_the_floor_answers_none_where_it_cannot_be_evaluated() -> None:
@@ -980,11 +1021,223 @@ def test_the_floor_answers_none_where_it_cannot_be_evaluated() -> None:
         payload(deterministic=[run(construct="v", gross="200")], nulls=[]), cell=HEADLINE
     )[0]
     assert item.clears_by_a_standard_error is None
+    assert item.clears_the_null_by_a_standard_error is None
 
 
-def test_the_floor_records_the_family_it_applies_from() -> None:
+def test_the_floor_records_the_family_it_applies_from_and_its_anchor() -> None:
     """Prospective, so a reader of an F1 figure is told it did not govern F1."""
     payload_json = _rescue(
         gross="200", fees="50", p95=-9.0, monthly=_noisy(40, "0.004", "0.05")
     ).as_json()
     assert payload_json["floor_applies_from"] == "F2"
+    assert payload_json["floor_anchor"] == "zero"
+    assert payload_json["would_clear_rule_s1s_settled_floor"] is False
+    assert payload_json["would_clear_amendment_10s_null_anchored_floor"] is True
+
+
+# ---------------------------------------------------------------------------
+# Amendment 11: criterion 1 strengthened, as a supplementary reading only
+# ---------------------------------------------------------------------------
+
+
+def _statistics_of_a_series(monthly: dict[str, str]) -> PerformanceStatistics:
+    """The performance statistics of one monthly series, through the ordinary path."""
+    rows = analyse(
+        payload(
+            deterministic=[run(construct="v", gross="200", monthly=monthly)],
+            nulls=[null(construct="v/exposure-matched", p95=-9.0, recent_p95=-9.0)],
+        )
+    )
+    statistics = rows[0].statistics
+    assert statistics is not None
+    return statistics
+
+
+def test_the_t_statistic_is_the_sharpe_times_the_root_of_the_count() -> None:
+    """The absolute clause, in the one form it can be written without annualising."""
+    statistics = _statistics_of_a_series(_noisy(36, "0.02", "0.005"))
+    assert statistics.mean_return_t_statistic == pytest.approx(
+        statistics.sharpe_per_period * sqrt(float(statistics.observations))
+    )
+
+
+def test_the_t_statistic_does_not_move_with_the_annualisation() -> None:
+    """Annualising scales the mean and its error alike, so the ratio is frequency-free.
+
+    Asserted because a version of this that carried a root-twelve factor would look
+    entirely plausible and would change which variants passed from F2 onward.
+    """
+    statistics = _statistics_of_a_series(_noisy(36, "0.02", "0.005"))
+    assert statistics.sharpe_annualised > statistics.sharpe_per_period
+    assert statistics.mean_return_t_statistic == pytest.approx(
+        statistics.sharpe_per_period * sqrt(float(statistics.observations))
+    )
+
+
+def test_a_return_inside_its_own_error_bar_fails_the_strengthened_clause() -> None:
+    """The 18.70-EUR case: positive, and not distinguishable from nothing."""
+    rows = analyse(
+        payload(
+            deterministic=[run(construct="v", gross="200", monthly=_noisy(40, "0.0005", "0.05"))],
+            nulls=[null(construct="v/exposure-matched", p95=-9.0, recent_p95=-9.0)],
+        )
+    )
+    criteria = rows[0].criteria
+    assert criteria.beats_exposure_matched_null is True
+    assert criteria.return_t_statistic is not None
+    assert criteria.return_is_distinguishable_from_zero is False
+    assert criteria.criterion_one_strengthened is False
+
+
+def test_a_return_outside_its_own_error_bar_holds_both_forms() -> None:
+    """Strictly narrowing means every pass of the stronger form is a pass of the weaker."""
+    rows = analyse(
+        payload(
+            deterministic=[run(construct="v", gross="200", monthly=_noisy(40, "0.02", "0.005"))],
+            nulls=[null(construct="v/exposure-matched", p95=-9.0, recent_p95=-9.0)],
+        )
+    )
+    criteria = rows[0].criteria
+    assert criteria.beats_exposure_matched_null is True
+    assert criteria.return_is_distinguishable_from_zero is True
+    assert criteria.criterion_one_strengthened is True
+
+
+def test_the_strengthened_clause_never_reaches_the_verdict() -> None:
+    """F1 was judged on the weaker form, and no code path lets the stronger one in.
+
+    The mechanical statement of "not applied to F1": the strengthened reading is absent
+    from ``answered``, so ``all_hold`` cannot see it however the figures fall.
+    """
+    rows = analyse(
+        payload(
+            deterministic=[run(construct="v", gross="200", monthly=_noisy(40, "0.0005", "0.05"))],
+            nulls=[null(construct="v/exposure-matched", p95=-9.0, recent_p95=-9.0)],
+        )
+    )
+    criteria = rows[0].criteria
+    assert criteria.criterion_one_strengthened is False
+    assert len(criteria.answered) == 6
+    assert criteria.beats_exposure_matched_null in criteria.answered
+    assert criteria.criterion_one_strengthened not in [criteria.answered[0]]
+
+
+def test_the_supplementary_block_says_it_is_supplementary_and_from_where() -> None:
+    """A stronger bar printed beside a verdict must say it did not produce the verdict."""
+    rows = analyse(
+        payload(
+            deterministic=[run(construct="v", gross="200", monthly=_noisy(40, "0.0005", "0.05"))],
+            nulls=[null(construct="v/exposure-matched", p95=-9.0, recent_p95=-9.0)],
+        )
+    )
+    block = rows[0].criteria.as_json()["supplementary_1_strengthened"]
+    assert isinstance(block, dict)
+    assert block["applies_from"] == "F2"
+    assert block["t_statistic_floor"] == 1.0
+    assert "SUPPLEMENTARY" in str(block["note"])
+    assert "strictly narrower" in str(block["note"])
+
+
+# ---------------------------------------------------------------------------
+# The report sections amendment 11 adds
+# ---------------------------------------------------------------------------
+
+
+def _calibration(*, ordering: bool, magnitude: bool, positivity: bool) -> dict[str, object]:
+    """A minimal rule E1 calibration, shaped as the result file writes it."""
+    return {
+        "all_three_hold": ordering and magnitude and positivity,
+        "clauses": {
+            "ordering": {
+                "statistic": 0.943,
+                "floor": "0.771",
+                "holds": ordering,
+                "comparison_statistic": 0.943,
+            },
+            "magnitude": {"statistic": 6.413, "ceiling": "1", "holds": magnitude},
+            "positivity": {
+                "floor": "0.90",
+                "holds": positivity,
+                "registered_estimator": {
+                    "share_strictly_positive": 0.426,
+                    "too_few_pairs_to_estimate": 45004,
+                    "instrument_periods_asked_for": 20615,
+                    "instruments_scanned": 951,
+                },
+                "comparison_estimator": {"share_strictly_positive": 0.922},
+            },
+        },
+        "calibration": {
+            "per_symbol": [
+                {
+                    "symbol": "BTCUSDT",
+                    "chosen_as": "top",
+                    "measured_median_quoted_spread_bps": 0.0357,
+                    "estimated_median_bps": 0.0,
+                    "comparison_estimated_median_bps": 93.6643,
+                    "estimated_over_measured": 0.0,
+                }
+            ]
+        },
+        "resolution": {
+            "per_symbol": [
+                {
+                    "symbol": "BTCUSDT",
+                    "two_day_term_standard_deviation": 5.619e-4,
+                    "measured_squared_proportional_spread": 1.276e-11,
+                    "two_day_pairs_needed_to_resolve_it": 1.939e15,
+                }
+            ]
+        },
+    }
+
+
+def test_no_calibration_file_renders_no_estimator_section() -> None:
+    """A section that has nothing to say says nothing, rather than printing headings."""
+    assert _estimator_section(None) == ""
+
+
+def test_a_failed_calibration_says_so_and_keeps_the_assumption() -> None:
+    """The outcome is printed whatever it is: a rule reported only when it passes is not one."""
+    rendered = _estimator_section(_calibration(ordering=True, magnitude=False, positivity=False))
+    assert "NOT ADOPTED" in rendered
+    assert "banded **assumption** is kept" in rendered
+    assert "comparison estimator is not promoted" in rendered
+    assert "1.939e+15" in rendered
+
+
+def test_a_passing_calibration_would_say_the_estimate_becomes_the_default() -> None:
+    """The other branch, exercised, so the section cannot only have been read one way."""
+    rendered = _estimator_section(_calibration(ordering=True, magnitude=True, positivity=True))
+    assert "ADOPTED" in rendered
+    assert "NOT ADOPTED" not in rendered
+    assert "default spread cost from F2" in rendered
+
+
+def test_the_estimator_section_never_claims_to_move_an_f1_figure() -> None:
+    """Whatever the clauses say, every F1 cell stays costed at the assumption."""
+    for magnitude in (True, False):
+        rendered = _estimator_section(
+            _calibration(ordering=True, magnitude=magnitude, positivity=magnitude)
+        )
+        assert "No F1 figure" in rendered
+        assert "costed at the registered assumption" in rendered
+
+
+def test_a_result_file_without_the_supplementary_block_renders_nothing() -> None:
+    """An older result file must not produce a half-empty table under a heading."""
+    assert _strengthened_criterion([{"criteria": {}}]) == []
+
+
+def test_the_supplementary_section_says_which_form_produced_the_verdict() -> None:
+    """The first thing it says, because a stronger bar beside a letter invites the reading."""
+    analysed = analyse(
+        payload(
+            deterministic=[run(construct="v", gross="200", monthly=_noisy(40, "0.0005", "0.05"))],
+            nulls=[null(construct="v/exposure-matched", p95=-9.0, recent_p95=-9.0)],
+        )
+    )
+    rendered = chr(10).join(_strengthened_criterion([row.as_json() for row in analysed]))
+    assert "F1 was judged on criterion 1 as registered when it ran" in rendered
+    assert "supplementary reading, not a re-scoring" in rendered
+    assert "can only ever remove" in rendered

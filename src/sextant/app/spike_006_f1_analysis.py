@@ -68,6 +68,24 @@ from sextant.engine.statistics.metrics import PerformanceStatistics
 #: prospectively: F1 is judged by the bar that was registered when it ran.
 FLOOR_APPLIES_FROM = "F2"
 
+#: Amendment 11, section 33.1. Rule S1's floor is anchored to ZERO, not to the null. The
+#: exposure-matched null over this window is itself losing, so its 95th percentile sits
+#: at -1.26 to -1.58 and a bar anchored to it is a bar below zero that a variant merely
+#: failing to lose will clear. Held as a named constant so a reported figure can say
+#: which anchor produced it, and so amendment 10's form stays computable beside it.
+FLOOR_ANCHOR = "zero"
+
+#: Amendment 11, section 33.3. The family from which criterion 1's absolute clause is
+#: "the mean return exceeds one standard error of itself" rather than "strictly
+#: positive". Strictly narrowing, so it can only ever remove a pass. F1 was judged on the
+#: weaker form and keeps it; the stronger one is reported beside it as supplementary.
+CRITERION_ONE_STRENGTHENED_FROM = "F2"
+
+#: What the strengthened clause compares the t-statistic against. One standard error, so
+#: one. Named rather than inlined because a threshold that appears as a bare literal in a
+#: comparison is a threshold nobody can find later.
+T_STATISTIC_FLOOR = 1.0
+
 #: Criterion 2's threshold, section 11.
 DSR_THRESHOLD = 0.95
 
@@ -238,6 +256,14 @@ class Criteria:
     regimes_positive: int
     regimes_countable: tuple[str, ...]
     effective_observations: float
+    return_t_statistic: float | None
+    """The mean scored-month return over one standard error of that mean.
+
+    Carried for the SUPPLEMENTARY reading of criterion 1 that amendment 11 registers from
+    F2, and for nothing else in F1: :attr:`answered` does not include it and
+    :attr:`all_hold` cannot read it. F1 was judged on the weaker clause and is not
+    re-scored on a bar registered after its figures were read.
+    """
 
     @property
     def answered(self) -> tuple[bool | None, ...]:
@@ -252,8 +278,33 @@ class Criteria:
 
     @property
     def all_hold(self) -> bool:
-        """True only when every one of the six is answered True."""
+        """True only when every one of the six is answered True.
+
+        Reads :attr:`answered`, which is criterion 1 in the form F1 was judged on. The
+        strengthened clause below is deliberately not in it.
+        """
         return all(item is True for item in self.answered)
+
+    @property
+    def return_is_distinguishable_from_zero(self) -> bool | None:
+        """Whether the mean return exceeds one standard error of itself."""
+        if self.return_t_statistic is None:
+            return None
+        return self.return_t_statistic > T_STATISTIC_FLOOR
+
+    @property
+    def criterion_one_strengthened(self) -> bool | None:
+        """Criterion 1 with amendment 11's absolute clause, applying from F2.
+
+        The null comparison unchanged, and "strictly positive net return" replaced by "a
+        mean return exceeding one standard error of itself". Strictly narrower than the
+        clause it replaces, so on any data it can only ever turn a True into a False.
+        Reported for F1 as a supplementary reading and read by no F1 verdict.
+        """
+        distinguishable = self.return_is_distinguishable_from_zero
+        if self.beats_exposure_matched_null is None or distinguishable is None:
+            return None
+        return self.beats_exposure_matched_null and distinguishable
 
     @property
     def effective_observations_met(self) -> bool:
@@ -273,6 +324,22 @@ class Criteria:
             "effective_observations": self.effective_observations,
             "effective_observations_floor": MINIMUM_EFFECTIVE_OBSERVATIONS,
             "effective_observations_met": self.effective_observations_met,
+            "supplementary_1_strengthened": {
+                "applies_from": CRITERION_ONE_STRENGTHENED_FROM,
+                "mean_return_t_statistic": self.return_t_statistic,
+                "t_statistic_floor": T_STATISTIC_FLOOR,
+                "return_is_distinguishable_from_zero": (self.return_is_distinguishable_from_zero),
+                "criterion_1_would_hold": self.criterion_one_strengthened,
+                "note": (
+                    "SUPPLEMENTARY. F1 was judged on criterion 1 as registered when it ran: "
+                    "the null comparison AND a strictly positive net return. Amendment 11 "
+                    "strengthens the absolute clause from F2 to require a mean return "
+                    "exceeding one standard error of itself. The strengthened clause is "
+                    "strictly narrower, so it can only ever remove a pass, and it is "
+                    "reported here beside the original rather than in place of it. No F1 "
+                    "verdict reads it."
+                ),
+            },
         }
 
 
@@ -628,6 +695,7 @@ def _criteria(
         else bool(recent_sharpe > recent_null_p95 and recent_net_return > 0)
     )
     return Criteria(
+        return_t_statistic=None if statistics is None else statistics.mean_return_t_statistic,
         beats_exposure_matched_null=one,
         survives_deflation=two,
         win_is_selection=three,
@@ -997,14 +1065,42 @@ class Rescue:
         return beats and self.net_return_at_zero > 0
 
     @property
-    def clears_by_a_standard_error(self) -> bool | None:
-        """Amendment 10's floor, applying from F2: clear the null by its own error bar.
+    def clears_zero_by_a_standard_error(self) -> bool | None:
+        """Whether the counterfactual Sharpe exceeds ZERO by one standard error of itself.
 
-        An assumption is worth measuring when removing it could produce a result
-        *distinguishable from noise*, not merely one with a different sign. A
-        counterfactual sitting a tenth of a standard error above a losing null is not
-        distinguishable from that null, and F1's two clearing variants are exactly that
-        case: they clear criterion 1 and they do not clear this.
+        Amendment 11's absolute clause. An assumption is worth measuring when removing it
+        could produce a result *distinguishable from noise*, and noise here means zero
+        rather than whatever the null happened to lose over this particular window.
+        """
+        if self.sharpe_at_zero is None or self.standard_error_at_zero is None:
+            return None
+        return self.sharpe_at_zero > self.standard_error_at_zero
+
+    @property
+    def clears_by_a_standard_error(self) -> bool | None:
+        """Rule S1's floor as settled by amendment 11, applying from F2. Both clauses.
+
+        The counterfactual Sharpe must exceed **zero** by one standard error of its own
+        estimate *and* clear the 95th percentile of its own exposure-matched null. Never
+        either: the null comparison says a no-edge process could not have produced this,
+        the absolute clause says the result is distinguishable from nothing, and over a
+        window where the null loses money the two answers come apart by the whole size of
+        that loss.
+        """
+        absolute = self.clears_zero_by_a_standard_error
+        relative = self.beats_its_null
+        if absolute is None or relative is None:
+            return None
+        return absolute and relative
+
+    @property
+    def clears_the_null_by_a_standard_error(self) -> bool | None:
+        """Amendment 10's floor as first written, kept computable and never applied.
+
+        Superseded by the property above. It stays here because section 33.1 supersedes
+        amendment 10 rather than deleting it, and a superseded bar that cannot be computed
+        is a bar a later reader has to take on trust. On F1's figures this one fires and
+        the settled one does not, which is exactly why both are in the record.
         """
         if (
             self.sharpe_at_zero is None
@@ -1030,8 +1126,13 @@ class Rescue:
             "beats_its_null_at_zero_assumed_cost": self.beats_its_null,
             "would_clear_criterion_one": self.clears_criterion_one,
             "standard_error_of_the_sharpe_at_zero": self.standard_error_at_zero,
-            "would_clear_the_null_by_one_standard_error": self.clears_by_a_standard_error,
+            "would_clear_zero_by_one_standard_error": self.clears_zero_by_a_standard_error,
+            "would_clear_rule_s1s_settled_floor": self.clears_by_a_standard_error,
+            "would_clear_amendment_10s_null_anchored_floor": (
+                self.clears_the_null_by_a_standard_error
+            ),
             "floor_applies_from": FLOOR_APPLIES_FROM,
+            "floor_anchor": FLOOR_ANCHOR,
             "deflated_sharpe_at_zero_assumed_cost": None
             if self.deflated_at_zero is None
             else self.deflated_at_zero.deflated_sharpe_ratio,

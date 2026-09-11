@@ -1611,6 +1611,65 @@ spread_estimator:
       Nothing here estimates slippage. Slippage is an intraday quantity, daily bars
       cannot calibrate it, and it remains an assumption at its registered figures with
       its label attached.
+  result:
+    computed_on: research/spike-006-f1-estimator.json
+    registered_after_the_rule: >
+      The rule, the estimator, the comparison and all three thresholds were committed
+      before this block existed. This records the outcome, in the same way part 2 of the
+      pre-registration records a measurement rather than a choice.
+    version_does_not_move_because: >
+      This block changes no registered choice: no variant, cell, criterion, threshold,
+      budget or rule. It records what a rule already committed at v2.2 computed, which is
+      the same thing part 2 of the pre-registration does for the dataset - written only
+      once the measurement exists, appended rather than substituted, and never a licence
+      to edit a value a result was produced against.
+    ordering: >
+      HOLDS. Spearman's rho between estimated and measured across the six symbols is
+      0.943 against a floor of 0.771, which is one swap of adjacent neighbours. The
+      comparison estimator ranks them identically.
+    magnitude: >
+      FAILS. The median absolute base-2 logarithm of estimated over measured is 6.413
+      against a ceiling of 1: a factor of 85. Per symbol the estimate runs from 13.8
+      times the measurement to 536 times it, and on BTCUSDT it is zero. The comparison
+      estimator is worse, at a median of 6.84 and levels 48 to 2,622 times measured.
+    positivity: >
+      FAILS. The registered estimator returns a strictly positive figure in 42.6 per cent
+      of the 20,615 estimable instrument-periods, against a floor of 90 per cent. A
+      further 45,004 of the 65,619 asked for had too few usable pairs, which is a
+      listing-history artefact rather than a data defect and is the case the registered
+      substitution exists for.
+    decision: >
+      NOT ADOPTED. Two of three clauses fail, so the banded ASSUMPTION is kept and stays
+      labelled an assumption. No third estimator is tried, no clause is relaxed, and the
+      comparison estimator is not promoted even though it would clear the positivity
+      clause: it clears it by being systematically large, and a cost model that always
+      charges about 100 bps is not an improvement on one that sometimes charges nothing.
+    why_it_fails: >
+      Both estimators read the covariance of the close against the mid-range across
+      adjacent days. Each two-day term estimates the squared spread PLUS noise whose
+      scale is the daily variance, so the question is a ratio. Resolving BTCUSDT's
+      measured spread at one standard error would need about 1.9e15 two-day pairs, some
+      five trillion years of daily bars. No choice of window changes that.
+    the_implementation_is_not_the_explanation: >
+      tests/unit/test_spread_estimator.py simulates a quote-driven market with a known
+      spread and recovers it from BOTH estimators at 100 and at 50 basis points, then
+      shows both break down as the spread falls relative to the volatility. These
+      estimators were validated on equities, where tens of basis points of spread sit
+      against daily moves of one or two per cent. A perpetual quoting 0.036 bps against
+      four per cent daily volatility is four orders of magnitude outside that regime.
+    what_it_leaves_open: >
+      Amendment 11 superseded amendment 10's measured deep-band default in favour of an
+      estimator that has now failed its own test. So the registered consequence stands -
+      the assumption is kept - and the assumption is 10 bps of half-spread on the deep
+      band against a measured 0.53. Three options exist: keep the assumption as this
+      rule's failure clause says; revert to amendment 10's measured deep-band figure,
+      which rule E1 superseded but did not disprove; or run F2 at both and report the
+      pair. All three are computed and none is substituted. The choice is the Product
+      Owner's before F2 runs.
+    changes_no_f1_figure: >
+      Every F1 cell is costed at the registered assumption and stays that way. Section
+      7.4 shows F1's verdict survives deleting the assumed cost entirely, which is a
+      stronger statement than any estimate of it could be.
 
 statistics:
   out_of_sample_only: true

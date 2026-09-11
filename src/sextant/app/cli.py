@@ -143,6 +143,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "run",
             "depth",
             "spread",
+            "estimator",
             "contraction",
             "report",
         ),
@@ -152,6 +153,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "`run` executes the registered 36-trial grid and writes the result file; "
         "`depth` acquires the order-book sample, but only when rule C3 asked for one; "
         "`spread` acquires the quoted-spread sample, but only when rule S1 fired; "
+        "`estimator` computes rule E1's spread estimator and its calibration "
+        "against that sample, and reports whether the estimator is adopted; "
         "`contraction` writes amendment 26.1's composition check on the largest "
         "month-on-month fall in pair count; "
         "`report` renders the result file as the results document.",
@@ -359,6 +362,30 @@ def _command_f1_spread() -> int:
     return EXIT_OK
 
 
+def _command_f1_estimator() -> int:
+    """Compute rule E1's calibration, and report the adoption it decides.
+
+    Reaches no network and reads no result file's verdict. The three clauses and their
+    thresholds were committed before this command produced a number, so what it prints
+    is an outcome rather than a choice.
+    """
+    from sextant.app import spike_006_f1_estimator
+    from sextant.app.spike_006_f1 import ESTIMATOR_RULE
+
+    calibration = spike_006_f1_estimator.calibrate()
+    written = spike_006_f1_estimator.write(calibration, spike_006_f1_estimator.ESTIMATOR_RESULTS)
+    for name, holds in (
+        ("ordering", calibration.ordering_holds),
+        ("magnitude", calibration.magnitude_holds),
+        ("positivity", calibration.positivity_holds),
+    ):
+        print(f"  {name}: {'holds' if holds else 'does NOT hold'}")
+    verdict = "ADOPTED from F2" if calibration.adopted else "NOT ADOPTED; the assumption is kept"
+    print(f"  rule {ESTIMATOR_RULE}: {verdict}")
+    print(f"  written: {written.as_posix()}")
+    return EXIT_OK
+
+
 def _command_f1_depth() -> int:
     """Acquire the depth sample, and refuse to acquire it when the rule did not ask.
 
@@ -433,6 +460,8 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         return _command_f1_depth()
     if stage == "spread":
         return _command_f1_spread()
+    if stage == "estimator":
+        return _command_f1_estimator()
     if stage == "contraction":
         from sextant.app import spike_006_f1_contraction
         from sextant.app.spike_006_f1_world import build_world

@@ -46,6 +46,80 @@ class PanelRow:
     volume: str
 
 
+@dataclass(frozen=True, slots=True)
+class RangeRow:
+    """One daily observation's high, low and close, still in exact text.
+
+    A second row type rather than three more fields on :class:`PanelRow`, because the
+    universe scan reads sixteen hundred series for close and turnover and has no use for
+    a range, while the spread estimator of rule E1 reads high, low and close and has no
+    use for volume. Two narrow reads are cheaper than one wide one and neither carries a
+    column nobody asked for.
+    """
+
+    open_time_ms: int
+    high: str
+    low: str
+    close: str
+
+
+def load_daily_ranges(
+    root: Path,
+    venue: Venue,
+    timeframe: Timeframe = Timeframe.D1,
+    *,
+    symbols: Sequence[str] | None = None,
+) -> Mapping[str, tuple[RangeRow, ...]]:
+    """Every stored series' daily high, low and close, keyed by symbol.
+
+    What rule E1's spread estimator reads. The same single polars scan as
+    :func:`load_daily_panel`, the same sorting guarantees, and the same rule about
+    money: these come out as the exact text the store holds and the caller converts.
+    """
+    directory = root / "bars" / f"venue={venue.name}" / f"timeframe={timeframe.value}"
+    if not directory.is_dir():
+        return {}
+    wanted = None if symbols is None else set(symbols)
+    paths = sorted(
+        path for path in directory.glob("*.parquet") if wanted is None or path.stem in wanted
+    )
+    if not paths:
+        return {}
+
+    frame = (
+        polars.scan_parquet(paths, include_file_paths="source_path")
+        .select(
+            polars.col("source_path"),
+            polars.col("open_time_ms"),
+            polars.col("high"),
+            polars.col("low"),
+            polars.col("close"),
+        )
+        .collect()
+    )
+    panel: dict[str, list[RangeRow]] = {path.stem: [] for path in paths}
+    for source, open_time_ms, high, low, close in zip(
+        frame.get_column("source_path").to_list(),
+        frame.get_column("open_time_ms").to_list(),
+        frame.get_column("high").to_list(),
+        frame.get_column("low").to_list(),
+        frame.get_column("close").to_list(),
+        strict=True,
+    ):
+        panel[Path(str(source)).stem].append(
+            RangeRow(
+                open_time_ms=int(open_time_ms),
+                high=str(high),
+                low=str(low),
+                close=str(close),
+            )
+        )
+    return {
+        symbol: tuple(sorted(rows, key=lambda row: row.open_time_ms))
+        for symbol, rows in sorted(panel.items())
+    }
+
+
 def load_daily_panel(
     root: Path,
     venue: Venue,

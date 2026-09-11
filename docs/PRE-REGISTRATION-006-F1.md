@@ -22,7 +22,7 @@ it, gives rule S1 a floor **from F2**, and makes the measured spread the default
 `v2.2` adds section 33: it anchors that floor to **zero** rather than to the null, registers rule P1
 so the same defect cannot recur in a fourth place, strengthens criterion 1 **from F2**, and replaces
 the banded spread assumption **from F2** with an estimator that has to pass a test written before it
-was run. No amendment in this document changes an F1 variant, cell, criterion, threshold, budget or
+was run. Section 33.7 records what that test said: the estimator is **refused**. No amendment in this document changes an F1 variant, cell, criterion, threshold, budget or
 verdict letter.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
@@ -2253,6 +2253,69 @@ therefore the one an author is tempted to write. The protection is that the zero
 settled by the Product Owner after being shown both readings and the figures for each, the
 sample it would have prevented was already acquired and reported before it was settled, and the
 choice therefore could not save anybody any work.
+
+### 33.7 Rule E1's calibration result, recorded after the rule that decides it
+
+**The rule, the estimator, the comparison and all three thresholds were committed in
+`4572705` before this section existed.** The ordering is checkable in git. What follows is
+an outcome rather than a choice, and it is recorded whatever it says.
+
+| clause | statistic | bar | holds |
+|---|---:|---:|---|
+| ordering, Spearman's rho across the six symbols | 0.943 | at least 0.771 | **yes** |
+| magnitude, median `|log2(estimated / measured)|` | 6.413 | at most 1 | **no** |
+| positivity, share of instrument-periods positive | 42.6% | at least 90% | **no** |
+
+**Rule E1: not adopted.** The banded **assumption** is kept and stays labelled an
+assumption. No third estimator is tried, no clause is relaxed, and the comparison
+estimator is not promoted.
+
+**The ordering clause holding while the magnitude clause fails by a factor of 85 is itself
+the finding.** The estimator ranks the six symbols almost correctly — one swap of adjacent
+neighbours — while being one to three orders of magnitude out on the level. It carries
+information about which instrument is wider and none about how wide.
+
+**Why, in the one form that forecloses the obvious next suggestion.** Each two-day term
+estimates the squared spread *plus* noise whose scale is the daily variance, so whether the
+estimator can resolve anything is a ratio rather than a judgement. Resolving `BTCUSDT`'s
+measured spread at one standard error would need about 1.9 × 10^15 two-day pairs, which is
+some five trillion years of daily bars. A thirty-day window against a thirty-year one is
+not the difference.
+
+**The implementation is not the explanation, and that is tested rather than asserted.**
+`tests/unit/test_spread_estimator.py` simulates a quote-driven market with a known spread
+and recovers it from **both** estimators at 100 and at 50 basis points, then shows both
+break down as the spread falls relative to the volatility. These estimators were validated
+on equities, where tens of basis points of spread sit against daily moves of one or two per
+cent. A perpetual quoting 0.036 bps against four per cent daily volatility is four orders
+of magnitude outside that regime.
+
+**Corwin-Schultz would clear the positivity clause and is still not promoted.** It returns
+a positive figure in 92.2 per cent of instrument-periods against the registered estimator's
+42.6, and nothing was left on the table by refusing it: its levels are 48 to 2,622 times
+the measurement, worse on the magnitude clause than the estimator that was registered. It
+floors less often because it is systematically large, and a cost model that always charges
+about 100 bps is not an improvement on one that sometimes charges nothing.
+
+#### What this leaves open, and it is the Product Owner's to settle before F2 runs
+
+**Amendment 11 superseded amendment 10's measured default in favour of an estimator that
+has now failed its own test.** So rule E1's failure clause stands and the assumption is
+kept — and it is worth stating plainly what the assumption is: **10 bps of half-spread on
+the deep band, against a measured 0.53.**
+
+Three options exist and the Developer chooses none of them:
+
+1. **Keep the assumption**, as rule E1's failure clause says. Conservative, labelled, and
+   about twenty times the only measurement there is.
+2. **Revert to amendment 10's measured deep-band figure**, which rule E1 superseded but did
+   not disprove. Measured, and measured on six days of one band in one eleven-month stretch
+   of a five-year window.
+3. **Run F2 at both** and report the pair, the way SEXTANT-004 reported three fill mixes.
+
+All three are computed and none is substituted. Section 33.5's protection applies here too:
+the sample that would decide between options 1 and 2 has already been acquired and
+reported, so no choice among them saves anybody any work.
 
 ### 33.6 What this does not touch
 
