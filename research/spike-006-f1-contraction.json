@@ -1,0 +1,100 @@
+{
+  "at": "2026-07-01T00:00:00+00:00",
+  "difference_convention": "admitted minus excluded, so a positive difference means the surviving group scores higher on that attribute.",
+  "differences": {
+    "contract_age_days": {
+      "confidence": 0.95,
+      "difference": 1340.0,
+      "interval_excludes_zero": true,
+      "interval_high": 1445.5,
+      "interval_low": 1111.0,
+      "left": 1917.0,
+      "left_size": 108,
+      "resamples": 10000,
+      "right": 577.0,
+      "right_size": 231,
+      "statistic": "median"
+    },
+    "liquidity_band": {
+      "confidence": 0.95,
+      "difference": 0.18037518037518036,
+      "interval_excludes_zero": true,
+      "interval_high": 0.29028379028379037,
+      "interval_low": 0.07106782106782106,
+      "left": 0.4444444444444444,
+      "left_size": 108,
+      "resamples": 10000,
+      "right": 0.26406926406926406,
+      "right_size": 231,
+      "statistic": "mean"
+    },
+    "median_funding_rate": {
+      "confidence": 0.95,
+      "difference": -5.615e-06,
+      "interval_excludes_zero": false,
+      "interval_high": 7.9175e-06,
+      "interval_low": -2.23625e-05,
+      "left": 4.4385e-05,
+      "left_size": 108,
+      "resamples": 10000,
+      "right": 5e-05,
+      "right_size": 231,
+      "statistic": "median"
+    }
+  },
+  "groups": [
+    {
+      "band_counts": {
+        "deep": 48,
+        "mid": 49,
+        "thin": 11
+      },
+      "band_shares": {
+        "deep": 0.4444,
+        "mid": 0.4537,
+        "thin": 0.1019
+      },
+      "deep_share": 0.4444,
+      "funding_interval_hours_counts": {
+        "4": 4,
+        "8": 104
+      },
+      "group": "admitted",
+      "legs_with_a_funding_median": 108,
+      "size": 108
+    },
+    {
+      "band_counts": {
+        "deep": 61,
+        "mid": 147,
+        "thin": 23
+      },
+      "band_shares": {
+        "deep": 0.2641,
+        "mid": 0.6364,
+        "thin": 0.0996
+      },
+      "deep_share": 0.2641,
+      "funding_interval_hours_counts": {
+        "1": 2,
+        "4": 227,
+        "8": 2
+      },
+      "group": "excluded_by_funding_evaluability",
+      "legs_with_a_funding_median": 231,
+      "size": 231
+    }
+  ],
+  "is_unrepresentative": true,
+  "mechanism": "The split is on the venue's funding cadence, not on anything the rule names: 104 of 108 admitted legs settle every 8 hours, against 227 of 231 excluded legs every 4 hours. Only a contract on the faster cadence has a settlement at the instant the venue failed to publish, so the rule removed that population almost entirely. Contract age and liquidity differ as a consequence, because the venue assigns faster funding to newer and more volatile contracts.",
+  "mechanism_status": "DESCRIBED, NOT TESTED. The funding cadence is not one of the three attributes amendment 26.1 registers, carries no interval, and supports no verdict. Adding a fourth test after seeing the result would be the post-hoc widening this task is arranged to prevent.",
+  "pairs_after": 108,
+  "pairs_before": 339,
+  "pairs_excluded": 231,
+  "systematic_attributes": [
+    "contract_age_days",
+    "liquidity_band"
+  ],
+  "verdict": "The 108 pairs surviving 2026-07-01 differ systematically from the 231 excluded on: contract_age_days, liquidity_band. That month's return is therefore computed on an unrepresentative slice, and the direction of the bias is not knowable from the count alone. The headline is reported with and without this rebalance.",
+  "what_this_decides": "Nothing. Criterion 6 is judged on the full series exactly as registered; these figures sit beside it, and section 6 rule 4 is unchanged."
+}

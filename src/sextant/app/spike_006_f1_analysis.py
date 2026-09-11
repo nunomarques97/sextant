@@ -673,6 +673,88 @@ def _signs_by_variant(
 
 
 # ---------------------------------------------------------------------------
+# Amendment 26.1: the headline with and without the contraction month
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class WithoutAMonth:
+    """One variant's headline with a single month kept and then dropped.
+
+    Reported because amendment 26.1 requires it when the surviving slice differs
+    systematically from the excluded one. It decides nothing: every criterion is
+    judged on the full series exactly as registered, and this sits beside it.
+    """
+
+    variant: str
+    cell: str
+    months: int
+    net_return: Decimal
+    sharpe: float | None
+    net_return_without: Decimal
+    sharpe_without: float | None
+
+    @property
+    def difference(self) -> Decimal:
+        """How much of the headline that one month accounted for."""
+        return self.net_return - self.net_return_without
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "variant": self.variant,
+            "cell_id": self.cell,
+            "months": self.months,
+            "compounded_net_return": str(self.net_return),
+            "compounded_net_return_excluding_the_month": str(self.net_return_without),
+            "difference": str(self.difference),
+            "sharpe_annualised": self.sharpe,
+            "sharpe_annualised_excluding_the_month": self.sharpe_without,
+        }
+
+
+def _compounded(series: Sequence[tuple[Timestamp, Decimal]]) -> Decimal:
+    """The terminal return of a monthly series, compounded rather than summed."""
+    total = Decimal(1)
+    for _, value in series:
+        total *= Decimal(1) + value
+    return total - Decimal(1)
+
+
+def excluding_month(
+    payload: Mapping[str, object], at: Timestamp, *, cell: str
+) -> tuple[WithoutAMonth, ...]:
+    """Every variant in one cell, with and without the month ``at`` falls in.
+
+    The month is matched on calendar year and month rather than on an exact instant,
+    because a monthly series is stamped at whichever boundary its own convention uses.
+    """
+    target = (at.value.year, at.value.month)
+    rows: list[WithoutAMonth] = []
+    for item in _rows(payload, "deterministic"):
+        if _text(item.get("kind")) != "variant" or _text(item["cell_id"]) != cell:
+            continue
+        monthly = monthly_of(item)
+        kept = tuple(
+            entry for entry in monthly if (entry[0].value.year, entry[0].value.month) != target
+        )
+        if len(kept) == len(monthly):
+            continue
+        with_it, without_it = statistics_of(monthly), statistics_of(kept)
+        rows.append(
+            WithoutAMonth(
+                variant=_text(item["construct"]),
+                cell=cell,
+                months=len(monthly),
+                net_return=_compounded(monthly),
+                sharpe=None if with_it is None else with_it.sharpe_annualised,
+                net_return_without=_compounded(kept),
+                sharpe_without=None if without_it is None else without_it.sharpe_annualised,
+            )
+        )
+    return tuple(sorted(rows, key=lambda row: row.variant))
+
+
+# ---------------------------------------------------------------------------
 # Capacity: rule C3's decision, from series that already exist
 # ---------------------------------------------------------------------------
 
@@ -1000,11 +1082,13 @@ __all__ = [
     "SpreadAcquisition",
     "VariantRow",
     "Verdict",
+    "WithoutAMonth",
     "analyse",
     "break_even_of",
     "capacity_of",
     "capacity_report",
     "depth_sample_is_needed",
+    "excluding_month",
     "monthly_of",
     "opening_instants",
     "regime_labels",

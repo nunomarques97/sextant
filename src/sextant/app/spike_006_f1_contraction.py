@@ -30,11 +30,13 @@ pointed at a month somebody had already looked at.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
 from itertools import pairwise
+from pathlib import Path
 
 from sextant.adapters.exchanges.binance.costs import DEEP_BAND_FLOOR, MID_BAND_FLOOR
 from sextant.app.spike_006_f1 import (
@@ -54,6 +56,10 @@ from sextant.engine.statistics.bootstrap import (
 )
 
 #: The attribute names, in the order amendment 26.1 registers them.
+#: Where the composition check is written. Its own file rather than a block inside the
+#: grid's result: the grid's file is what the verdict was computed from and is never
+#: rewritten by something that decides nothing.
+CONTRACTION_RESULTS = Path("research") / "spike-006-f1-contraction.json"
 ATTRIBUTES = ("median_funding_rate", "contract_age_days", "liquidity_band")
 
 DAYS_PER_YEAR = Decimal(365)
@@ -444,6 +450,7 @@ def excluded_key(world: World) -> InstrumentKey | None:
 
 __all__ = [
     "ATTRIBUTES",
+    "CONTRACTION_RESULTS",
     "ContractionReport",
     "GroupSummary",
     "LegProfile",
@@ -452,3 +459,10 @@ __all__ = [
     "largest_contraction",
     "without_month",
 ]
+
+
+def write(report: ContractionReport, destination: Path) -> Path:
+    """Write the composition check. The destination is a parameter, always."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(report.as_json(), indent=2, sort_keys=True), encoding="utf-8")
+    return destination

@@ -46,6 +46,11 @@ read, and citing one anyway would be a false statement about the ordering.
 Run `sextant spike-006-f1 ordering` after this document is committed to print
 the ancestry check between the configuration's commit and the results' commit.
 
+That command reports the **newest** commit touching the configuration, which is
+amendment 8's and not the one whose bytes this run read. Both are ancestors of the
+results commit, which is the property being checked. The SHA in the table above is
+the one recorded at run time, and it is the one that describes the bytes.
+
 ## 2. The trial budget, and what it refused
 
 The budget is the exact grid rather than a ceiling with a reserve behind it: a
@@ -255,6 +260,49 @@ which would be a different experiment.
 | `carry-rank90-10` | 24 | -33.95% | -2.644 | -1.999 | no |
 | `carry-rank90-10-quarterly` (18 rebalances) | 24 | -19.37% | -1.942 | -1.956 | no |
 | `carry-rank90-5` | 24 | -34.60% | -2.624 | -1.581 | no |
+
+### 9.1 The largest contraction, and the headline without it
+
+The rebalance with the biggest month-on-month fall in pair count is **2026-07-01**: 339 pairs before, 108 after, 231 excluded. Amendment 26.1 requires that a
+contraction be described by *composition* rather than by size, because a smaller
+slice that is representative and a smaller slice that is not are different facts.
+
+| attribute | admitted | excluded | difference | 95% interval | systematic |
+|---|---:|---:|---:|---|---|
+| contract_age_days (median) | 1,917.00 | 577.00 | 1,340.00 | 1,111.00 to 1,445.50 | yes |
+| liquidity_band (mean) | 0.444 | 0.264 | 0.18 | 0.0711 to 0.29 | yes |
+| median_funding_rate (median) | 4.44e-05 | 5e-05 | -5.61e-06 | -2.24e-05 to 7.92e-06 | no |
+
+Admitted minus excluded, so a positive difference means the surviving group scores higher on that attribute.
+
+**The 108 pairs surviving 2026-07-01 differ systematically from the 231 excluded on: contract_age_days, liquidity_band. That month's return is therefore computed on an unrepresentative slice, and the direction of the bias is not knowable from the count alone. The headline is reported with and without this rebalance.**
+
+The split is on the venue's funding cadence, not on anything the rule names: 104 of 108 admitted legs settle every 8 hours, against 227 of 231 excluded legs every 4 hours. Only a contract on the faster cadence has a settlement at the instant the venue failed to publish, so the rule removed that population almost entirely. Contract age and liquidity differ as a consequence, because the venue assigns faster funding to newer and more volatile contracts.
+
+*DESCRIBED, NOT TESTED. The funding cadence is not one of the three attributes amendment 26.1 registers, carries no interval, and supports no verdict. Adding a fourth test after seeing the result would be the post-hoc widening this task is arranged to prevent.*
+
+Every variant's headline in the headline cell, with that month and without it.
+Both figures are compounded from the same monthly series, so the comparison is
+like for like:
+
+| variant | net return | without | difference | Sharpe | without |
+|---|---:|---:|---:|---:|---:|
+| `carry-basket-10` | -16.11% | -15.36% | -0.75% | -0.794 | -0.761 |
+| `carry-basket-5` | -5.74% | -4.82% | -0.93% | -0.248 | -0.206 |
+| `carry-positive-10` | -57.13% | -56.28% | -0.86% | -1.805 | -1.777 |
+| `carry-premium-10` | -91.81% | -91.42% | -0.39% | -1.221 | -1.204 |
+| `carry-rank30-10` | -57.13% | -56.28% | -0.86% | -1.805 | -1.777 |
+| `carry-rank30-5` | -72.31% | -71.94% | -0.37% | -1.451 | -1.447 |
+| `carry-rank90-10` | -31.09% | -30.39% | -0.70% | -1.183 | -1.161 |
+| `carry-rank90-10-quarterly` (quarterly) | -15.49% | -14.90% | -0.59% | -0.680 | -0.657 |
+| `carry-rank90-5` | -35.60% | -34.95% | -0.65% | -1.305 | -1.286 |
+
+**What this decides: nothing. Criterion 6 is judged on the full series exactly as registered; these figures sit beside it, and section 6 rule 4 is unchanged.**
+
+The verdict is the one computed on the full series. Dropping a month because
+its composition is inconvenient is the move this apparatus exists to prevent.
+The column is here so a reader can see how much of the headline that month
+carried, which on these figures is under one percentage point everywhere.
 
 ## 10. Sign stability across the cost regimes
 

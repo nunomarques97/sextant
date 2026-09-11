@@ -46,9 +46,12 @@ from sextant.app.spike_006_f1_analysis import (
     analyse,
     capacity_report,
     depth_sample_is_needed,
+    excluding_month,
     spread_acquisition,
 )
+from sextant.app.spike_006_f1_contraction import CONTRACTION_RESULTS
 from sextant.app.spike_006_f1_depth import DEPTH_RESULTS
+from sextant.domain.time import Timestamp
 from sextant.engine.execution.breakeven import BreakEvenUndefined, d2a_holds
 
 REPORT_PATH = Path("docs") / "SPIKE-006-F1-RESULTS.md"
@@ -60,6 +63,7 @@ def render(
     results_path: Path = RESULTS_PATH,
     report_path: Path = REPORT_PATH,
     depth_path: Path = DEPTH_RESULTS,
+    contraction_path: Path = CONTRACTION_RESULTS,
 ) -> Path:
     """Read the result file and write the report beside it."""
     with results_path.open(encoding="utf-8") as handle:
@@ -67,6 +71,11 @@ def render(
     depth = (
         _mapping(json.loads(depth_path.read_text(encoding="utf-8")))
         if depth_path.is_file()
+        else None
+    )
+    contraction = (
+        _mapping(json.loads(contraction_path.read_text(encoding="utf-8")))
+        if contraction_path.is_file()
         else None
     )
     sections = [
@@ -80,6 +89,7 @@ def render(
         _decomposition_section(payload),
         _regime_section(payload),
         _recent_section(payload),
+        _contraction_section(payload, contraction),
         _sign_section(payload),
         _deflation_section(payload),
         _break_even_section(payload),
@@ -251,6 +261,11 @@ def _provenance_section(payload: Mapping[str, object]) -> str:
             "",
             "Run `sextant spike-006-f1 ordering` after this document is committed to print",
             "the ancestry check between the configuration's commit and the results' commit.",
+            "",
+            "That command reports the **newest** commit touching the configuration, which is",
+            "amendment 8's and not the one whose bytes this run read. Both are ancestors of the",
+            "results commit, which is the property being checked. The SHA in the table above is",
+            "the one recorded at run time, and it is the one that describes the bytes.",
             "",
         ]
     )
@@ -648,6 +663,119 @@ def _recent_section(payload: Mapping[str, object]) -> str:
             f"| {_mark(criteria.get('6_recent_window_holds'))} |"
         )
     lines.append("")
+    return NEWLINE.join(lines)
+
+
+def _significant(value: object) -> str:
+    """A figure at a width that shows it, whatever its magnitude.
+
+    The composition table puts a contract age in days beside a funding rate of about
+    four hundredths of a basis point. A fixed number of decimals prints one of them as
+    zero, and a difference printed as zero beside an interval that excludes zero reads
+    as a contradiction rather than as a rounding.
+    """
+    number = _number(value)
+    if number is None:
+        return "-"
+    if number == 0:
+        return "0"
+    if abs(number) >= 1:
+        return f"{number:,.2f}"
+    return f"{number:.3g}"
+
+
+def _contraction_section(
+    payload: Mapping[str, object], contraction: Mapping[str, object] | None
+) -> str:
+    """Amendment 26.1: the largest contraction, by composition and not only by size.
+
+    Placed here because the month it concerns falls inside the recent window criterion
+    6 is judged on, which is the only place a single month's composition could change
+    a reading. It changes nothing: criterion 6 is judged on the full series exactly as
+    registered, and these figures sit beside it.
+    """
+    if contraction is None:
+        return ""
+    at = _text(contraction["at"])[:10]
+    lines = [
+        "### 9.1 The largest contraction, and the headline without it",
+        "",
+        f"The rebalance with the biggest month-on-month fall in pair count is **{at}**: "
+        f"{_text(contraction['pairs_before'])} pairs before, "
+        f"{_text(contraction['pairs_after'])} after, "
+        f"{_text(contraction['pairs_excluded'])} excluded. Amendment 26.1 requires that a",
+        "contraction be described by *composition* rather than by size, because a smaller",
+        "slice that is representative and a smaller slice that is not are different facts.",
+        "",
+        "| attribute | admitted | excluded | difference | 95% interval | systematic |",
+        "|---|---:|---:|---:|---|---|",
+    ]
+    differences = _mapping(contraction["differences"])
+    for name in sorted(differences):
+        item = _mapping(differences[name])
+        excludes = bool(item["interval_excludes_zero"])
+        lines.append(
+            f"| {name} ({_text(item['statistic'])}) "
+            f"| {_significant(item['left'])} "
+            f"| {_significant(item['right'])} "
+            f"| {_significant(item['difference'])} "
+            f"| {_significant(item['interval_low'])} to {_significant(item['interval_high'])} "
+            f"| {_yes(excludes)} |"
+        )
+    lines.extend(
+        [
+            "",
+            _text(contraction["difference_convention"]).capitalize(),
+            "",
+            f"**{_text(contraction['verdict'])}**",
+            "",
+            _text(contraction["mechanism"]),
+            "",
+            f"*{_text(contraction['mechanism_status'])}*",
+            "",
+        ]
+    )
+    rows = excluding_month(
+        payload, Timestamp.parse(_text(contraction["at"])), cell=headline_cell().label
+    )
+    if rows:
+        lines.extend(
+            [
+                "Every variant's headline in the headline cell, with that month and without it.",
+                "Both figures are compounded from the same monthly series, so the comparison is",
+                "like for like:",
+                "",
+                "| variant | net return | without | difference | Sharpe | without |",
+                "|---|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in rows:
+            name = (
+                f"`{row.variant}`"
+                if row.variant != THINNER_EVIDENCE_VARIANT
+                else f"`{row.variant}` (quarterly)"
+            )
+            lines.append(
+                f"| {name} "
+                f"| {_percent(row.net_return)} "
+                f"| {_percent(row.net_return_without)} "
+                f"| {_percent(row.difference)} "
+                f"| {_fixed(row.sharpe)} "
+                f"| {_fixed(row.sharpe_without)} |"
+            )
+        lines.extend(
+            [
+                "",
+                f"**What this decides: {_text(contraction['what_this_decides'])[:1].lower()}"
+                f"{_text(contraction['what_this_decides'])[1:]}**",
+                "",
+                "The verdict is the one computed on the full series. Dropping a month because",
+                "its composition is inconvenient is the move this apparatus exists to prevent.",
+                "The column is here so a reader can see how much of the headline that month",
+                "carried, which on these figures is under one percentage point everywhere.",
+                "",
+            ]
+        )
     return NEWLINE.join(lines)
 
 

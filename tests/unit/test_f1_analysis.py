@@ -42,11 +42,12 @@ from sextant.app.spike_006_f1_analysis import (
     break_even_of,
     capacity_of,
     depth_sample_is_needed,
+    excluding_month,
     opening_instants,
     spread_acquisition,
     verdict,
 )
-from sextant.app.spike_006_f1_report import _samples_section
+from sextant.app.spike_006_f1_report import _contraction_section, _samples_section
 from sextant.app.spike_006_f1_run import (
     CarryWithoutFunding,
     Deterministic,
@@ -677,3 +678,44 @@ def test_section_fourteen_renders_from_a_file_that_carries_neither_decision() ->
     both = _samples_section(earning)
     assert "Spread sample acquired: yes" in both
     assert "Depth sample required: yes" in both
+
+
+# ---------------------------------------------------------------------------
+# Amendment 26.1: the headline with and without the contraction month
+# ---------------------------------------------------------------------------
+
+
+def test_dropping_the_contraction_month_compounds_the_rest() -> None:
+    """Both figures come from the same series, so the comparison is like for like."""
+    series = {
+        "2026-05-01T00:00:00+00:00": "0.10",
+        "2026-06-01T00:00:00+00:00": "-0.50",
+        "2026-07-01T00:00:00+00:00": "0.20",
+    }
+    payload_with = payload(
+        deterministic=[run(construct="v", terminal="0.10", monthly=series)], nulls=[]
+    )
+    rows = excluding_month(
+        payload_with, Timestamp.parse("2026-07-01T00:00:00+00:00"), cell=HEADLINE
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.net_return == Decimal("1.10") * Decimal("0.50") * Decimal("1.20") - Decimal(1)
+    assert row.net_return_without == Decimal("1.10") * Decimal("0.50") - Decimal(1)
+    assert row.difference == row.net_return - row.net_return_without
+
+
+def test_a_variant_whose_series_never_held_the_month_is_not_listed() -> None:
+    """Nothing was dropped, so there is no with-and-without to report."""
+    series = {"2026-05-01T00:00:00+00:00": "0.10", "2026-06-01T00:00:00+00:00": "-0.50"}
+    rows = excluding_month(
+        payload(deterministic=[run(construct="v", terminal="0.1", monthly=series)], nulls=[]),
+        Timestamp.parse("2026-07-01T00:00:00+00:00"),
+        cell=HEADLINE,
+    )
+    assert rows == ()
+
+
+def test_the_contraction_section_is_empty_when_no_check_was_written() -> None:
+    """The section is written by the composition check, not by the grid."""
+    assert _contraction_section(payload(deterministic=[], nulls=[]), None) == ""

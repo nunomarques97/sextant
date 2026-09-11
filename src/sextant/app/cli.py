@@ -136,12 +136,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     f1.add_argument(
         "stage",
-        choices=("verify", "ordering", "dataset", "run", "depth", "report"),
+        choices=("verify", "ordering", "dataset", "run", "depth", "contraction", "report"),
         help="`verify` runs the drift guard and the commit gate; `ordering` prints the "
         "audit lines the report quotes, and is rerun after the results are committed; "
         "`dataset` measures the acquisition and writes pre-registration part 2; "
         "`run` executes the registered 36-trial grid and writes the result file; "
         "`depth` acquires the order-book sample, but only when rule C3 asked for one; "
+        "`contraction` writes amendment 26.1's composition check on the largest "
+        "month-on-month fall in pair count; "
         "`report` renders the result file as the results document.",
     )
     f1.add_argument(
@@ -384,6 +386,20 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         return EXIT_OK
     if stage == "depth":
         return _command_f1_depth()
+    if stage == "contraction":
+        from sextant.app import spike_006_f1_contraction
+        from sextant.app.spike_006_f1_world import build_world
+
+        found = spike_006_f1_contraction.examine(build_world())
+        if found is None:
+            print("  no rebalance loses pairs; amendment 26.1 has nothing to describe.")
+            return EXIT_OK
+        written = spike_006_f1_contraction.write(
+            found, spike_006_f1_contraction.CONTRACTION_RESULTS
+        )
+        print(f"  {found.verdict()}")
+        print(f"  written: {written.as_posix()}")
+        return EXIT_OK
     if stage == "report":
         from sextant.app import spike_006_f1_report
 
