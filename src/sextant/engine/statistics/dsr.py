@@ -159,6 +159,46 @@ def expected_maximum_sharpe(trials: int, trial_sharpe_variance: float) -> float:
     return float(np.sqrt(trial_sharpe_variance)) * gumbel
 
 
+def _variance_term(*, sharpe_per_period: float, skewness: float, kurtosis: float) -> float:
+    """``1 - g3*SR + (g4-1)/4*SR^2``: the variance of the Sharpe estimate, corrected.
+
+    The one expression behind both the PSR and the standard error below, held in one
+    place so the two can never disagree about what non-normality does to the estimate.
+    It grows with fat tails and with negative skew, and shrinks with positive skew.
+    """
+    term = 1.0 - skewness * sharpe_per_period + (kurtosis - 1.0) / 4.0 * sharpe_per_period**2
+    if term <= 0.0:
+        raise UndefinedDeflatedSharpe(
+            "The studentising term is not positive "
+            f"(1 - g3*SR + (g4-1)/4*SR^2 = {term}). That combination of "
+            "skewness, kurtosis and Sharpe is outside the range the estimator is "
+            "defined on, and no probability can be reported for it."
+        )
+    return term
+
+
+def corrected_sharpe_standard_error(
+    *, sharpe_per_period: float, observations: int, skewness: float, kurtosis: float
+) -> float:
+    """The standard error of a Sharpe estimate, per observation, corrected.
+
+    ``sqrt((1 - g3*SR + (g4-1)/4*SR^2) / (T - 1))``. The plain
+    :attr:`~sextant.engine.statistics.metrics.PerformanceStatistics.sharpe_standard_error`
+    assumes normal returns and is a *floor* on the uncertainty by its own docstring;
+    this one uses the third and fourth moments the series actually has, and on a
+    fat-tailed negatively skewed series it is the larger of the two.
+
+    It exists because a threshold stated in units of the estimate's own uncertainty is
+    only as honest as the uncertainty it is stated in.
+    """
+    if observations < 2:
+        raise UndefinedDeflatedSharpe(
+            f"A standard error needs at least two observations, got {observations}."
+        )
+    term = _variance_term(sharpe_per_period=sharpe_per_period, skewness=skewness, kurtosis=kurtosis)
+    return math.sqrt(term / (float(observations) - 1.0))
+
+
 def probabilistic_sharpe_ratio(
     *,
     sharpe_per_period: float,
@@ -172,16 +212,9 @@ def probabilistic_sharpe_ratio(
         raise UndefinedDeflatedSharpe(
             f"The PSR needs at least two observations, got {observations}."
         )
-    variance_term = (
-        1.0 - skewness * sharpe_per_period + (kurtosis - 1.0) / 4.0 * sharpe_per_period**2
+    variance_term = _variance_term(
+        sharpe_per_period=sharpe_per_period, skewness=skewness, kurtosis=kurtosis
     )
-    if variance_term <= 0.0:
-        raise UndefinedDeflatedSharpe(
-            "The studentising term is not positive "
-            f"(1 - g3*SR + (g4-1)/4*SR^2 = {variance_term}). That combination of "
-            "skewness, kurtosis and Sharpe is outside the range the estimator is "
-            "defined on, and no probability can be reported for it."
-        )
     numerator = (sharpe_per_period - benchmark_sharpe_per_period) * math.sqrt(
         float(observations) - 1.0
     )

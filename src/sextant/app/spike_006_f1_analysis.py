@@ -29,6 +29,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+from math import sqrt
 
 from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
@@ -50,12 +51,22 @@ from sextant.app.spike_006_f1_engine import recent_window, statistics_of
 from sextant.domain.time import Timestamp
 from sextant.engine.execution.breakeven import BreakEven, BreakEvenUndefined
 from sextant.engine.regime.segmentation import Regime, conclusive
-from sextant.engine.statistics.dsr import DeflatedSharpeResult, deflated_sharpe_ratio
+from sextant.engine.statistics.dsr import (
+    DeflatedSharpeResult,
+    corrected_sharpe_standard_error,
+    deflated_sharpe_ratio,
+)
 from sextant.engine.statistics.independence import (
     MINIMUM_EFFECTIVE_OBSERVATIONS,
     independence_of,
 )
 from sextant.engine.statistics.metrics import PerformanceStatistics
+
+#: Amendment 10. The family from which rule S1 requires the counterfactual to clear
+#: the null by at least one standard error of its own Sharpe estimate, rather than
+#: merely to clear it. Stated as a principle rather than a euro figure, and applying
+#: prospectively: F1 is judged by the bar that was registered when it ran.
+FLOOR_APPLIES_FROM = "F2"
 
 #: Criterion 2's threshold, section 11.
 DSR_THRESHOLD = 0.95
@@ -944,6 +955,14 @@ class Rescue:
     null_p95: float | None
     assumed_cost: Decimal
     deflated_at_zero: DeflatedSharpeResult | None
+    standard_error_at_zero: float | None
+    """The counterfactual Sharpe's own standard error, annualised and corrected.
+
+    Skew- and kurtosis-corrected rather than the normal approximation, because
+    amendment 10 states the floor in units of this number and a floor is only as
+    honest as the uncertainty it is measured in. On a fat-tailed, negatively skewed
+    series the corrected figure is the larger of the two, which makes the bar higher.
+    """
     """The counterfactual's Deflated Sharpe, at the same honest trial count.
 
     Carried because criterion 1 is one of six. A variant that clears criterion 1 at
@@ -967,11 +986,36 @@ class Rescue:
 
     @property
     def clears_criterion_one(self) -> bool | None:
-        """Criterion 1, applied to the counterfactual: beats its null *and* earns."""
+        """Criterion 1, applied to the counterfactual: beats its null *and* earns.
+
+        The bar rule S1 carried for F1. Amendment 10 raises it from F2 by the floor
+        below, and both are reported for every family so the two are comparable.
+        """
         beats = self.beats_its_null
         if beats is None:
             return None
         return beats and self.net_return_at_zero > 0
+
+    @property
+    def clears_by_a_standard_error(self) -> bool | None:
+        """Amendment 10's floor, applying from F2: clear the null by its own error bar.
+
+        An assumption is worth measuring when removing it could produce a result
+        *distinguishable from noise*, not merely one with a different sign. A
+        counterfactual sitting a tenth of a standard error above a losing null is not
+        distinguishable from that null, and F1's two clearing variants are exactly that
+        case: they clear criterion 1 and they do not clear this.
+        """
+        if (
+            self.sharpe_at_zero is None
+            or self.null_p95 is None
+            or self.standard_error_at_zero is None
+        ):
+            return None
+        return (
+            self.sharpe_at_zero > self.null_p95 + self.standard_error_at_zero
+            and self.net_return_at_zero > 0
+        )
 
     def as_json(self) -> dict[str, object]:
         return {
@@ -985,6 +1029,9 @@ class Rescue:
             "exposure_matched_null_p95": self.null_p95,
             "beats_its_null_at_zero_assumed_cost": self.beats_its_null,
             "would_clear_criterion_one": self.clears_criterion_one,
+            "standard_error_of_the_sharpe_at_zero": self.standard_error_at_zero,
+            "would_clear_the_null_by_one_standard_error": self.clears_by_a_standard_error,
+            "floor_applies_from": FLOOR_APPLIES_FROM,
             "deflated_sharpe_at_zero_assumed_cost": None
             if self.deflated_at_zero is None
             else self.deflated_at_zero.deflated_sharpe_ratio,
@@ -1041,6 +1088,17 @@ def rescues(payload: Mapping[str, object], *, cell: str) -> tuple[Rescue, ...]:
             if after is not None and variance is not None and trial_count > 0
             else None
         )
+        error = (
+            corrected_sharpe_standard_error(
+                sharpe_per_period=after.sharpe_per_period,
+                observations=after.observations,
+                skewness=after.skewness,
+                kurtosis=after.kurtosis,
+            )
+            * sqrt(after.annualisation)
+            if after is not None
+            else None
+        )
         out.append(
             Rescue(
                 variant=name,
@@ -1052,6 +1110,7 @@ def rescues(payload: Mapping[str, object], *, cell: str) -> tuple[Rescue, ...]:
                 null_p95=_percentile(null, "sharpe"),
                 assumed_cost=lines.assumed,
                 deflated_at_zero=deflated,
+                standard_error_at_zero=error,
             )
         )
     return tuple(sorted(out, key=lambda item: item.variant))

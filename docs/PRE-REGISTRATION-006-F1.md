@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v2.0`. Part 1, the specification, committed before any funding number was
+**Version `v2.1`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
@@ -17,7 +17,9 @@ second execution had been read. `v2.0` adds section 31, which generalises rule S
 every family and records two findings F1 measured. **Unlike every amendment before it, `v2.0` was
 registered after this family's figures had been read**, on the Product Owner's instruction, and it
 changes F1's acquisition answer from no to yes. Section 31.4 states why that cannot move an F1
-result. No amendment in this document changes a variant, cell, criterion, threshold or budget.**
+result. `v2.1` adds section 32: it records the drafting defect in amendment 9 rather than repairing
+it, gives rule S1 a floor **from F2**, and makes the measured spread the default cost **from F2**.
+No amendment in this document changes a variant, cell, criterion, threshold or budget.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -1969,3 +1971,100 @@ same run, and every family from here reports the grid before it reports its best
 The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6, the seed counts,
 the null constructs, declared expectations D1 and D2, rules C1 to C3, section 12's sampling rules
 and every threshold in sections 6, 7, 8, 11 and 14 are **unchanged**.
+
+
+## 32. Amendment 10 — the defect in amendment 9, a floor from F2, and a measured spread
+
+**Three things. The first is a record, the other two are prospective and take effect at F2.
+Nothing here changes an F1 figure, an F1 criterion or F1's verdict.**
+
+### 32.1 The drafting defect in amendment 9, recorded and attributed
+
+**The Product Owner's own account, recorded at the Product Owner's instruction:**
+
+> My drafting was defective. I wrote that a sign change is not enough, then wrote a test that
+> accepts one, because criterion 1's null is losing and a variant earning 18.70 EUR satisfies both
+> of its clauses at once.
+
+**The rule was honoured because it fired, not because acquiring was convenient.** Amending a rule
+to avoid the action it requires, after seeing that it requires that action, is the precise move
+this apparatus exists to prevent. That the rule and the defect both belong to the Product Owner
+changes nothing about that: the whole value of a pre-registered rule is that its author is bound
+by it too, and a rule its author may reinterpret on sight of its output is not a rule.
+
+So the sample was acquired under rule S1 as amendment 9 wrote it, and the correction below applies
+to families that have not run.
+
+### 32.2 Rule S1 gains a floor, from F2
+
+> **The floor.** From F2, the counterfactual must clear the null's 95th percentile **by at least
+> one standard error of its own Sharpe estimate**, computed with the skewness and kurtosis
+> correction rather than the normal approximation.
+
+**Stated as a principle and not as a number**, deliberately. A euro threshold chosen now would be
+a number picked after seeing which euro figures were in play, which is the same defect in a
+different costume. A threshold in units of the estimate's own uncertainty is fixed by the data
+rather than by the author.
+
+**What it means.** An assumption is worth measuring when removing it could produce a result
+*distinguishable from noise*, not merely one with a different sign.
+
+**The corrected standard error is used because the plain one is a floor rather than a measurement.**
+`PerformanceStatistics.sharpe_standard_error` assumes normal returns and says so in its own
+docstring. The corrected form uses the third and fourth moments the series actually has, is larger
+on a fat-tailed negatively skewed series, and therefore sets a higher bar. It is computed from the
+same variance term the Probabilistic Sharpe Ratio already uses, held in one place so the two
+cannot disagree.
+
+**It does not apply to F1.** F1 is judged by the bar registered when it ran. Applying a bar
+retrospectively would be amendment 9's defect in the opposite direction.
+
+### 32.3 What the floor does to F1's figures, recorded because they exist
+
+**It would not have changed F1's answer.** Both clearing variants clear the null by far more than
+one standard error:
+
+| variant | Sharpe at zero | null's 95th percentile | one standard error | the floor's bar | clears |
+|---|---:|---:|---:|---:|---|
+| `carry-basket-5` | 0.091 | -1.262 | 0.484 | -0.778 | **yes** |
+| `carry-rank90-10-quarterly` | 0.097 | -1.560 | 0.472 | -1.088 | **yes** |
+
+**A floor stated relative to a deeply negative null is not a floor in absolute terms.** The null's
+95th percentile sits at -1.26 to -1.58 because the exposure-matched null is itself losing over
+this window, and one standard error is about 0.48. Adding it moves a bar that is already far below
+zero to a bar that is still far below zero.
+
+**So the intent is still not expressed by the mechanism, and this is recorded rather than
+quietly fixed.** A bar stated relative to **zero** — the counterfactual's Sharpe must exceed zero
+by one standard error of itself — *would* have left rule S1 unfired on F1, because 0.091 and 0.097
+are both smaller than their own standard errors of 0.484 and 0.472. Which of the two the intent
+means is **open, and it is the Product Owner's to settle before F2 runs**. The Developer's part is
+to have computed both and to have changed neither.
+
+### 32.4 The measured spread becomes the default from F2
+
+**From F2 the spread measured under rule S1 is the default cost, per liquidity band, and the
+registered assumption is retained beside it as a labelled alternative.** Every F2 and later result
+states which of the two it was computed at.
+
+**Why, in one line: the assumed spread is 41.2 per cent of F1's toll and four families have still
+to run on it.** It is the largest single line in the cost model and it was a guess. Measuring it
+once replaces the guess for everything that follows. If the measurement is close to the
+assumption, every later result is stronger for it; if it is far off, that is learned before four
+more families run on a wrong number rather than after.
+
+**Invariant 12 is not weakened by this and is the reason it is safe.** A measured value is
+reported as a measurement and an assumed value as an assumption, with the label attached wherever
+the figure appears. A band the sample did not reach keeps its assumption, labelled as one — and
+section 12's sample reaches only the **deep** band, because every member of the carry universe at
+2023-05-15 sits above the deep band's floor. The mid and thin assumptions remain assumptions and
+are reported as such.
+
+**F1 is unchanged.** It remains costed at the assumption in every cell, and the measurement is
+printed beside its cost table and never substituted into a computed figure.
+
+### 32.5 What this does not touch
+
+The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6, the seed counts, the
+null constructs, declared expectations D1 and D2, rules C1 to C3, and every threshold in sections
+6, 7, 8, 11 and 14 are **unchanged**. 32.1 records; 32.2 and 32.4 take effect at F2.

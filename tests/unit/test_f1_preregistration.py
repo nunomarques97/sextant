@@ -26,6 +26,7 @@ from sextant.app.spike_006_f1 import (
     ENGINE_VERSION,
     EXACT_RESCUE_TEST_FROM,
     FAMILY,
+    FLOOR_FROM,
     MAINTENANCE_MARGIN_STRESS,
     MAINTENANCE_MARGINS,
     MARGIN_BUFFER_SWEEP,
@@ -760,4 +761,63 @@ def test_the_family_level_result_stays_the_headline(tmp_path: Path) -> None:
     )
     altered = _write(payload, tmp_path / "headline.yaml")
     with pytest.raises(DriftedFromPreRegistration, match="family_level"):
+        assert_no_drift(altered)
+
+
+# ---------------------------------------------------------------------------
+# Amendment 10: the floor and the measured default, both prospective
+# ---------------------------------------------------------------------------
+
+
+def test_the_floor_and_the_measured_default_take_effect_at_f2() -> None:
+    """Prospective on purpose: F1 is judged by the bar registered when it ran."""
+    assert FLOOR_FROM == "F2"
+
+
+@pytest.mark.parametrize("field", ["floor_from"])
+def test_backdating_the_floor_refuses_the_run(tmp_path: Path, field: str) -> None:
+    """Applying a bar retrospectively is amendment 9's defect in the other direction."""
+    payload = _registered()
+    _alter(payload, ("spread_sample", "acquisition", field), "F1")
+    altered = _write(payload, tmp_path / f"{field}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=field):
+        assert_no_drift(altered)
+
+
+def test_the_floor_must_stay_stated_in_standard_errors(tmp_path: Path) -> None:
+    """A euro figure here would be a number chosen after seeing the euro figures."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_sample", "acquisition", "floor"),
+        "the counterfactual must earn at least 500 EUR.",
+    )
+    altered = _write(payload, tmp_path / "floor.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="standard error"):
+        assert_no_drift(altered)
+
+
+def test_the_floor_must_stay_skew_and_kurtosis_corrected(tmp_path: Path) -> None:
+    """The normal approximation is a floor on the uncertainty, not a measurement of it."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_sample", "acquisition", "floor"),
+        "clear the null by one standard error of the Sharpe estimate.",
+    )
+    altered = _write(payload, tmp_path / "corrected.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="corrected"):
+        assert_no_drift(altered)
+
+
+def test_the_measured_spread_becomes_the_default_only_from_f2(tmp_path: Path) -> None:
+    """F1 stays costed at the assumption in every cell, whatever was measured."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("every_family_reports", "measured_spread_is_the_default_from_f2", "rule"),
+        "The measured spread replaces the assumption everywhere, including F1.",
+    )
+    altered = _write(payload, tmp_path / "default.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="measured_spread"):
         assert_no_drift(altered)

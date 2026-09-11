@@ -24,6 +24,7 @@ Nothing here writes to real project data: every payload is built in memory.
 from __future__ import annotations
 
 from decimal import Decimal
+from math import sqrt
 
 import pytest
 
@@ -65,6 +66,7 @@ from sextant.domain.time import Timestamp
 from sextant.engine.backtest.ledger import CostLines as LedgerCostLines
 from sextant.engine.backtest.ledger import LedgerBuilder, RebalanceOutcome
 from sextant.engine.execution.breakeven import MONTHLY_ROUND_TRIPS
+from sextant.engine.statistics.dsr import corrected_sharpe_standard_error
 
 HEADLINE = "vip0_even"
 
@@ -936,3 +938,53 @@ def test_the_counterfactual_records_the_model_it_was_computed_under() -> None:
     ).as_json()
     assert "equal instalments" in str(payload_json["model"])
     assert "approximate in the volatility" in str(payload_json["model"])
+
+
+# ---------------------------------------------------------------------------
+# Amendment 10: the floor, and the error bar it is stated in
+# ---------------------------------------------------------------------------
+
+
+def test_the_corrected_standard_error_exceeds_the_normal_one_on_a_fat_tailed_series() -> None:
+    """The floor is stated in this unit, so the unit has to be the honest one.
+
+    The plain standard error assumes normal returns and says so in its own docstring.
+    On the negatively skewed, fat-tailed series this project actually produces, the
+    corrected figure is larger, which makes the bar higher rather than lower.
+    """
+    plain = sqrt((1.0 + 0.5 * 0.1**2) / 56.0)
+    corrected = corrected_sharpe_standard_error(
+        sharpe_per_period=0.1, observations=56, skewness=-1.2, kurtosis=8.0
+    )
+    assert corrected > plain
+
+
+def test_the_floor_is_stricter_than_criterion_one_alone() -> None:
+    """A counterfactual just above a losing null clears the one and not the other."""
+    item = _rescue(gross="200", fees="50", p95=-0.2, monthly=_noisy(40, "0.004", "0.05"))
+    assert item.sharpe_at_zero is not None
+    assert item.standard_error_at_zero is not None
+    assert item.clears_criterion_one is True
+    assert item.sharpe_at_zero < -0.2 + item.standard_error_at_zero
+    assert item.clears_by_a_standard_error is False
+
+
+def test_clearing_the_null_by_more_than_its_error_bar_clears_the_floor() -> None:
+    item = _rescue(gross="200", fees="50", p95=-9.0, monthly=_noisy(40, "0.004", "0.05"))
+    assert item.clears_by_a_standard_error is True
+
+
+def test_the_floor_answers_none_where_it_cannot_be_evaluated() -> None:
+    """No null means the floor could not be applied, not that it was not met."""
+    item = rescues(
+        payload(deterministic=[run(construct="v", gross="200")], nulls=[]), cell=HEADLINE
+    )[0]
+    assert item.clears_by_a_standard_error is None
+
+
+def test_the_floor_records_the_family_it_applies_from() -> None:
+    """Prospective, so a reader of an F1 figure is told it did not govern F1."""
+    payload_json = _rescue(
+        gross="200", fees="50", p95=-9.0, monthly=_noisy(40, "0.004", "0.05")
+    ).as_json()
+    assert payload_json["floor_applies_from"] == "F2"

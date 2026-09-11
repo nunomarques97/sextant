@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v2.0
+version: v2.1
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,6 +63,18 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-10
+    document_section: "32"
+    subject: >
+      Three things, all prospective except the first. The Product Owner's drafting
+      defect in amendment 9 is recorded and attributed rather than repaired by
+      amending the rule out of the action it required. Rule S1 gains a floor FROM F2:
+      the counterfactual must clear the null's 95th percentile by at least one
+      standard error of its own Sharpe estimate, skew- and kurtosis-corrected. And the
+      spread measured under S1 becomes the DEFAULT cost for F2 onward, with the
+      registered assumption retained beside it as a labelled alternative. F1 is
+      unchanged in every respect: it is judged by the bar registered when it ran, and
+      remains costed at the assumption in every cell.
   - id: amendment-9
     document_section: "31"
     subject: >
@@ -1242,6 +1254,27 @@ spread_sample:
       family whose runner records per-month assumed costs, the test is computed
       exactly and the model is retired.
     per_month_assumed_costs_required_from: F2
+    floor_from: F2
+    floor: >
+      FROM F2, the counterfactual must clear the null's 95th percentile by at least one
+      standard error of its own Sharpe estimate, computed with the skewness and
+      kurtosis correction rather than the normal approximation. Stated as a principle -
+      the estimate's own uncertainty - rather than as a euro figure chosen after seeing
+      which euro figures were in play.
+    floor_intent: >
+      An assumption is worth measuring when removing it could produce a result
+      DISTINGUISHABLE FROM NOISE, not merely one with a different sign.
+    floor_does_not_apply_to_f1: >
+      F1 is judged by the bar registered when it ran. Applying a bar retrospectively is
+      the move amendment 9's own defect was an instance of, in the other direction.
+    floor_measured_against_f1: >
+      Recorded for information, since F1's figures exist: the floor would NOT have
+      changed F1's answer. Both clearing variants sit far above the null plus one
+      standard error, because the null's 95th percentile is itself at -1.26 to -1.58
+      and a standard error is about 0.48. A floor stated relative to a deeply negative
+      null is not a floor in absolute terms. Whether the bar the intent describes is
+      this one, or one stated relative to ZERO - which on F1 would have left the rule
+      unfired - is open and is the Product Owner's to settle before F2 runs.
     quantity: net return over the scored out-of-sample window, after every cost line
     threshold: "0"
     comparison: strictly greater than
@@ -1330,6 +1363,26 @@ every_family_reports:
       family quoted away from the account's currency. Folding it into fees would hide
       the larger of the two and would misattribute a structural cost of this account to
       the venue's schedule.
+  measured_spread_is_the_default_from_f2:
+    rule: >
+      The spread measured under rule S1 becomes the DEFAULT spread cost from F2 onward,
+      per liquidity band, and the registered assumption is retained beside it as a
+      labelled alternative. Every F2+ result states which of the two it was computed
+      at.
+    why: >
+      The assumed spread is 41.2 per cent of F1's toll and four families have still to
+      run on it. It is the largest single line in the cost model and it was a guess.
+      Measuring it once replaces the guess for every family that follows: if the
+      measurement is close to the assumption every later result is stronger for it, and
+      if it is far off that is learned before four more families run on a wrong number
+      rather than after.
+    invariant_12_still_holds: >
+      A measured spread is reported as a measurement and the assumption as an
+      assumption, and a family costed at the measured value says so in every table. The
+      band the sample did not reach keeps the assumption, labelled as one.
+    does_not_apply_to_f1: >
+      F1 remains costed at the assumption in every cell. The measurement is printed
+      beside it and is never substituted into a computed F1 figure.
   family_level_result_is_the_headline:
     rule: >
       The headline figure for a family is the result ACROSS its grid, not its best

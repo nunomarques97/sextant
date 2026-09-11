@@ -110,6 +110,7 @@ ignore = [
 "src/sextant/app/spike_005_run.py" = ["T20"]
 "src/sextant/app/spike_006_f1_run.py" = ["T20"]
 "src/sextant/app/spike_006_f1_depth.py" = ["T20"]  # the acquisition reports progress
+"src/sextant/app/spike_006_f1_spread.py" = ["T20"]  # and so does this one
 "src/sextant/app/spike_005_report.py" = ["T20"]
 "src/sextant/app/spike_006_f1_report.py" = ["T20"]
 # S311 flags `random` as unsuitable for cryptography, which is true and

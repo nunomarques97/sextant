@@ -136,12 +136,22 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     f1.add_argument(
         "stage",
-        choices=("verify", "ordering", "dataset", "run", "depth", "contraction", "report"),
+        choices=(
+            "verify",
+            "ordering",
+            "dataset",
+            "run",
+            "depth",
+            "spread",
+            "contraction",
+            "report",
+        ),
         help="`verify` runs the drift guard and the commit gate; `ordering` prints the "
         "audit lines the report quotes, and is rerun after the results are committed; "
         "`dataset` measures the acquisition and writes pre-registration part 2; "
         "`run` executes the registered 36-trial grid and writes the result file; "
         "`depth` acquires the order-book sample, but only when rule C3 asked for one; "
+        "`spread` acquires the quoted-spread sample, but only when rule S1 fired; "
         "`contraction` writes amendment 26.1's composition check on the largest "
         "month-on-month fall in pair count; "
         "`report` renders the result file as the results document.",
@@ -314,6 +324,41 @@ def _command_futures(stage: str) -> int:
     return EXIT_OK
 
 
+def _command_f1_spread() -> int:
+    """Acquire the spread sample, and refuse to acquire it when rule S1 did not fire.
+
+    The same discipline as the depth stage: the rule decides from the executed result
+    file, not the person running the command. A stage that downloaded three gigabytes
+    because it was invoked would make the registered condition decorative.
+    """
+    import json as _json
+
+    from sextant.app import spike_006_f1_spread
+    from sextant.app.spike_006_f1 import RESULTS_PATH, headline_cell
+    from sextant.app.spike_006_f1_analysis import (
+        assumption_could_be_carrying_the_verdict,
+        rescues,
+    )
+    from sextant.app.spike_006_f1_world import build_world
+
+    if not RESULTS_PATH.is_file():
+        print(f"  no result file at {RESULTS_PATH.as_posix()}; rule S1 has nothing to read.")
+        return EXIT_ORDERING_UNVERIFIED
+    payload = _json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+    items = rescues(payload, cell=headline_cell().label)
+    if not assumption_could_be_carrying_the_verdict(items):
+        print("  rule S1: with the assumed cost at zero, no variant clears criterion 1.")
+        print("  the spread sample is not acquired, and that is the rule's answer.")
+        return EXIT_OK
+    clearing = [item.variant for item in items if item.clears_criterion_one]
+    print(f"  rule S1 fired on: {', '.join(sorted(clearing))}")
+    sample = spike_006_f1_spread.acquire(build_world(), raw_root=spike_006_f1_spread.SPREAD_ROOT)
+    written = spike_006_f1_spread.write(sample, spike_006_f1_spread.SPREAD_RESULTS)
+    print(f"  {sample.megabytes} MB over {len(sample.measured)} symbol-days")
+    print(f"  written: {written.as_posix()}")
+    return EXIT_OK
+
+
 def _command_f1_depth() -> int:
     """Acquire the depth sample, and refuse to acquire it when the rule did not ask.
 
@@ -386,6 +431,8 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         return EXIT_OK
     if stage == "depth":
         return _command_f1_depth()
+    if stage == "spread":
+        return _command_f1_spread()
     if stage == "contraction":
         from sextant.app import spike_006_f1_contraction
         from sextant.app.spike_006_f1_world import build_world

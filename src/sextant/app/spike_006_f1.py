@@ -134,7 +134,7 @@ MAXIMUM_RE_EXECUTIONS = 2
 #: The version of the pre-registration this code implements. Held here as well as in
 #: the configuration so a report can cite the specification's current version beside
 #: the version the run it describes actually read, without either being retyped.
-REGISTERED_VERSION = "v2.0"
+REGISTERED_VERSION = "v2.1"
 
 #: Section 30, amendment 8. Who may declare a run void, and who may not. Two roles
 #: rather than one sentence of prose, because the prose outlives the conversation it
@@ -161,6 +161,11 @@ SPREAD_TRIGGER_BAR = "criterion-1"
 #: The family from which the runner records per-month assumed costs, making amendment
 #: 9's test exact rather than modelled. F1's result file carries totals only.
 EXACT_RESCUE_TEST_FROM = "F2"
+
+#: Section 32, amendment 10. The family from which rule S1 carries a floor, and from
+#: which the measured spread is the default cost. Both are prospective: F1 is judged
+#: by the bar that was registered when it ran, and stays costed at the assumption.
+FLOOR_FROM = "F2"
 
 #: The size rule S1 implies when it fires: six symbols on six days, which is section
 #: 12's own registered sample and already the minimum. No subsampling rule is added,
@@ -613,6 +618,17 @@ def _spread_trigger_checks(raw: Mapping[str, object]) -> list[tuple[str, object,
             "ZERO" in _text(block["condition"]),
             True,
         ),
+        ("spread_sample.acquisition.floor_from", _text(block["floor_from"]), FLOOR_FROM),
+        (
+            "spread_sample.acquisition.floor names one standard error",
+            "one standard error" in _text(block["floor"]),
+            True,
+        ),
+        (
+            "spread_sample.acquisition.floor is skew and kurtosis corrected",
+            "kurtosis correction" in _text(block["floor"]),
+            True,
+        ),
         (
             "spread_sample.acquisition.cells_excluded",
             tuple(
@@ -640,6 +656,17 @@ def _every_family_checks(raw: Mapping[str, object]) -> list[tuple[str, object, o
         (
             "every_family_reports.currency_leg_as_its_own_line.rule",
             "NEVER folded into fees" in _text(currency["rule"]),
+            True,
+        ),
+        (
+            "every_family_reports.measured_spread_is_the_default_from_f2.rule",
+            "DEFAULT spread cost from F2"
+            in _text(
+                _mapping(
+                    block["measured_spread_is_the_default_from_f2"],
+                    "measured_spread_is_the_default_from_f2",
+                )["rule"]
+            ),
             True,
         ),
         (
@@ -1313,6 +1340,7 @@ __all__ = [
     "EXACT_RESCUE_TEST_FROM",
     "EXECUTION_FEE_OF_EQUITY_BPS",
     "FAMILY",
+    "FLOOR_FROM",
     "FOLD_COUNT",
     "HAIRCUT_FRACTION",
     "HAIRCUT_ON_EITHER_SIDE",

@@ -150,6 +150,11 @@ class FuturesDailyTree(StrEnum):
     """
 
     BOOK_DEPTH = "bookDepth"
+    BOOK_TICKER = "bookTicker"
+    """Every change to the top of the book: best bid and ask with their sizes, at the
+    instant the venue recorded it. About seven million rows and 600 MB of text per
+    symbol-day, which is why it is read as a stream and never parsed into a list. It
+    is the only published source from which a past spread can be measured at all."""
 
     @property
     def prefix(self) -> str:
@@ -684,3 +689,59 @@ def parse_book_depth(payload: bytes, *, source: str = "") -> tuple[DepthSnapshot
             )
         )
     return tuple(rows)
+
+
+#: The fixed-point scale the venue publishes futures prices at: eight decimals, on
+#: every symbol and every day checked. Carried as a constant rather than inferred per
+#: row, and asserted on the way in, because a scale that silently changed would move
+#: every spread by a factor of ten without any other symptom.
+PRICE_DECIMALS = 8
+
+_TICKER_BID = 1
+_TICKER_ASK = 3
+_TICKER_TRANSACTION_TIME = 5
+_TICKER_COLUMNS = 7
+
+
+def _fixed_point(text: str, source: str) -> int:
+    """A published decimal price as an exact integer at :data:`PRICE_DECIMALS`.
+
+    No Decimal and no float: this runs seven million times per symbol-day, and the
+    published text is already fixed point. A price carrying more decimals than the
+    venue is documented to publish raises rather than rounding, because rounding here
+    would be a silent change to a measurement.
+    """
+    whole, _, fraction = text.partition(".")
+    if len(fraction) > PRICE_DECIMALS:
+        raise ArchiveError(
+            f"{source}: price {text!r} carries {len(fraction)} decimals and this tree "
+            f"publishes {PRICE_DECIMALS}. The scale changed, and every spread measured "
+            "against the old one would be wrong by a factor of ten."
+        )
+    return int(whole + fraction.ljust(PRICE_DECIMALS, "0"))
+
+
+def stream_book_ticker(path: Path, *, day_starts_millis: int) -> Iterator[tuple[int, int, int]]:
+    """Every quote of one published day, as (millis since midnight, bid, ask).
+
+    Streams the ZIP member rather than decompressing it whole: the archive is 85 MB and
+    the CSV inside it 600 MB, and forty of those would not fit anywhere sensible. Rows
+    outside the day are yielded as they are published and filtered by the caller, so
+    this function makes no decision about what counts as inside.
+    """
+    with zipfile.ZipFile(path) as bundle:
+        name = next(item for item in bundle.namelist() if item.lower().endswith(".csv"))
+        with bundle.open(name) as raw:
+            stream = io.TextIOWrapper(raw, encoding="utf-8", newline="")
+            for line in stream:
+                row = line.rstrip("\r\n").split(",")
+                if len(row) < _TICKER_COLUMNS:
+                    continue
+                stamp = row[_TICKER_TRANSACTION_TIME]
+                if not stamp or not stamp[0].isdigit():
+                    continue
+                yield (
+                    int(stamp) - day_starts_millis,
+                    _fixed_point(row[_TICKER_BID], name),
+                    _fixed_point(row[_TICKER_ASK], name),
+                )
