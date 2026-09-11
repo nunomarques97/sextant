@@ -434,3 +434,21 @@ def test_rule_r1_holds_against_the_committed_result_file() -> None:
     assert len(items) == 9
     assert verdict.may_substitute_for_a_rerun
     assert max(item.corrected_net_pnl for item in items) < 0
+
+
+def test_the_falsification_factor_is_a_rule_and_not_a_number_in_a_document() -> None:
+    # No third band exists, so the hypothesis cannot be tested. The threshold is still
+    # computable against a ratio nobody has measured, which is what stops it from being
+    # a registered value no code path reads.
+    result = study_of(reading("AAAUSDT", "0.01", "100", 0.5))
+    mean = result.mean_ratio
+    assert not result.hypothesis_has_been_tested
+    assert not result.would_falsify(mean)
+    assert not result.would_falsify(mean * Decimal("1.4"))
+    assert result.would_falsify(mean * Decimal("1.6"))
+    assert result.would_falsify(mean / Decimal("1.6"))
+
+
+def test_a_third_band_with_no_measured_spread_falsifies_rather_than_passing_quietly() -> None:
+    result = study_of(reading("AAAUSDT", "0.01", "100", 0.5))
+    assert result.would_falsify(Decimal(0))

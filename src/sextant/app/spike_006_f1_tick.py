@@ -264,6 +264,35 @@ class TickStudy:
         return self.residual_recut.bands_supported
 
     @property
+    def measured_ratios(self) -> tuple[Decimal, ...]:
+        """The assumption-to-measurement ratios there is evidence for. Two, so far."""
+        return (self.ratio_deep, self.ratio_mid)
+
+    @property
+    def mean_ratio(self) -> Decimal:
+        """What a single scale factor would have to be, if one reproduced the bound."""
+        return sum(self.measured_ratios, Decimal(0)) / Decimal(len(self.measured_ratios))
+
+    def would_falsify(self, third_band_ratio: Decimal) -> bool:
+        """Whether a third band's ratio would reject the constant-ratio hypothesis.
+
+        Registered in advance and computable now, against a ratio nobody has measured,
+        so that the threshold is a rule rather than a number sitting in a document. The
+        hypothesis is rejected when the third ratio differs from the mean of the measured
+        ones by more than the registered factor, in either direction.
+        """
+        if third_band_ratio <= 0:
+            return True
+        mean = self.mean_ratio
+        gap = max(third_band_ratio, mean) / min(third_band_ratio, mean)
+        return gap > RATIO_HYPOTHESIS_FACTOR
+
+    @property
+    def hypothesis_has_been_tested(self) -> bool:
+        """Whether a third band exists to test it with. It does not, and that is the point."""
+        return False
+
+    @property
     def ratio_gap(self) -> float:
         """How far apart the two measured assumption-to-measurement ratios are."""
         return float(max(self.ratio_deep, self.ratio_mid) / min(self.ratio_deep, self.ratio_mid))
@@ -358,6 +387,12 @@ class TickStudy:
                 "mid_band_ratio": str(self.ratio_mid),
                 "how_far_apart_the_two_are": self.ratio_gap,
                 "falsification_factor": str(RATIO_HYPOTHESIS_FACTOR),
+                "mean_of_the_measured_ratios": str(self.mean_ratio),
+                "a_third_band_ratio_outside_this_range_would_reject_it": [
+                    str(self.mean_ratio / RATIO_HYPOTHESIS_FACTOR),
+                    str(self.mean_ratio * RATIO_HYPOTHESIS_FACTOR),
+                ],
+                "has_been_tested": self.hypothesis_has_been_tested,
                 "what_would_test_it": (
                     "A third measured band. The THIN band is the observation that would "
                     "discriminate, so its absence is not only a gap in coverage: it is the "

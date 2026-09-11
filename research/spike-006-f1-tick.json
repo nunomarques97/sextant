@@ -281,9 +281,15 @@
     "what_the_residual_minimum_means": "Rule B1 requires at least 3 sampled symbols before a band is a band. A residual smaller than that keeps ONE default and that default is an assumption with nothing behind it, not an evidenced band. Reported as such rather than counted as a band because it happens to be the only one left."
   },
   "rule_t3h": {
+    "a_third_band_ratio_outside_this_range_would_reject_it": [
+      "13.17",
+      "29.6325"
+    ],
     "deep_band_ratio": "18.87",
     "falsification_factor": "1.5",
+    "has_been_tested": false,
     "how_far_apart_the_two_are": 1.0937996820349762,
+    "mean_of_the_measured_ratios": "19.755",
     "mid_band_ratio": "20.64",
     "rule": "T3H",
     "status": "hypothesis, not a result",
