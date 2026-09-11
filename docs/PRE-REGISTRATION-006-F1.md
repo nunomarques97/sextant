@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v2.1`. Part 1, the specification, committed before any funding number was
+**Version `v2.2`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
@@ -19,7 +19,11 @@ registered after this family's figures had been read**, on the Product Owner's i
 changes F1's acquisition answer from no to yes. Section 31.4 states why that cannot move an F1
 result. `v2.1` adds section 32: it records the drafting defect in amendment 9 rather than repairing
 it, gives rule S1 a floor **from F2**, and makes the measured spread the default cost **from F2**.
-No amendment in this document changes a variant, cell, criterion, threshold or budget.**
+`v2.2` adds section 33: it anchors that floor to **zero** rather than to the null, registers rule P1
+so the same defect cannot recur in a fourth place, strengthens criterion 1 **from F2**, and replaces
+the banded spread assumption **from F2** with an estimator that has to pass a test written before it
+was run. No amendment in this document changes an F1 variant, cell, criterion, threshold, budget or
+verdict letter.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
 specification needs no data and must be fixed before any is seen, while the dataset section
@@ -2068,3 +2072,191 @@ printed beside its cost table and never substituted into a computed figure.
 The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6, the seed counts, the
 null constructs, declared expectations D1 and D2, rules C1 to C3, and every threshold in sections
 6, 7, 8, 11 and 14 are **unchanged**. 32.1 records; 32.2 and 32.4 take effect at F2.
+
+
+## 33. Amendment 11 — the floor anchored to zero, rule P1, and an estimated spread
+
+**Three settlements. Every one applies from F2. None of them touches an F1 figure, an F1 criterion
+or F1's verdict letter, and section 33.5 says what each would have done to F1 had it applied,
+because those numbers exist and hiding them would be the same class of move this apparatus exists
+to prevent.**
+
+### 33.1 Rule S1's floor is anchored to zero
+
+> **The floor, as settled.** From F2, rule S1 fires when some variant, with its assumed cost set to
+> **zero**, has an annualised Sharpe exceeding **zero** by at least one standard error of its own
+> estimate, skewness- and kurtosis-corrected, **and** exceeding the 95th percentile of its own
+> exposure-matched null. **Both clauses, never either.**
+
+**Why zero and not the null.** The exposure-matched null over this window is itself losing: its
+95th percentile sits at -1.262 and -1.560 for the two variants in question. A bar anchored to it is
+a bar below zero, and a variant that merely fails to lose clears it. Adding one standard error of
+about 0.48 to a bar at -1.26 moves it to -0.78, which is still a bar that no profitable strategy
+needs to reach. That is not what the intent said. The intent was that removing an assumption must
+be able to produce a result *distinguishable from noise*.
+
+**Amendment 10's floor is superseded, not deleted.** Both forms stay in this document. Amendment 10
+states the bar as it was first written; this states the bar that applies. On F1's figures the
+null-anchored form would have fired and the zero-anchored form would not have, and neither was
+substituted for the other after the fact.
+
+### 33.2 Rule P1: every null comparison is paired with an absolute test
+
+> **Rule P1.** Every criterion that compares a variant to a null is paired with an **absolute** test
+> against zero.
+
+**Why a standing rule rather than a third patch.** "Better than a losing null" and "makes money"
+are different claims, and this project has confused them in three different places: the
+exposure-matched null in SEXTANT-004, criterion 1 as written in section 11, and both of the Product
+Owner's attempts at a floor for rule S1. A patch repairs one site. The defect is in the *shape* of
+the comparison, so the rule is registered at the level of the shape.
+
+**The mechanism a null comparison is good for and the one it is not.** A null answers "could a
+process with no edge have produced this?" It cannot answer "is this worth doing?", and over a window
+where the null loses money the two answers come apart by the whole size of the null's loss. Both
+questions have to be asked explicitly, because either one alone passes something it should not.
+
+### 33.3 Criterion 1, strengthened from F2
+
+| | criterion 1 |
+|---|---|
+| **as written, and as F1 was judged** | Sharpe above the null's 95th percentile, **and** a strictly positive net return |
+| **as strengthened, from F2** | Sharpe above the null's 95th percentile, **and** a mean scored-period return exceeding one standard error of that mean |
+
+The absolute clause becomes a *t*-statistic: the mean return over its own standard deviation, times
+the square root of the observation count, strictly greater than one.
+
+**The weakness being repaired.** "Strictly positive" would pass a variant earning 18.70 EUR on
+1,500 across 56 months. That is a positive number. It is not a return distinguishable from nothing,
+and section 7.4's rescue test is where it nearly mattered.
+
+**This can only ever remove a pass.** A mean exceeding its own standard error is positive, so
+everything the new clause admits the old clause already admitted. The change is strictly narrowing,
+in every family, on any data. That property is the whole reason it is safe to register *after* F1's
+figures are known — an amendment that could only ever make the bar harder cannot have been chosen to
+let something through.
+
+**It is not applied to F1.** F1 was judged on the weaker form and its verdict letter is not
+reopened. `docs/SPIKE-006-F1-RESULTS.md` section 13.1 re-reports F1's existing figures against the
+strengthened clause as a clearly labelled **supplementary reading**, which states in its first line
+that F1 was judged on the weaker form. A supplementary reading is not a re-scoring.
+
+### 33.4 Rule E1: the banded spread assumption is replaced by an estimate, from F2
+
+**The band structure is the defect, and a better constant cannot repair it.** The bands are cut on
+quote turnover. Spread does not respond to turnover. Section 7.5 measured two orders of magnitude of
+spread *inside a single band*: 0.0357 bps on `BTCUSDT` against 4.2452 bps on `API3USDT`, both deep,
+both above the deep band's floor by a wide margin. A partition cut on the wrong variable stays wrong
+however carefully each cell is filled in.
+
+**So the replacement is per instrument and per period, estimated from prices the archive already
+holds.** This also supersedes amendment 10's "the measured spread becomes the default": six measured
+symbol-days cannot be a default for a five-year window. What they are good for is calibrating
+something that can be.
+
+**The registered estimator.** Abdi, F. and Ranaldo, A. (2017), *A Simple Estimation of Bid-Ask
+Spreads from Daily Close, High, and Low Prices*, Review of Financial Studies 30(9), 4437-4480. With
+`c` the log close, `h` the log high, `l` the log low and `eta = (h + l) / 2` the log mid-range, the
+two-day term is
+
+```
+s2_t = 4 * (c_t - eta_t) * (c_t - eta_{t+1})
+```
+
+and the period estimate is the square root of the **mean** of `s2_t` over the period. A non-positive
+mean is reported as zero and counted, never rooted. The result is a proportional effective spread;
+basis points are 10,000 times it.
+
+**Why this one.** It reports the higher correlation with measured effective spreads of the two
+candidates, it needs only close, high and low — exactly what the archive holds — and it contains no
+overnight-gap adjustment, so there is no step in it at which an implementer chooses anything.
+
+**Corwin and Schultz (2012) is computed beside it, for comparison only.** Two-day estimates below
+zero are set to zero before averaging, which is the paper's own correction, and the overnight
+adjustment is applied as the paper states it. **It is never adopted if Abdi-Ranaldo fails rule E1.**
+Adopting whichever of two estimators passes, after seeing which one passed, is selection with one
+extra step in front of it.
+
+#### Rule E1's acceptance test, written before the calibration was run
+
+> **All three clauses must hold.** Computed on `research/spike-006-f1-estimator.json`, in exactly
+> the way rules C3 and S1 are computed conditions on the result file.
+>
+> **Ordering.** The Spearman rank correlation between estimated and measured spread across the six
+> symbols is at least **0.771**, the one-tailed 5 per cent critical value at n = 6. A cost model
+> that misranks its instruments is worse than a constant, because a cross-sectional strategy trades
+> the ranking.
+>
+> **Magnitude.** The median across the six symbols of `|log2(estimated / measured)|` is at most
+> **1**: for at least half the symbols the estimate is within a factor of two of the measurement.
+> Against a sample spanning two orders of magnitude, a factor of two is a real test.
+>
+> **Positivity.** Over the F1 window, taking every perpetual with enough stored history in its
+> trailing window at every month end, the estimator returns a strictly positive figure for at least
+> **90 per cent** of the instrument-periods asked of it. A cost model cannot charge zero for a
+> spread, and an estimator that is frequently non-positive is not a cost.
+
+**If it passes**, the estimate becomes the default spread cost from F2, per instrument and per
+period, with the banded assumption retained beside it as a labelled alternative, and every F2 and
+later result states which of the two it was computed at.
+
+**If it fails**, the banded **assumption** is kept, labelled an assumption exactly as it is now, and
+the failure is reported with its numbers. A worse number that looks like a measurement is worse than
+a guess that is labelled a guess. No third estimator is tried, no clause is relaxed, and the
+comparison estimator is not promoted.
+
+#### What the calibration compares is not identical, and that is said before the numbers
+
+The estimator estimates an **effective** spread and section 7.5 measured a **quoted** spread. Where
+trades print at the touch the two coincide; where they do not, effective is the smaller. An estimate
+that sits below the measurement by a small factor is therefore consistent with the estimator being
+right, and saying so afterwards would be indistinguishable from an excuse.
+
+The calibration month *contains* the day it is compared against. That would be look-ahead in a
+trading decision and is not one here, because nothing is traded on a calibration. The window that
+prices a trade from F2 is a different window and is registered as such.
+
+#### How the estimate is applied from F2
+
+**Point-in-time.** The figure charged at a decision instant is estimated from the 30 stored daily
+bars ending **strictly before** that instant, the same trailing window the liquidity bands are
+already cut on. Estimating from the period a trade falls in would use the trade's own month to price
+the trade.
+
+**Too little history.** An instrument with fewer than 20 usable two-day pairs in its trailing window
+is charged at the banded **assumption** for its band, labelled as one, and the number of such
+charges is reported. It is never charged zero and never dropped from the universe for it.
+
+**Halving.** The estimate is a full spread and the cost model charges a half-spread per leg, so half
+the estimate is what is charged. Section 7.5's measured comparison is stated the same way and for
+the same reason.
+
+**Invariant 12 gains a third provenance rather than losing a distinction.** An estimated spread is
+reported as an **estimate** — neither a measurement nor an assumption — with its estimator named and
+its calibration error beside it wherever a cost line depends on it. What would weaken the invariant
+is letting an estimate print as a measurement.
+
+**Slippage is untouched.** Nothing here estimates slippage. It is an intraday quantity, daily bars
+cannot calibrate it, and it remains an assumption at its registered figures with its label attached.
+
+### 33.5 What each of the three would have done to F1, and why that is recorded rather than applied
+
+| | would it have changed F1? | how it is handled |
+|---|---|---|
+| the zero-anchored floor (33.1) | rule S1 would **not** have fired: 0.091 against a standard error of 0.484, and 0.097 against 0.472 | F1's acquisition stands, under the rule in force when it was acquired |
+| criterion 1 strengthened (33.3) | no variant cleared criterion 1 in F1's headline cell under the weaker form, so a narrower form cannot change the letter | re-reported as a labelled supplementary reading in section 13.1 |
+| the estimated spread (33.4) | nothing: every F1 cell is costed at the assumption, and section 7.4 shows the verdict survives deleting the assumed cost entirely | printed beside the assumption, never substituted |
+
+**Two of the three are recorded against F1 as *not firing*, which is the direction that needs the
+most care.** A rule that fires costs data and effort; a rule that does not fire costs nothing and is
+therefore the one an author is tempted to write. The protection is that the zero-anchored floor was
+settled by the Product Owner after being shown both readings and the figures for each, the
+sample it would have prevented was already acquired and reported before it was settled, and the
+choice therefore could not save anybody any work.
+
+### 33.6 What this does not touch
+
+The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6 **as F1 was judged on
+them**, the seed counts, the null constructs, declared expectations D1 and D2, rules C1 to C3, and
+every threshold in sections 6, 7, 8, 11 and 14 are **unchanged**. Every clause in section 33 takes
+effect at F2.

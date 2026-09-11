@@ -134,7 +134,7 @@ MAXIMUM_RE_EXECUTIONS = 2
 #: The version of the pre-registration this code implements. Held here as well as in
 #: the configuration so a report can cite the specification's current version beside
 #: the version the run it describes actually read, without either being retyped.
-REGISTERED_VERSION = "v2.1"
+REGISTERED_VERSION = "v2.2"
 
 #: Section 30, amendment 8. Who may declare a run void, and who may not. Two roles
 #: rather than one sentence of prose, because the prose outlives the conversation it
@@ -166,6 +166,50 @@ EXACT_RESCUE_TEST_FROM = "F2"
 #: which the measured spread is the default cost. Both are prospective: F1 is judged
 #: by the bar that was registered when it ran, and stays costed at the assumption.
 FLOOR_FROM = "F2"
+
+#: Section 33, amendment 11. Rule S1's floor is anchored to ZERO, not to the null.
+#: The exposure-matched null over this window loses, so its 95th percentile sits at
+#: -1.26 to -1.58 and any bar anchored to it is a bar below zero that a variant merely
+#: failing to lose will clear. Both clauses hold together: the counterfactual Sharpe
+#: must exceed zero by one standard error of its own estimate AND clear the null.
+FLOOR_ANCHOR = "zero"
+
+#: Section 33, amendment 11. Rule P1: every criterion that compares a variant to a null
+#: is paired with an absolute test against zero. Registered as a standing rule rather
+#: than as a third patch, because the same confusion has now appeared in three places -
+#: SEXTANT-004's exposure-matched null, criterion 1 as written, and both attempts at a
+#: floor for rule S1 - and a patch repairs one site while the defect is in the shape.
+PAIRING_RULE = "P1"
+
+#: The family from which criterion 1's absolute clause becomes "distinguishable from
+#: zero by its own standard error" rather than "strictly positive". Strictly narrowing,
+#: so it can only ever remove a pass; F1 was judged on the weaker form and keeps it.
+CRITERION_ONE_STRENGTHENED_FROM = "F2"
+
+#: Section 33.4, amendment 11. Rule E1: the banded spread assumption is replaced from
+#: F2 by a low-frequency estimate per instrument and per period, adopted only if it
+#: passes an acceptance test written and committed before the calibration was run.
+ESTIMATOR_RULE = "E1"
+ESTIMATOR_ID = "abdi-ranaldo-2017"
+
+#: Computed beside the registered estimator and never substituted for it. Adopting
+#: whichever of two estimators passes, after seeing which one passed, is selection.
+ESTIMATOR_COMPARISON_ID = "corwin-schultz-2012"
+
+#: Rule E1's three clauses, all of which must hold. The rank floor is the one-tailed
+#: 5 per cent critical value of Spearman's rho at n = 6; the magnitude clause is a
+#: factor of two, expressed as one base-2 logarithm; the positivity share is what a
+#: figure has to be before it can be charged as a cost at all.
+ESTIMATOR_RANK_FLOOR = Decimal("0.771")
+ESTIMATOR_FACTOR_LOG2 = Decimal(1)
+ESTIMATOR_POSITIVE_SHARE = Decimal("0.90")
+
+#: How the estimate is applied from F2: a trailing window ending strictly before the
+#: decision instant, which is the window the liquidity bands are already cut on, and a
+#: minimum number of usable two-day pairs below which the banded assumption is charged
+#: instead, labelled as one.
+ESTIMATOR_TRAILING_DAYS = 30
+ESTIMATOR_MINIMUM_PAIRS = 20
 
 #: The size rule S1 implies when it fires: six symbols on six days, which is section
 #: 12's own registered sample and already the minimum. No subsampling rule is added,
@@ -619,6 +663,17 @@ def _spread_trigger_checks(raw: Mapping[str, object]) -> list[tuple[str, object,
             True,
         ),
         ("spread_sample.acquisition.floor_from", _text(block["floor_from"]), FLOOR_FROM),
+        ("spread_sample.acquisition.floor_anchor", _text(block["floor_anchor"]), FLOOR_ANCHOR),
+        (
+            "spread_sample.acquisition.floor_as_settled names both clauses",
+            "BOTH clauses" in _text(block["floor_as_settled"]),
+            True,
+        ),
+        (
+            "spread_sample.acquisition.floor_as_settled is anchored to zero",
+            "exceeding ZERO by at least one standard error" in _text(block["floor_as_settled"]),
+            True,
+        ),
         (
             "spread_sample.acquisition.floor names one standard error",
             "one standard error" in _text(block["floor"]),
@@ -675,6 +730,168 @@ def _every_family_checks(raw: Mapping[str, object]) -> list[tuple[str, object, o
             True,
         ),
     ]
+
+
+def _pairing_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rule P1 and criterion 1's strengthened clause, guarded as strictly as a cell.
+
+    The narrowing property is checked as text as well as the family it applies from,
+    because "can only ever remove a pass" is the entire justification for registering a
+    criterion change after this family's figures were read. If that sentence ever leaves
+    the configuration, the justification has left with it.
+    """
+    block = _mapping(raw["absolute_pairing"], "absolute_pairing")
+    strengthened = _mapping(block["criterion_1_strengthened"], "criterion_1_strengthened")
+    return [
+        ("absolute_pairing.rule_id", _text(block["rule_id"]), PAIRING_RULE),
+        ("absolute_pairing.applies_from", _text(block["applies_from"]), "F2"),
+        ("absolute_pairing.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "absolute_pairing.rule pairs every null comparison with an absolute test",
+            "ABSOLUTE test" in _text(block["rule"]),
+            True,
+        ),
+        (
+            "absolute_pairing.criterion_1_strengthened.applies_from",
+            _text(strengthened["applies_from"]),
+            CRITERION_ONE_STRENGTHENED_FROM,
+        ),
+        (
+            "absolute_pairing.criterion_1_strengthened names one standard error",
+            "ONE STANDARD ERROR" in _text(strengthened["as_strengthened"]),
+            True,
+        ),
+        (
+            "absolute_pairing.criterion_1_strengthened can only ever remove a pass",
+            "can never add" in _text(strengthened["can_only_ever_remove_a_pass"]),
+            True,
+        ),
+        (
+            "absolute_pairing.criterion_1_strengthened.not_applied_to_f1",
+            "SUPPLEMENTARY" in _text(strengthened["not_applied_to_f1"]),
+            True,
+        ),
+    ]
+
+
+def _estimator_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rule E1: the estimator, the three clauses, and how the estimate is applied.
+
+    Every threshold is compared, for the reason rule C3's and rule S1's are: a computed
+    condition with a movable threshold is a decision deferred rather than a decision
+    made, and this one was committed before the calibration it decides was run.
+    """
+    block = _mapping(raw["spread_estimator"], "spread_estimator")
+    acceptance = _mapping(block["acceptance"], "spread_estimator.acceptance")
+    clauses = _mapping(acceptance["clauses_all_of_which_must_hold"], "acceptance.clauses")
+    application = _mapping(block["application_from_f2"], "application_from_f2")
+    return [
+        ("spread_estimator.rule_id", _text(block["rule_id"]), ESTIMATOR_RULE),
+        ("spread_estimator.applies_from", _text(block["applies_from"]), "F2"),
+        ("spread_estimator.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "spread_estimator.registered_estimator.id",
+            _text(_mapping(block["registered_estimator"], "registered_estimator")["id"]),
+            ESTIMATOR_ID,
+        ),
+        (
+            "spread_estimator.comparison_estimator.id",
+            _text(_mapping(block["comparison_estimator"], "comparison_estimator")["id"]),
+            ESTIMATOR_COMPARISON_ID,
+        ),
+        (
+            "spread_estimator.comparison_estimator.never_substituted",
+            "NEVER adopted"
+            in _text(_mapping(block["comparison_estimator"], "c")["never_substituted"]),
+            True,
+        ),
+        (
+            "spread_estimator.acceptance.clauses.ordering floor",
+            _rank_floor(_text(clauses["ordering"])),
+            ESTIMATOR_RANK_FLOOR,
+        ),
+        (
+            "spread_estimator.acceptance.clauses.magnitude factor",
+            _factor(_text(clauses["magnitude"])),
+            ESTIMATOR_FACTOR_LOG2,
+        ),
+        (
+            "spread_estimator.acceptance.clauses.positivity share",
+            _share(_text(clauses["positivity"])),
+            ESTIMATOR_POSITIVE_SHARE,
+        ),
+        (
+            "spread_estimator.acceptance.if_it_fails keeps the assumption",
+            "ASSUMPTION is kept" in _text(acceptance["if_it_fails"]),
+            True,
+        ),
+        (
+            "spread_estimator.application_from_f2.trailing days",
+            _trailing_days(_text(application["point_in_time"])),
+            ESTIMATOR_TRAILING_DAYS,
+        ),
+        (
+            "spread_estimator.application_from_f2.point_in_time ends before the decision",
+            "STRICTLY BEFORE" in _text(application["point_in_time"]),
+            True,
+        ),
+        (
+            "spread_estimator.application_from_f2.minimum pairs",
+            _minimum_pairs(_text(application["insufficient_history"])),
+            ESTIMATOR_MINIMUM_PAIRS,
+        ),
+        (
+            "spread_estimator.application_from_f2.halving",
+            "HALF-spread per leg" in _text(application["halving"]),
+            True,
+        ),
+        (
+            "spread_estimator.application_from_f2.slippage_is_untouched",
+            "remains an assumption" in _text(application["slippage_is_untouched"]),
+            True,
+        ),
+    ]
+
+
+def _rank_floor(prose: str) -> Decimal:
+    """The rank-correlation floor, read out of the clause that states it."""
+    return Decimal(_after(prose, "at least "))
+
+
+def _factor(prose: str) -> Decimal:
+    """The magnitude clause's logarithm bound, read out of the clause."""
+    return Decimal(_after(prose, "over measured is at most "))
+
+
+def _share(prose: str) -> Decimal:
+    """The positivity share, read out of the clause, as a fraction rather than per cent."""
+    return Decimal(_after(prose, "at least ")) / Decimal(100)
+
+
+def _trailing_days(prose: str) -> int:
+    """How many trailing daily bars price a decision, read out of the clause."""
+    return int(_after(prose, "estimated from the "))
+
+
+def _minimum_pairs(prose: str) -> int:
+    """The usable-pair floor below which the assumption is charged instead."""
+    return int(_after(prose, "fewer than "))
+
+
+def _after(prose: str, marker: str) -> str:
+    """The first whitespace-delimited token after a marker, or a refusal.
+
+    Reading a threshold out of the prose that states it, rather than holding it twice,
+    is what stops a registered number and its justification from drifting apart. A
+    marker that no longer appears is a drift and is raised as one.
+    """
+    if marker not in prose:
+        raise DriftedFromPreRegistration(
+            f"The registered prose no longer contains {marker!r}, so the threshold it "
+            "states cannot be read out of it. Resolve this with a new pre-registration "
+            "version, never by editing the old one."
+        )
+    return prose.split(marker, 1)[1].split()[0].rstrip(".,;:")
 
 
 def _cadence_checks(variants: Mapping[str, object]) -> list[tuple[str, object, object]]:
@@ -1003,6 +1220,8 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.extend(_void_run_checks(raw))
     checks.extend(_spread_trigger_checks(raw))
     checks.extend(_every_family_checks(raw))
+    checks.extend(_pairing_checks(raw))
+    checks.extend(_estimator_checks(raw))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
     for band in ("deep", "mid", "thin", "unknown"):
         checks.append(
@@ -1334,12 +1553,22 @@ __all__ = [
     "BOOTSTRAP_SEED",
     "CADENCE_PAIR",
     "CONFIG_PATH",
+    "CRITERION_ONE_STRENGTHENED_FROM",
     "D2B_THRESHOLD_ROUND_TRIPS",
     "ENGINE_LOOKBACK_DAYS",
     "ENGINE_VERSION",
+    "ESTIMATOR_COMPARISON_ID",
+    "ESTIMATOR_FACTOR_LOG2",
+    "ESTIMATOR_ID",
+    "ESTIMATOR_MINIMUM_PAIRS",
+    "ESTIMATOR_POSITIVE_SHARE",
+    "ESTIMATOR_RANK_FLOOR",
+    "ESTIMATOR_RULE",
+    "ESTIMATOR_TRAILING_DAYS",
     "EXACT_RESCUE_TEST_FROM",
     "EXECUTION_FEE_OF_EQUITY_BPS",
     "FAMILY",
+    "FLOOR_ANCHOR",
     "FLOOR_FROM",
     "FOLD_COUNT",
     "HAIRCUT_FRACTION",
@@ -1348,6 +1577,7 @@ __all__ = [
     "MARGIN_FRACTION",
     "MAXIMUM_RE_EXECUTIONS",
     "MINIMUM_MONTHS_FOR_A_YEAR",
+    "PAIRING_RULE",
     "RECENT_WINDOW_MONTHS",
     "REGISTERED_CELLS",
     "REGISTERED_VARIANTS",

@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v2.1
+version: v2.2
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,6 +63,22 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-11
+    document_section: "33"
+    subject: >
+      Three settlements, every one prospective from F2, none of which touches an F1
+      figure, an F1 criterion or F1's verdict letter. ONE: rule S1's floor is anchored
+      to ZERO rather than to the null, and both of its clauses must hold - the
+      counterfactual Sharpe must exceed zero by at least one standard error of its own
+      estimate AND clear the 95th percentile of its own exposure-matched null. TWO:
+      rule P1, a standing pairing rule - every criterion that compares a variant to a
+      null is paired with an absolute test against zero, and criterion 1 is
+      strengthened from F2 to require a return distinguishable from zero by its own
+      standard error. THREE: rule E1 - the banded spread assumption is replaced from F2
+      by a low-frequency spread ESTIMATE per instrument and per period, Abdi and
+      Ranaldo 2017 as the registered estimator, calibrated against the 36 symbol-days
+      of measured quotes and adopted only if it passes a test written and committed
+      before the calibration was computed.
   - id: amendment-10
     document_section: "32"
     subject: >
@@ -1275,6 +1291,33 @@ spread_sample:
       null is not a floor in absolute terms. Whether the bar the intent describes is
       this one, or one stated relative to ZERO - which on F1 would have left the rule
       unfired - is open and is the Product Owner's to settle before F2 runs.
+    floor_anchor: zero
+    floor_anchored_by: amendment-11
+    floor_as_settled: >
+      SETTLED by amendment 11, and this is the bar that applies FROM F2. Rule S1 fires
+      when some variant, with its assumed cost set to ZERO, has an annualised Sharpe
+      exceeding ZERO by at least one standard error of its own estimate, skewness- and
+      kurtosis-corrected, AND exceeding the 95th percentile of its own exposure-matched
+      null. BOTH clauses, never either.
+    floor_why_zero_and_not_the_null: >
+      The exposure-matched null over this window is itself losing: its 95th percentile
+      sits at -1.26 to -1.58. A bar anchored to it is a bar below zero, and a variant
+      that merely fails to lose clears it. That is not what the intent said, which was
+      that removing an assumption must be able to produce a result distinguishable from
+      NOISE.
+    floor_supersedes: >
+      amendment 10's null-anchored floor, which was registered as applying from F2 and
+      was never applied to an F1 figure. Both are retained rather than one overwriting
+      the other: amendment 10 states the bar as first written and this states the bar
+      that applies. On F1's figures the null-anchored form would have fired and the
+      zero-anchored form would not, and neither was substituted for the other after the
+      fact.
+    floor_measured_against_f1_at_the_zero_anchor: >
+      Recorded because the figures exist and for no other purpose: 0.091 against a
+      standard error of 0.484, and 0.097 against 0.472. Neither clears zero by its own
+      standard error, so the zero-anchored floor would have left rule S1 unfired on F1.
+      F1's acquisition stands, and it stands for the right reason: the rule as written
+      at the instant the sample was acquired fired, and it was honoured.
     quantity: net return over the scored out-of-sample window, after every cost line
     threshold: "0"
     comparison: strictly greater than
@@ -1398,6 +1441,177 @@ every_family_reports:
 # ---------------------------------------------------------------------------
 # Statistics
 # ---------------------------------------------------------------------------
+absolute_pairing:
+  rule_id: P1
+  added_by: amendment-11
+  applies_from: F2
+  is_a_trial: false
+  rule: >
+    EVERY criterion that compares a variant to a null is paired with an ABSOLUTE test
+    against zero. "Better than a losing null" and "makes money" are different claims,
+    and a criterion that states only the first cannot tell them apart.
+  why_a_standing_rule_and_not_a_third_patch: >
+    The project has confused the two claims three times in three different places: the
+    exposure-matched null in SEXTANT-004, criterion 1 as written here, and both of the
+    Product Owner's attempts at a floor for rule S1. A patch fixes one site. The defect
+    is in the shape of the comparison, so the rule is registered at the level of the
+    shape.
+  criterion_1_strengthened:
+    applies_from: F2
+    as_written: >
+      an annualised Sharpe above the 95th percentile of the variant's own
+      exposure-matched null, AND a strictly positive net return over the scored window.
+    weakness: >
+      "strictly positive" would pass a variant earning 18.70 EUR on 1,500 across 56
+      months. That is a positive number and it is not a return distinguishable from
+      nothing.
+    as_strengthened: >
+      an annualised Sharpe above the 95th percentile of the variant's own
+      exposure-matched null, AND a mean scored-period return exceeding ONE STANDARD
+      ERROR of that mean. The test is the mean over its own standard deviation times
+      the square root of the observation count, strictly greater than one.
+    can_only_ever_remove_a_pass: >
+      The strengthened clause is strictly narrower than the clause it replaces: a mean
+      exceeding its own standard error is positive, so everything the new clause admits
+      the old clause admitted. The change can only ever remove a pass and can never add
+      one, in any family, on any data. That property is what makes it safe to register
+      after F1's figures are known.
+    not_applied_to_f1: >
+      F1 was judged on the weaker form and its verdict letter is not reopened. The
+      strengthened criterion is re-reported against F1's existing figures as a clearly
+      labelled SUPPLEMENTARY reading beside the original, which states that F1 was
+      judged on the weaker form. A supplementary reading is not a re-scoring.
+
+spread_estimator:
+  rule_id: E1
+  added_by: amendment-11
+  applies_from: F2
+  is_a_trial: false
+  replaces: >
+    the banded spread ASSUMPTION as the default spread cost from F2. This supersedes
+    amendment 10's "the measured spread becomes the default": six measured symbol-days
+    cannot be a default for a five-year window, and what they are good for is
+    calibrating something that can.
+  why_the_band_structure_is_the_defect: >
+    The bands are cut on quote turnover, spread does not respond to turnover, and the
+    36 measured symbol-days found two orders of magnitude of spread INSIDE a single
+    band - 0.0357 bps on BTCUSDT against 4.2452 bps on API3USDT, both deep. A better
+    constant per band cannot repair a partition cut on the wrong variable. The
+    replacement is per instrument and per period rather than per band.
+  registered_estimator:
+    id: abdi-ranaldo-2017
+    citation: >
+      Abdi, F. and Ranaldo, A. (2017). A Simple Estimation of Bid-Ask Spreads from
+      Daily Close, High, and Low Prices. Review of Financial Studies 30(9), 4437-4480.
+    estimator: >
+      With c the log close, h the log high, l the log low and eta = (h + l) / 2 the log
+      mid-range, the two-day term is s2_t = 4 * (c_t - eta_t) * (c_t - eta_{t+1}), and
+      the period estimate is the square root of the MEAN of s2_t over the period. A
+      non-positive mean is reported as zero and counted, rather than rooted. The result
+      is a PROPORTIONAL effective spread; basis points are 10,000 times it.
+    why_this_one: >
+      It reports the higher correlation with measured effective spreads of the two
+      candidates; it needs only close, high and low, which is exactly what the archive
+      holds; and it has no overnight-gap adjustment, so it contains no step at which an
+      implementer chooses anything.
+  comparison_estimator:
+    id: corwin-schultz-2012
+    citation: >
+      Corwin, S. A. and Schultz, P. (2012). A Simple Way to Estimate Bid-Ask Spreads
+      from Daily High and Low Prices. Journal of Finance 67(2), 719-760.
+    computed_for: comparison only
+    two_day_negatives: >
+      set to zero before averaging, which is the paper's own correction, and counted so
+      the count is visible.
+    overnight_adjustment: >
+      applied as the paper states it: when the second day's low is above the first
+      day's high, both of the second day's prices are lowered by the gap; when the
+      second day's high is below the first day's low, both are raised by it.
+    never_substituted: >
+      Corwin-Schultz is reported beside Abdi-Ranaldo so a reader can see what was left
+      on the table, and it is NEVER adopted if Abdi-Ranaldo fails rule E1. Adopting
+      whichever of two estimators passes, after seeing which one passed, is selection
+      with one extra step in front of it.
+  calibration:
+    against: >
+      the 36 measured symbol-days in research/spike-006-f1-spread.json: six perpetuals
+      on six days, with a time-weighted mean and median quoted spread for each.
+    procedure: >
+      For each of the six symbols, both estimators are computed over the calendar month
+      containing each sampled day, from that symbol's stored daily high, low and close
+      on the perpetual venue, and compared against the measured MEDIAN quoted spread of
+      the sampled day inside that month. Errors are reported per symbol-month in basis
+      points and as a ratio. Per symbol, the estimate is summarised as the median across
+      the six months and the measurement as the median across the six days, and the
+      ordering clause is computed on those six pairs.
+    a_calendar_month_is_not_point_in_time_and_does_not_need_to_be: >
+      The calibration month contains the day it is compared against, which would be
+      look-ahead in a trading decision and is not one here: nothing is traded on a
+      calibration. The window that prices a trade from F2 is trailing and is registered
+      separately below.
+    what_is_compared_is_not_identical: >
+      The estimator estimates an EFFECTIVE spread and the measurement is a QUOTED
+      spread. Where trades print at the touch the two coincide; where they do not,
+      effective is the smaller of the two. An estimate below the measurement by a small
+      factor is therefore consistent with the estimator being right, and this is stated
+      before the numbers rather than after them.
+  acceptance:
+    decided_by: >
+      a computed condition on research/spike-006-f1-estimator.json, in exactly the way
+      rules C3 and S1 are computed conditions on the result file. Written and committed
+      before the calibration was run, and the ordering is checkable in git.
+    clauses_all_of_which_must_hold:
+      ordering: >
+        the Spearman rank correlation between estimated and measured spread across the
+        six symbols is at least 0.771, the one-tailed 5 per cent critical value at
+        n = 6. A cost model that misranks its instruments is worse than a constant,
+        because a cross-sectional strategy trades the ranking.
+      magnitude: >
+        the median across the six symbols of the absolute base-2 logarithm of estimated
+        over measured is at most 1: for at least half the symbols the estimate is within
+        a factor of two of the measurement. Against a sample spanning two orders of
+        magnitude, a factor of two is a real test rather than a formality.
+      positivity: >
+        over the F1 window, taking every perpetual with enough stored history in its
+        trailing window at every month end, the estimator returns a strictly positive
+        figure for at least 90 per cent of the instrument-periods asked of it. A cost
+        model cannot charge zero for a spread, and an estimator that is frequently
+        non-positive is not a cost.
+    if_it_passes: >
+      the estimate becomes the default spread cost from F2, per instrument and per
+      period, with the banded assumption retained beside it as a labelled alternative,
+      and every F2+ result states which of the two it was computed at.
+    if_it_fails: >
+      the banded ASSUMPTION is kept, labelled an assumption exactly as it is now, and
+      the failure is reported with its numbers. A worse number that looks like a
+      measurement is worse than a guess that is labelled a guess. No third estimator is
+      tried, no clause is relaxed, and the comparison estimator is not promoted.
+  application_from_f2:
+    point_in_time: >
+      The figure charged at a decision instant is estimated from the 30 stored daily
+      bars ending STRICTLY BEFORE that instant, which is the same trailing window the
+      liquidity bands are already cut on. Estimating from the period a trade falls in
+      would use the trade's own month to price the trade.
+    insufficient_history: >
+      an instrument with fewer than 20 usable two-day pairs in its trailing window is
+      charged at the banded ASSUMPTION for its band, labelled as one, and the number of
+      such charges is reported. It is never charged zero and never dropped from the
+      universe for it.
+    halving: >
+      The estimate is a full spread and the cost model charges a HALF-spread per leg, so
+      half the estimate is what is charged. Section 7.5's measured comparison is stated
+      the same way and for the same reason.
+    still_an_estimate_under_invariant_12: >
+      An estimated spread is reported as an ESTIMATE - neither a measurement nor an
+      assumption - with its estimator named and its calibration error beside it wherever
+      a cost line depends on it. Invariant 12 is not weakened by adding a third
+      provenance; it would be weakened by letting an estimate be printed as a
+      measurement.
+    slippage_is_untouched: >
+      Nothing here estimates slippage. Slippage is an intraday quantity, daily bars
+      cannot calibrate it, and it remains an assumption at its registered figures with
+      its label attached.
+
 statistics:
   out_of_sample_only: true
   sharpe: annualised from monthly net returns in EUR

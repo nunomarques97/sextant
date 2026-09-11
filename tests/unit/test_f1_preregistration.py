@@ -23,9 +23,19 @@ from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
     CADENCE_PAIR,
     CONFIG_PATH,
+    CRITERION_ONE_STRENGTHENED_FROM,
     ENGINE_VERSION,
+    ESTIMATOR_COMPARISON_ID,
+    ESTIMATOR_FACTOR_LOG2,
+    ESTIMATOR_ID,
+    ESTIMATOR_MINIMUM_PAIRS,
+    ESTIMATOR_POSITIVE_SHARE,
+    ESTIMATOR_RANK_FLOOR,
+    ESTIMATOR_RULE,
+    ESTIMATOR_TRAILING_DAYS,
     EXACT_RESCUE_TEST_FROM,
     FAMILY,
+    FLOOR_ANCHOR,
     FLOOR_FROM,
     MAINTENANCE_MARGIN_STRESS,
     MAINTENANCE_MARGINS,
@@ -33,6 +43,7 @@ from sextant.app.spike_006_f1 import (
     MARGIN_FRACTION,
     MAXIMUM_RE_EXECUTIONS,
     MINIMUM_DEPTH_MONTHS,
+    PAIRING_RULE,
     REGISTERED_CELLS,
     REGISTERED_VARIANTS,
     REGISTERED_VERSION,
@@ -820,4 +831,278 @@ def test_the_measured_spread_becomes_the_default_only_from_f2(tmp_path: Path) ->
     )
     altered = _write(payload, tmp_path / "default.yaml")
     with pytest.raises(DriftedFromPreRegistration, match="measured_spread"):
+        assert_no_drift(altered)
+
+
+# ---------------------------------------------------------------------------
+# Amendment 11: the floor anchored to zero, rule P1, rule E1
+# ---------------------------------------------------------------------------
+
+
+def test_the_floor_is_anchored_to_zero_and_not_to_the_null() -> None:
+    """The null loses over this window, so a bar anchored to it is a bar below zero."""
+    assert FLOOR_ANCHOR == "zero"
+    registered = _registered()
+    acquisition = registered["spread_sample"]["acquisition"]  # type: ignore[index]
+    settled = str(acquisition["floor_as_settled"])
+    assert "exceeding ZERO by at least one standard error" in settled
+    assert "BOTH clauses" in settled
+
+
+def test_reanchoring_the_floor_to_the_null_refuses_the_run(tmp_path: Path) -> None:
+    """The settled anchor is a registered value, not a preference restatable later."""
+    payload = _registered()
+    _alter(payload, ("spread_sample", "acquisition", "floor_anchor"), "the null")
+    altered = _write(payload, tmp_path / "anchor.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="floor_anchor"):
+        assert_no_drift(altered)
+
+
+def test_dropping_one_of_the_floors_two_clauses_refuses_the_run(tmp_path: Path) -> None:
+    """Both clauses, never either. An "or" here is a bar that passes twice as much."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_sample", "acquisition", "floor_as_settled"),
+        "the counterfactual Sharpe must exceed ZERO by at least one standard error.",
+    )
+    altered = _write(payload, tmp_path / "clauses.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="both clauses"):
+        assert_no_drift(altered)
+
+
+def test_amendment_ten_is_superseded_and_still_in_the_record() -> None:
+    """Both forms of the floor stay registered: one as written, one as it applies."""
+    registered = _registered()
+    acquisition = registered["spread_sample"]["acquisition"]  # type: ignore[index]
+    assert "floor" in acquisition
+    assert "amendment 10" in str(acquisition["floor_supersedes"])
+    assert "would have fired" in str(acquisition["floor_supersedes"])
+
+
+def test_rule_p1_pairs_every_null_comparison_with_an_absolute_test() -> None:
+    """Registered at the level of the shape, because the defect recurred in three places."""
+    assert PAIRING_RULE == "P1"
+    registered = _registered()
+    block = registered["absolute_pairing"]
+    assert isinstance(block, dict)
+    assert str(block["applies_from"]) == "F2"
+    assert block["is_a_trial"] is False
+    assert "ABSOLUTE test" in str(block["rule"])
+
+
+def test_criterion_one_is_strengthened_from_f2_and_not_before() -> None:
+    """F1 was judged on the weaker form and keeps it."""
+    assert CRITERION_ONE_STRENGTHENED_FROM == "F2"
+
+
+@pytest.mark.parametrize("value", ["F1", "F3"])
+def test_moving_the_strengthened_criterion_off_f2_refuses_the_run(
+    tmp_path: Path, value: str
+) -> None:
+    """Backdating it re-scores F1; postdating it lets a family through on the weak form."""
+    payload = _registered()
+    _alter(payload, ("absolute_pairing", "criterion_1_strengthened", "applies_from"), value)
+    altered = _write(payload, tmp_path / f"strengthened-{value}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="criterion_1_strengthened"):
+        assert_no_drift(altered)
+
+
+def test_the_strengthened_clause_must_stay_stated_in_standard_errors(tmp_path: Path) -> None:
+    """A euro figure, or a Sharpe figure, would be a number chosen after the fact."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("absolute_pairing", "criterion_1_strengthened", "as_strengthened"),
+        "a net return of at least 500 EUR over the scored window.",
+    )
+    altered = _write(payload, tmp_path / "strengthened.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="one standard error"):
+        assert_no_drift(altered)
+
+
+def test_the_narrowing_justification_cannot_leave_the_registration(tmp_path: Path) -> None:
+    """ "Can only ever remove a pass" IS the licence to register this after F1's figures."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("absolute_pairing", "criterion_1_strengthened", "can_only_ever_remove_a_pass"),
+        "The strengthened clause changes which variants pass.",
+    )
+    altered = _write(payload, tmp_path / "narrowing.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="remove a pass"):
+        assert_no_drift(altered)
+
+
+def test_f1_is_re_reported_and_never_re_scored(tmp_path: Path) -> None:
+    """A supplementary reading is not a re-scoring, and the word is load-bearing."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("absolute_pairing", "criterion_1_strengthened", "not_applied_to_f1"),
+        "F1 is re-scored against the strengthened criterion.",
+    )
+    altered = _write(payload, tmp_path / "supplementary.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="not_applied_to_f1"):
+        assert_no_drift(altered)
+
+
+def test_rule_e1_names_one_estimator_and_one_comparison() -> None:
+    """The registered estimator is fixed before the calibration, and so is its rival's role."""
+    assert ESTIMATOR_RULE == "E1"
+    assert ESTIMATOR_ID == "abdi-ranaldo-2017"
+    assert ESTIMATOR_COMPARISON_ID == "corwin-schultz-2012"
+    registered = _registered()
+    block = registered["spread_estimator"]
+    assert isinstance(block, dict)
+    assert str(block["applies_from"]) == "F2"
+    assert block["is_a_trial"] is False
+    comparison = block["comparison_estimator"]
+    assert isinstance(comparison, dict)
+    assert str(comparison["computed_for"]) == "comparison only"
+
+
+def test_promoting_the_comparison_estimator_refuses_the_run(tmp_path: Path) -> None:
+    """Adopting whichever passes, after seeing which passed, is selection."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "comparison_estimator", "never_substituted"),
+        "Corwin-Schultz is adopted if Abdi-Ranaldo fails.",
+    )
+    altered = _write(payload, tmp_path / "promote.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="never_substituted"):
+        assert_no_drift(altered)
+
+
+def test_swapping_the_registered_estimator_refuses_the_run(tmp_path: Path) -> None:
+    """Which estimator was chosen is part of what was pre-registered."""
+    payload = _registered()
+    _alter(payload, ("spread_estimator", "registered_estimator", "id"), "corwin-schultz-2012")
+    altered = _write(payload, tmp_path / "swap.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="registered_estimator"):
+        assert_no_drift(altered)
+
+
+def test_rule_e1_thresholds_are_the_registered_ones() -> None:
+    """Three clauses, three numbers, each read out of the prose that justifies it."""
+    assert Decimal("0.771") == ESTIMATOR_RANK_FLOOR
+    assert Decimal(1) == ESTIMATOR_FACTOR_LOG2
+    assert Decimal("0.90") == ESTIMATOR_POSITIVE_SHARE
+    assert ESTIMATOR_TRAILING_DAYS == 30
+    assert ESTIMATOR_MINIMUM_PAIRS == 20
+
+
+@pytest.mark.parametrize(
+    ("clause", "softened"),
+    [
+        (
+            "ordering",
+            "the Spearman rank correlation across the six symbols is at least 0.2, which is "
+            "a low bar and is meant to be.",
+        ),
+        (
+            "magnitude",
+            "the median across the six symbols of the absolute base-2 logarithm of estimated "
+            "over measured is at most 4: within a factor of sixteen.",
+        ),
+        (
+            "positivity",
+            "the estimator returns a strictly positive figure for at least 10 per cent of the "
+            "instrument-periods asked of it.",
+        ),
+    ],
+)
+def test_softening_any_of_rule_e1s_clauses_refuses_the_run(
+    tmp_path: Path, clause: str, softened: str
+) -> None:
+    """Every threshold was committed before the calibration that reads it was run."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "acceptance", "clauses_all_of_which_must_hold", clause),
+        softened,
+    )
+    altered = _write(payload, tmp_path / f"{clause}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=clause):
+        assert_no_drift(altered)
+
+
+def test_a_clause_that_no_longer_states_its_threshold_refuses_the_run(tmp_path: Path) -> None:
+    """A threshold read out of its own justification cannot drift away from it silently."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "acceptance", "clauses_all_of_which_must_hold", "ordering"),
+        "the estimator must rank the symbols acceptably well.",
+    )
+    altered = _write(payload, tmp_path / "unstated.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="at least"):
+        assert_no_drift(altered)
+
+
+def test_failing_rule_e1_keeps_the_assumption_rather_than_a_worse_number(tmp_path: Path) -> None:
+    """A guess labelled a guess beats a worse number that looks like a measurement."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "acceptance", "if_it_fails"),
+        "the closest available estimate is adopted anyway, so that a figure exists.",
+    )
+    altered = _write(payload, tmp_path / "fails.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="if_it_fails"):
+        assert_no_drift(altered)
+
+
+def test_the_estimate_is_charged_point_in_time_from_a_trailing_window(tmp_path: Path) -> None:
+    """Estimating from the period a trade falls in prices the trade with its own month."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "application_from_f2", "point_in_time"),
+        "The figure charged is estimated from the 30 daily bars of the calendar month the "
+        "decision falls in.",
+    )
+    altered = _write(payload, tmp_path / "pit.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="point_in_time"):
+        assert_no_drift(altered)
+
+
+def test_shortening_the_trailing_window_refuses_the_run(tmp_path: Path) -> None:
+    """Thirty days is the window the liquidity bands are already cut on, not a taste."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "application_from_f2", "point_in_time"),
+        "The figure charged at a decision instant is estimated from the 5 stored daily bars "
+        "ending STRICTLY BEFORE that instant.",
+    )
+    altered = _write(payload, tmp_path / "shorter.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="trailing days"):
+        assert_no_drift(altered)
+
+
+def test_an_instrument_with_too_little_history_is_never_charged_zero(tmp_path: Path) -> None:
+    """It falls back to the labelled assumption, and the count of fallbacks is reported."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "application_from_f2", "insufficient_history"),
+        "an instrument with fewer than 2 usable two-day pairs is charged at the assumption.",
+    )
+    altered = _write(payload, tmp_path / "history.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="minimum pairs"):
+        assert_no_drift(altered)
+
+
+def test_slippage_is_not_estimated_by_anything_here(tmp_path: Path) -> None:
+    """Daily bars cannot calibrate an intraday quantity, and nothing pretends otherwise."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_estimator", "application_from_f2", "slippage_is_untouched"),
+        "Slippage is estimated by the same estimator, at half the spread.",
+    )
+    altered = _write(payload, tmp_path / "slippage.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="slippage_is_untouched"):
         assert_no_drift(altered)
