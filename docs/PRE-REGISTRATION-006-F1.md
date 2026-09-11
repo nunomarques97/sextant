@@ -2432,6 +2432,34 @@ pure extrapolation from a band they are not in.
 > **Report the full per-symbol table. Do not average away the dispersion; the dispersion is the
 > finding.**
 
+#### The selection instant, a gap in A12.4 closed before anything was selected
+
+**A12.4 states how many symbols and how many days and does not state the instant the
+symbols are ranked at.** Rule S1's instant cannot simply be reused: at 2023-05-15 every
+member of the carry universe cleared the deep band's floor, which is why rule S1's six
+symbols are all deep. The mid and thin bands were empty at exactly the moment rule S1
+selected.
+
+> **The instant.** For each band independently, the earliest rebalance instant **at or
+> after** 2023-05-15 at which that band holds at least four members. Earliest rather than
+> best: it is the instant nearest the one rule S1 used, and it is fixed by the data rather
+> than chosen from it.
+>
+> **The members.** Those nearest that band's median trailing 30-day quote turnover at that
+> instant, ties broken by symbol ascending, which is rule S1's own tie-break.
+>
+> **The days.** Rule S1's own six, unchanged, so that a difference between the bands is a
+> difference between the bands rather than between two calendars.
+>
+> **A symbol-day the venue never published** is reported as unpublished and never replaced
+> by another symbol or another day.
+
+**A symbol may leave its band later, and that is not corrected for.** A band is a property
+of an instrument at an instant; one selected into the mid band in 2023 may be deep or
+delisted by 2024. The measurement says what the spread was on the registered days for
+instruments that occupied the band at the registered instant, and the per-symbol table
+shows the dispersion rather than hiding it in an average.
+
 Time-boxed to one working day.
 
 ### 34.5 A12.5 — Rule H1: direct historical measurement, conditional

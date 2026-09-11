@@ -1578,6 +1578,35 @@ extended_spread_sample:
     as a finding rather than as a gap.
   dispersion_is_the_finding: >
     Report the full per-symbol table. Do not average away the dispersion.
+  selection:
+    gap_in_amendment_12: >
+      A12.4 states how many symbols and how many days and does not state the instant the
+      symbols are ranked at. Rule S1's instant cannot simply be reused: at 2023-05-15
+      every member of the carry universe cleared the deep band's floor, so the mid and
+      thin bands were empty at exactly the moment rule S1 selected. The rule below is
+      registered to close that gap and is committed before any symbol is selected.
+    instant: >
+      For each band independently, the earliest rebalance instant at or after rule S1's
+      own 2023-05-15 at which that band holds at least the required number of members.
+      Earliest rather than best: it is the instant nearest the one rule S1 used, and it
+      is fixed by the data rather than chosen from it.
+    which_members: >
+      The members nearest that band's median trailing 30-day quote turnover at that
+      instant, ties broken by symbol ascending, which is rule S1's own tie-break.
+    days: >
+      Rule S1's own six days, unchanged. The same days make the two samples comparable,
+      and a different set would make every difference between the bands ambiguous
+      between the band and the calendar.
+    an_unpublished_symbol_day: >
+      reported as unpublished and never replaced by another symbol or another day.
+      Substituting for a gap is how a sample stops being the sample that was registered.
+    a_symbol_may_leave_its_band_later: >
+      expected, and not corrected for. A band is a property of an instrument at an
+      instant, and an instrument selected into the mid band in 2023 may be deep or
+      delisted by 2024. The measurement says what the spread was on the registered days
+      for instruments that occupied the band at the registered instant, which is what a
+      cost model needs, and the per-symbol table shows the dispersion rather than hiding
+      it in an average.
   time_box: one working day
 
 historical_quoted_spread:

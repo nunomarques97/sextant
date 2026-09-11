@@ -1145,6 +1145,23 @@ def _extended_sample_checks(raw: Mapping[str, object]) -> list[tuple[str, object
             "Do not average away" in _text(block["dispersion_is_the_finding"]),
             True,
         ),
+        (
+            "extended_spread_sample.selection.instant is the earliest that qualifies",
+            "earliest rebalance instant at or after"
+            in _text(_mapping(block["selection"], "selection")["instant"]),
+            True,
+        ),
+        (
+            "extended_spread_sample.selection.days are rule S1's own",
+            "own six days, unchanged" in _text(_mapping(block["selection"], "selection")["days"]),
+            True,
+        ),
+        (
+            "extended_spread_sample.selection.an_unpublished_symbol_day",
+            "never replaced"
+            in _text(_mapping(block["selection"], "selection")["an_unpublished_symbol_day"]),
+            True,
+        ),
         ("historical_quoted_spread.rule_id", _text(historical["rule_id"]), HISTORICAL_QUOTES_RULE),
         ("historical_quoted_spread.is_a_trial", bool(historical["is_a_trial"]), False),
         (

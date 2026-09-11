@@ -114,6 +114,8 @@ ignore = [
 # Rule E1 scans nine hundred stored series twice over sixty-nine month ends. It is
 # a batch job run by hand and it says where it is.
 "src/sextant/app/spike_006_f1_estimator.py" = ["T20"]
+"src/sextant/app/spike_006_f1_extended.py" = ["T20"]  # rule M1's acquisition
+"src/sextant/app/spike_006_f1_bands.py" = ["T20"]  # and the band study beside it
 "src/sextant/app/spike_005_report.py" = ["T20"]
 "src/sextant/app/spike_006_f1_report.py" = ["T20"]
 # S311 flags `random` as unsuitable for cryptography, which is true and

@@ -145,6 +145,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "spread",
             "estimator",
             "bands",
+            "extended",
             "contraction",
             "report",
         ),
@@ -156,6 +157,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "`spread` acquires the quoted-spread sample, but only when rule S1 fired; "
         "`bands` computes rules M1 and B1: how often each liquidity band is "
         "occupied and what the bands should be cut on; "
+        "`extended` acquires rule M1's sample in the mid and thin bands, and refuses "
+        "to acquire a band the traded universe never occupies; "
         "`estimator` computes rule E1's spread estimator and its calibration "
         "against that sample, and reports whether the estimator is adopted; "
         "`contraction` writes amendment 26.1's composition check on the largest "
@@ -365,6 +368,34 @@ def _command_f1_spread() -> int:
     return EXIT_OK
 
 
+def _command_f1_extended() -> int:
+    """Acquire rule M1's sample, and refuse to acquire a band nobody ever occupies.
+
+    The same discipline as the depth and spread stages: the occupancy count decides, from
+    data already held, and the download happens only for the bands it says are used.
+    """
+    from sextant.app import spike_006_f1_bands, spike_006_f1_extended
+    from sextant.app.spike_006_f1 import EXTENDED_SAMPLE_RULE
+    from sextant.app.spike_006_f1_world import build_world
+
+    world = build_world()
+    study = spike_006_f1_bands.study(world, spike_006_f1_bands.rebalance_instants())
+    needed = study.bands_needing_measurement
+    if not needed:
+        print(f"  rule {EXTENDED_SAMPLE_RULE}: every occupied band is already measured.")
+        print("  the unmeasured defaults are never charged, so nothing is acquired.")
+        return EXIT_OK
+    print(f"  rule {EXTENDED_SAMPLE_RULE}: {', '.join(needed)} are occupied and unmeasured.")
+    sample = spike_006_f1_extended.acquire(world, raw_root=spike_006_f1_extended.EXTENDED_ROOT)
+    written = spike_006_f1_extended.write(sample, spike_006_f1_extended.EXTENDED_RESULTS)
+    print(
+        f"  {sample.symbol_days_measured()} symbol-days, {sample.megabytes} MB, "
+        f"{sample.verified()} verified against the publisher"
+    )
+    print(f"  written: {written.as_posix()}")
+    return EXIT_OK
+
+
 def _command_f1_estimator() -> int:
     """Compute rule E1's calibration, and report the adoption it decides.
 
@@ -478,6 +509,8 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         print(f"  bands the evidence supports: {study.recut.bands_supported}")
         print(f"  written: {written.as_posix()}")
         return EXIT_OK
+    if stage == "extended":
+        return _command_f1_extended()
     if stage == "estimator":
         return _command_f1_estimator()
     if stage == "contraction":
