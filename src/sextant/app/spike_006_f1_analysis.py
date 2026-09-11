@@ -33,9 +33,11 @@ from math import sqrt
 
 from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
+    CONVERSION_BPS,
     DEPTH_WINDOW_ENDS,
     DEPTH_WINDOW_STARTS,
     EXECUTION_FEE_OF_EQUITY_BPS,
+    FX_CROSSINGS_PER_RUN,
     MINIMUM_DEPTH_MONTHS,
     MINIMUM_MONTHS_TO_PROCEED,
     RECENT_WINDOW_MONTHS,
@@ -85,6 +87,9 @@ CRITERION_ONE_STRENGTHENED_FROM = "F2"
 #: one. Named rather than inlined because a threshold that appears as a bare literal in a
 #: comparison is a threshold nobody can find later.
 T_STATISTIC_FLOOR = 1.0
+
+#: Basis points in one unit, for turning a charge back into the rate that produced it.
+BASIS_POINTS = Decimal(10_000)
 
 #: Criterion 2's threshold, section 11.
 DSR_THRESHOLD = 0.95
@@ -1228,6 +1233,160 @@ def assumption_could_be_carrying_the_verdict(items: Sequence[Rescue]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Rule A12.9: what the currency line should have been
+# ---------------------------------------------------------------------------
+
+
+class CurrencyLineUnreadable(RuntimeError):
+    """The charged currency line cannot be reconciled, so nothing is corrected.
+
+    Raised rather than correcting anyway. The correction below rests on one claim about a
+    committed result file - that its currency line is a flat rate on turnover - and that
+    claim is checked per variant rather than assumed. A file whose line does not reconcile
+    is a file this correction has no business rewriting.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class CurrencyCorrection:
+    """One variant's currency line as charged, and as rule A12.9 says it should be.
+
+    The defect: the conversion was charged inside every trade, on that trade's notional,
+    which made the line scale with turnover. Rule A12.9 says it must scale with the number
+    of times capital crosses a currency boundary, which for a run that stays invested is
+    twice - once in and once out.
+
+    **Nothing here edits a committed result.** The charged figures stay as they are and
+    this is reported beside them, in the amendment section rather than in the original.
+    """
+
+    variant: str
+    cell: str
+    turnover: Decimal
+    as_charged: Decimal
+    """The currency line the run actually charged."""
+    initial_equity: Decimal
+    terminal_equity: Decimal
+    net_pnl: Decimal
+
+    @property
+    def implied_bps_on_turnover(self) -> Decimal:
+        """What rate on turnover the charged line works out to.
+
+        Computed rather than assumed, because "it scales with turnover" is the finding and
+        a finding asserted from a docstring is not a finding.
+        """
+        if self.turnover == 0:
+            return Decimal(0)
+        return self.as_charged / self.turnover * BASIS_POINTS
+
+    @property
+    def scales_with_turnover(self) -> bool:
+        """Whether the charged line is the registered rate applied to turnover."""
+        return abs(self.implied_bps_on_turnover - CONVERSION_BPS) < Decimal("0.0001")
+
+    @property
+    def corrected(self) -> Decimal:
+        """Two crossings, each on the capital that crossed at that instant.
+
+        The entry converts the opening equity and the exit converts the closing equity.
+        Held to the registered crossing count rather than to a literal two, so the number
+        and the rule cannot drift apart.
+        """
+        capital = self.initial_equity + self.terminal_equity
+        if FX_CROSSINGS_PER_RUN != 2:  # pragma: no cover - the registered value is two
+            capital = self.initial_equity * Decimal(FX_CROSSINGS_PER_RUN)
+        return capital * CONVERSION_BPS / BASIS_POINTS
+
+    @property
+    def removed(self) -> Decimal:
+        """How much of the charged line was double-counted."""
+        return self.as_charged - self.corrected
+
+    @property
+    def multiple(self) -> Decimal | None:
+        """How many times the correct charge the charged line was."""
+        if self.corrected == 0:
+            return None
+        return self.as_charged / self.corrected
+
+    @property
+    def corrected_net_pnl(self) -> Decimal:
+        """Net PnL with the double-counted part of the currency line given back.
+
+        **First order, and labelled as such.** Returning the charge also returns the
+        compounding it cost along the way, and the second crossing would then convert a
+        slightly larger closing equity. Both effects are smaller than a euro on these
+        figures and neither is large enough to change a sign.
+        """
+        return self.net_pnl + self.removed
+
+    @property
+    def still_loses(self) -> bool:
+        """Whether the variant loses even with the whole double-count returned."""
+        return self.corrected_net_pnl < 0
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "variant": self.variant,
+            "cell_id": self.cell,
+            "turnover": str(self.turnover),
+            "currency_line_as_charged": str(self.as_charged),
+            "implied_rate_on_turnover_bps": str(self.implied_bps_on_turnover),
+            "registered_conversion_bps": str(CONVERSION_BPS),
+            "scales_with_turnover": self.scales_with_turnover,
+            "crossings_per_run": FX_CROSSINGS_PER_RUN,
+            "currency_line_corrected": str(self.corrected),
+            "double_counted": str(self.removed),
+            "as_charged_over_corrected": None if self.multiple is None else str(self.multiple),
+            "net_pnl_as_run": str(self.net_pnl),
+            "net_pnl_with_the_double_count_returned": str(self.corrected_net_pnl),
+            "still_loses": self.still_loses,
+            "order": (
+                "FIRST ORDER. Returning the charge also returns the compounding it cost, "
+                "and the exit crossing would then convert a slightly larger closing equity. "
+                "Both are under a euro here and neither changes a sign."
+            ),
+            "changes_no_committed_figure": (
+                "The result file is not edited. This is reported beside it, under rule "
+                "A12.7, in a section added rather than substituted."
+            ),
+        }
+
+
+def currency_corrections(
+    payload: Mapping[str, object], *, cell: str
+) -> tuple[CurrencyCorrection, ...]:
+    """Rule A12.9's correction for every variant in one cell."""
+    out: list[CurrencyCorrection] = []
+    for row in _rows(payload, "deterministic"):
+        if _text(row.get("kind")) != "variant" or _text(row["cell_id"]) != cell:
+            continue
+        out.append(
+            CurrencyCorrection(
+                variant=_text(row["construct"]),
+                cell=cell,
+                turnover=_decimal(row["turnover"]),
+                as_charged=_costs_of(row).conversion,
+                initial_equity=_decimal(row.get("initial_equity", ACCOUNT_EQUITY.amount)),
+                terminal_equity=_decimal(row["terminal_equity"]),
+                net_pnl=_decimal(row["net_pnl"]),
+            )
+        )
+    return tuple(sorted(out, key=lambda item: item.variant))
+
+
+def the_currency_line_scaled_with_turnover(items: Sequence[CurrencyCorrection]) -> bool:
+    """Whether every variant's charged currency line is the registered rate on turnover.
+
+    The finding, stated as a computed condition over the whole cell rather than as a claim
+    about one number. False means the reconciliation failed somewhere and the correction
+    below it must not be reported as though it had been established.
+    """
+    return bool(items) and all(item.scales_with_turnover for item in items)
+
+
+# ---------------------------------------------------------------------------
 # Capacity: rule C3's decision, from series that already exist
 # ---------------------------------------------------------------------------
 
@@ -1564,6 +1723,7 @@ __all__ = [
     "capacity_of",
     "capacity_report",
     "combined_toll",
+    "currency_corrections",
     "depth_sample_is_needed",
     "excluding_month",
     "monthly_of",
@@ -1571,6 +1731,7 @@ __all__ = [
     "regime_labels",
     "rescues",
     "spread_acquisition",
+    "the_currency_line_scaled_with_turnover",
     "tolls",
     "verdict",
 ]

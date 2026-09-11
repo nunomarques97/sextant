@@ -39,6 +39,7 @@ import yaml
 from sextant.adapters.exchanges.binance.costs import (
     DEEP_BAND_FLOOR,
     FUTURES_FEES,
+    FX_PAIR_FEE_BPS,
     MID_BAND_FLOOR,
     SLIPPAGE_ASSUMPTION,
     SPOT_FEES,
@@ -260,6 +261,11 @@ EXTENDED_SAMPLE_DAYS = 6
 #: inference is not a better inference; it is to check whether the quantity was
 #: published.
 HISTORICAL_QUOTES_RULE = "H1"
+
+#: The venue's charge for one crossing of the currency boundary, re-exported so that the
+#: analysis can compare it against what a committed result file actually charged without
+#: reaching into the venue adapter itself.
+CONVERSION_BPS = FX_PAIR_FEE_BPS
 
 #: Section 34, rule A12.9. How many times capital crosses a currency boundary in one
 #: run: once in and once out. The FX charge must scale with this number and never with
@@ -1897,6 +1903,7 @@ __all__ = [
     "BOOTSTRAP_SEED",
     "CADENCE_PAIR",
     "CONFIG_PATH",
+    "CONVERSION_BPS",
     "CRITERION_ONE_STRENGTHENED_FROM",
     "D2B_THRESHOLD_ROUND_TRIPS",
     "ENGINE_LOOKBACK_DAYS",

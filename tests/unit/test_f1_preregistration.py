@@ -21,26 +21,15 @@ import yaml
 
 from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
-    CADENCE_PAIR,
-    CONFIG_PATH,
     BAND_MINIMUM_SYMBOLS,
     BAND_RECUT_ALPHA,
     BAND_RECUT_PERMUTATIONS,
     BAND_RECUT_RULE,
     BAND_RECUT_SEED,
     BAND_SEPARATION_FACTOR,
+    CADENCE_PAIR,
+    CONFIG_PATH,
     CRITERION_ONE_STRENGTHENED_FROM,
-    EXTENDED_SAMPLE_DAYS,
-    EXTENDED_SAMPLE_PER_BAND,
-    EXTENDED_SAMPLE_RULE,
-    FX_CROSSINGS_PER_RUN,
-    HISTORICAL_QUOTES_RULE,
-    SPREAD_BOUND_BPS,
-    SPREAD_BOUND_RATIO,
-    SPREAD_CONTINGENT,
-    SPREAD_HEADLINE_BPS,
-    SPREAD_LEVEL_BOUND,
-    SPREAD_LEVEL_HEADLINE,
     ENGINE_VERSION,
     ESTIMATOR_COMPARISON_ID,
     ESTIMATOR_FACTOR_LOG2,
@@ -51,9 +40,14 @@ from sextant.app.spike_006_f1 import (
     ESTIMATOR_RULE,
     ESTIMATOR_TRAILING_DAYS,
     EXACT_RESCUE_TEST_FROM,
+    EXTENDED_SAMPLE_DAYS,
+    EXTENDED_SAMPLE_PER_BAND,
+    EXTENDED_SAMPLE_RULE,
     FAMILY,
     FLOOR_ANCHOR,
     FLOOR_FROM,
+    FX_CROSSINGS_PER_RUN,
+    HISTORICAL_QUOTES_RULE,
     MAINTENANCE_MARGIN_STRESS,
     MAINTENANCE_MARGINS,
     MARGIN_BUFFER_SWEEP,
@@ -64,6 +58,12 @@ from sextant.app.spike_006_f1 import (
     REGISTERED_CELLS,
     REGISTERED_VARIANTS,
     REGISTERED_VERSION,
+    SPREAD_BOUND_BPS,
+    SPREAD_BOUND_RATIO,
+    SPREAD_CONTINGENT,
+    SPREAD_HEADLINE_BPS,
+    SPREAD_LEVEL_BOUND,
+    SPREAD_LEVEL_HEADLINE,
     SPREAD_SAMPLE_SYMBOL_DAYS,
     SPREAD_TRIGGER_BAR,
     SPREAD_TRIGGER_RULE,
@@ -1132,8 +1132,8 @@ def test_slippage_is_not_estimated_by_anything_here(tmp_path: Path) -> None:
 
 def test_two_spread_levels_and_only_one_of_them_decides_anything() -> None:
     """The assumption is kept as the criterion; the measurement is reported beside it."""
-    assert SPREAD_HEADLINE_BPS == Decimal(10)
-    assert SPREAD_BOUND_BPS == Decimal("0.53")
+    assert Decimal(10) == SPREAD_HEADLINE_BPS
+    assert Decimal("0.53") == SPREAD_BOUND_BPS
     assert SPREAD_LEVEL_HEADLINE != SPREAD_LEVEL_BOUND
     registered = _registered()
     levels = registered["spread_levels"]
@@ -1144,7 +1144,7 @@ def test_two_spread_levels_and_only_one_of_them_decides_anything() -> None:
 
 def test_the_ratio_the_upper_bound_must_be_labelled_with_is_registered() -> None:
     """A label that cannot carry the multiple lets a bound read as a measurement."""
-    assert SPREAD_BOUND_RATIO == Decimal("18.87")
+    assert Decimal("18.87") == SPREAD_BOUND_RATIO
     computed = SPREAD_HEADLINE_BPS / SPREAD_BOUND_BPS
     assert abs(computed - SPREAD_BOUND_RATIO) < Decimal("0.01")
 
@@ -1235,9 +1235,9 @@ def test_rule_b1s_thresholds_are_the_registered_ones() -> None:
     assert BAND_RECUT_RULE == "B1"
     assert BAND_RECUT_PERMUTATIONS == 10_000
     assert BAND_RECUT_SEED == 20260911
-    assert BAND_RECUT_ALPHA == Decimal("0.05")
+    assert Decimal("0.05") == BAND_RECUT_ALPHA
     assert BAND_MINIMUM_SYMBOLS == 3
-    assert BAND_SEPARATION_FACTOR == Decimal(2)
+    assert Decimal(2) == BAND_SEPARATION_FACTOR
 
 
 @pytest.mark.parametrize(
@@ -1483,7 +1483,7 @@ def test_dropping_the_ratio_from_the_headline_label_refuses_the_run(tmp_path: Pa
         "A conservative half-spread for the deep band.",
     )
     altered = _write(payload, tmp_path / "label.yaml")
-    with pytest.raises(DriftedFromPreRegistration, match="UPPER BOUND|approximately"):
+    with pytest.raises(DriftedFromPreRegistration, match=r"UPPER BOUND|approximately"):
         assert_no_drift(altered)
 
 

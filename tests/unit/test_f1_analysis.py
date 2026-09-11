@@ -23,6 +23,7 @@ Nothing here writes to real project data: every payload is built in memory.
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from math import sqrt
 
@@ -31,12 +32,15 @@ import pytest
 from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
     EXECUTION_FEE_OF_EQUITY_BPS,
+    FX_CROSSINGS_PER_RUN,
+    RESULTS_PATH,
     execution_sensitivity,
 )
 from sextant.app.spike_006_f1_analysis import (
     Capacity,
     CapacityVerdict,
     CostLines,
+    CurrencyCorrection,
     Rescue,
     ResultsIncomplete,
     SpreadAcquisition,
@@ -46,11 +50,13 @@ from sextant.app.spike_006_f1_analysis import (
     break_even_of,
     capacity_of,
     combined_toll,
+    currency_corrections,
     depth_sample_is_needed,
     excluding_month,
     opening_instants,
     rescues,
     spread_acquisition,
+    the_currency_line_scaled_with_turnover,
     tolls,
     verdict,
 )
@@ -110,6 +116,10 @@ def run(
     gross: str = "200",
     fees: str = "50",
     rebalances: int | None = None,
+    turnover: str = "30000",
+    conversion: str = "3",
+    terminal_equity: str = "1650",
+    net_pnl: str = "150",
 ) -> dict[str, object]:
     """One deterministic run, in the shape the result file writes it."""
     return {
@@ -119,12 +129,15 @@ def run(
         "fill_mix": "half-and-half",
         "terminal_return": terminal,
         "gross_pnl": gross,
+        "turnover": turnover,
+        "terminal_equity": terminal_equity,
+        "net_pnl": net_pnl,
         "costs": {
             "fees": fees,
             "spread": "10",
             "slippage": "10",
             "funding": "-30",
-            "fx_conversion": "3",
+            "fx_conversion": conversion,
             "delisting": "0",
             "total": str(Decimal(fees) + Decimal(-7)),
         },
@@ -1241,3 +1254,93 @@ def test_the_supplementary_section_says_which_form_produced_the_verdict() -> Non
     assert "F1 was judged on criterion 1 as registered when it ran" in rendered
     assert "supplementary reading, not a re-scoring" in rendered
     assert "can only ever remove" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Rule A12.9: the currency line, as charged and as it should have been
+# ---------------------------------------------------------------------------
+
+
+def _corrections(*, turnover: str, conversion: str, terminal: str, net: str) -> CurrencyCorrection:
+    """One variant's currency correction, from a payload shaped as the runner writes one."""
+    rows = currency_corrections(
+        payload(
+            deterministic=[
+                run(
+                    construct="v",
+                    gross="0",
+                    turnover=turnover,
+                    conversion=conversion,
+                    terminal_equity=terminal,
+                    net_pnl=net,
+                )
+            ],
+            nulls=[],
+        ),
+        cell=HEADLINE,
+    )
+    return rows[0]
+
+
+def test_a_line_charged_as_a_rate_on_turnover_is_recognised_as_one() -> None:
+    """The finding is computed per variant, not asserted from a docstring."""
+    item = _corrections(turnover="100000", conversion="100", terminal="1500", net="-100")
+    assert item.implied_bps_on_turnover == Decimal(10)
+    assert item.scales_with_turnover
+
+
+def test_a_line_that_does_not_reconcile_is_not_corrected() -> None:
+    """A file whose currency line is not the registered rate on turnover is left alone."""
+    item = _corrections(turnover="100000", conversion="37", terminal="1500", net="-37")
+    assert not item.scales_with_turnover
+    assert not the_currency_line_scaled_with_turnover([item])
+
+
+def test_the_correct_charge_is_two_crossings_on_the_capital_that_crossed() -> None:
+    """Ten basis points of the opening equity plus ten of the closing equity."""
+    item = _corrections(turnover="100000", conversion="100", terminal="1400", net="-100")
+    assert item.corrected == (Decimal(1500) + Decimal(1400)) * Decimal(10) / Decimal(10_000)
+    assert item.corrected == Decimal("2.9")
+
+
+def test_the_double_count_is_the_difference_and_it_is_given_back() -> None:
+    """Net PnL with the double-counted part returned, to first order and labelled so."""
+    item = _corrections(turnover="100000", conversion="100", terminal="1400", net="-100")
+    assert item.removed == Decimal(100) - Decimal("2.9")
+    assert item.corrected_net_pnl == Decimal(-100) + item.removed
+    assert item.still_loses
+
+
+def test_a_variant_that_only_loses_because_of_the_double_count_is_reported_as_such() -> None:
+    """The correction is allowed to change a sign, and says so when it does."""
+    item = _corrections(turnover="100000", conversion="100", terminal="1500", net="-50")
+    assert not item.still_loses
+    assert item.corrected_net_pnl > 0
+
+
+def test_the_multiple_says_how_far_wrong_the_line_was() -> None:
+    """One number a reader can hold: the charged line over the correct one."""
+    item = _corrections(turnover="100000", conversion="100", terminal="1500", net="-100")
+    assert item.multiple == Decimal(100) / Decimal(3)
+
+
+def test_the_correction_labels_itself_first_order_and_says_it_edits_nothing() -> None:
+    """A correction beside a committed result must say it did not rewrite it."""
+    item = _corrections(turnover="100000", conversion="100", terminal="1500", net="-100").as_json()
+    assert "FIRST ORDER" in str(item["order"])
+    assert "not edited" in str(item["changes_no_committed_figure"])
+    assert item["crossings_per_run"] == FX_CROSSINGS_PER_RUN
+
+
+def test_f1s_own_currency_line_scaled_with_turnover_on_every_variant() -> None:
+    """The committed result file, read back: nine variants, all at the registered rate.
+
+    This is the finding rather than a fixture: rule A12.9 asked how the line was charged,
+    and the answer is that every one of the nine is exactly ten basis points of its own
+    turnover, which is the signature of a per-trade charge.
+    """
+    committed = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+    items = currency_corrections(committed, cell=HEADLINE)
+    assert len(items) == 9
+    assert the_currency_line_scaled_with_turnover(items)
+    assert all(item.still_loses for item in items)

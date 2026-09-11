@@ -144,6 +144,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "depth",
             "spread",
             "estimator",
+            "bands",
             "contraction",
             "report",
         ),
@@ -153,6 +154,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "`run` executes the registered 36-trial grid and writes the result file; "
         "`depth` acquires the order-book sample, but only when rule C3 asked for one; "
         "`spread` acquires the quoted-spread sample, but only when rule S1 fired; "
+        "`bands` computes rules M1 and B1: how often each liquidity band is "
+        "occupied and what the bands should be cut on; "
         "`estimator` computes rule E1's spread estimator and its calibration "
         "against that sample, and reports whether the estimator is adopted; "
         "`contraction` writes amendment 26.1's composition check on the largest "
@@ -460,6 +463,21 @@ def _command_spike_006_f1(stage: str, seeds: int | None = None) -> int:
         return _command_f1_depth()
     if stage == "spread":
         return _command_f1_spread()
+    if stage == "bands":
+        from sextant.app import spike_006_f1_bands
+        from sextant.app.spike_006_f1_world import build_world
+
+        study = spike_006_f1_bands.study(build_world(), spike_006_f1_bands.rebalance_instants())
+        written = spike_006_f1_bands.write(study, spike_006_f1_bands.BANDS_RESULTS)
+        for band in spike_006_f1_bands.BANDS:
+            count = study.occupancy.instrument_instants.get(band, 0)
+            names = len(study.occupancy.distinct_symbols.get(band, ()))
+            print(f"  {band}: {count} instrument-instants across {names} distinct symbols")
+        print(f"  bands needing measurement: {study.bands_needing_measurement or 'none'}")
+        print(f"  rule B1 cuts on: {study.recut.chosen or 'nothing that cleared the level'}")
+        print(f"  bands the evidence supports: {study.recut.bands_supported}")
+        print(f"  written: {written.as_posix()}")
+        return EXIT_OK
     if stage == "estimator":
         return _command_f1_estimator()
     if stage == "contraction":

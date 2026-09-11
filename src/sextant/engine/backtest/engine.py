@@ -173,6 +173,15 @@ class _FoldOutcome:
     universe_sizes: Mapping[str, int]
     book: Mapping[InstrumentKey, _Held]
     cash: Notional
+    holds_foreign_currency: bool
+    """Whether the account's capital is sitting in the quote currency at the boundary.
+
+    Carried across folds because a fold boundary is a reporting boundary: an account
+    that was in USDT at the end of fold one is in USDT at the start of fold two, and
+    charging it to convert back and forth across a line drawn in a report would be
+    charging a cost nobody pays. It is state about the *run*, so it travels through the
+    outcome rather than living on the engine, which stores nothing about a run.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,7 +194,6 @@ class _Intent:
     current: Decimal
     delta: Decimal
     cost_rate: Decimal
-    foreign: bool
 
 
 def _buy_scale(intents: Sequence[_Intent], cash: Notional) -> Decimal:
@@ -397,6 +405,7 @@ class BacktestEngine:
         sizes: dict[str, int] = {}
         book: Mapping[InstrumentKey, _Held] = {}
         cash = self.initial_equity
+        holds_foreign = False
         allocator_name = strategy.name
         parameter_set_id = "unfitted"
         cross_sectional = False
@@ -424,11 +433,13 @@ class BacktestEngine:
                 cash=cash,
                 run_id=run_id,
                 liquidate=fold.index == plan.folds[-1].index,
+                holds_foreign=holds_foreign,
             )
             fold_ledgers.append(outcome.ledger)
             decisions.extend(outcome.decisions)
             sizes.update(outcome.universe_sizes)
             book, cash = outcome.book, outcome.cash
+            holds_foreign = outcome.holds_foreign_currency
 
         return RunSummary(
             ledger=merge(fold_ledgers),
@@ -470,6 +481,7 @@ class BacktestEngine:
         cash: Notional,
         run_id: str,
         liquidate: bool,
+        holds_foreign: bool = False,
     ) -> _FoldOutcome:
         """Walk one out-of-sample window, rebalancing monthly.
 
@@ -529,6 +541,20 @@ class BacktestEngine:
                 book, cash = closing.book, closing.cash
                 trades = (*trades, *closing.trades)
 
+            # Rule A12.9. The currency crossing is charged here, once, on the account's
+            # equity - not inside each trade on its notional. It fires only when the
+            # account's capital actually changes currency: entering on the rebalance that
+            # opens the first foreign position, leaving on the one that closes the last.
+            now_foreign = self._holds_foreign(book)
+            crossing = self._crossing_cost(
+                was_foreign=holds_foreign,
+                is_foreign=now_foreign,
+                capital=equity_before if now_foreign else money(cash.amount + _total(book)),
+            )
+            cash = money(cash.amount - crossing.total.amount)
+            financing = financing + crossing
+            holds_foreign = now_foreign
+
             outcome = RebalanceOutcome(
                 opened_at=opened_at,
                 closed_at=closed_at,
@@ -553,6 +579,7 @@ class BacktestEngine:
             universe_sizes=sizes,
             book=book,
             cash=cash,
+            holds_foreign_currency=holds_foreign,
         )
 
     # -- the book ------------------------------------------------------------
@@ -653,7 +680,6 @@ class BacktestEngine:
             price = held.price if held is not None else view.last_close(instrument)
             if price is None or price.amount <= 0:
                 continue
-            foreign = self.routing.is_foreign(instrument.symbol)
             rate = held.rate if held is not None else self._rate_for(instrument.symbol, at)
             current = values.get(key, Decimal(0))
             wanted = Decimal(0) if key in written_down else targets.get(key, Decimal(0))
@@ -664,8 +690,7 @@ class BacktestEngine:
                     rate=rate,
                     current=current,
                     delta=wanted - current,
-                    cost_rate=self._cost_rate(key, at, foreign=foreign),
-                    foreign=foreign,
+                    cost_rate=self._cost_rate(key, at),
                 )
             )
 
@@ -684,7 +709,7 @@ class BacktestEngine:
                     )
                 continue
 
-            costs = self._trade_costs(intent.key, delta, at, foreign=intent.foreign)
+            costs = self._trade_costs(intent.key, delta, at)
             if write_down is not None:
                 costs = costs + CostLines(delisting=write_down)
             trades.append(
@@ -705,9 +730,14 @@ class BacktestEngine:
 
         return _Step(book=updated, cash=money(cash_amount), trades=tuple(trades))
 
-    def _cost_rate(self, key: InstrumentKey, at: Timestamp, *, foreign: bool) -> Decimal:
-        """Total trading charge as a rate on notional, for the cash constraint."""
-        return self._trade_costs(key, Notional(Decimal(1)), at, foreign=foreign).total.amount
+    def _cost_rate(self, key: InstrumentKey, at: Timestamp) -> Decimal:
+        """Total trading charge as a rate on notional, for the cash constraint.
+
+        The currency conversion is deliberately absent: it is not a rate on notional any
+        more, so including it here would reserve cash for a charge this trade does not
+        incur and would shrink every buy by a tenth of a per cent for no reason.
+        """
+        return self._trade_costs(key, Notional(Decimal(1)), at).total.amount
 
     def _financing(
         self,
@@ -773,24 +803,60 @@ class BacktestEngine:
 
     # -- costs ---------------------------------------------------------------
 
-    def _trade_costs(
-        self, key: InstrumentKey, notional: Notional, at: Timestamp, *, foreign: bool
-    ) -> CostLines:
-        """Fees, spread, slippage and any currency conversion on one trade.
+    def _trade_costs(self, key: InstrumentKey, notional: Notional, at: Timestamp) -> CostLines:
+        """Fees, spread and slippage on one trade.
 
         Charged on the absolute notional traded. A rebalance that leaves a
         position where it is trades nothing and is charged nothing, which is the
         difference between a passive benchmark that costs four percent a year
         and one that costs twenty-six.
+
+        **No currency conversion.** Amendment 12, rule A12.9: the conversion charge
+        scales with the number of times capital crosses a currency boundary and never
+        with turnover. Rotating between two instruments quoted in the same foreign
+        currency moves no capital across any boundary - selling one into the quote asset
+        and buying the other out of it is one currency throughout - so charging it per
+        trade double-counted the line on every rebalance after the first.
+        :meth:`_crossing_cost` charges it where it is actually incurred.
         """
         trade = self.cost_model.cost_of(key, notional, at)
-        conversion = self.fx.conversion_cost(notional) if foreign else Notional(Decimal(0))
         return CostLines(
             fees=money(trade.fee.amount),
             spread=money(trade.spread.amount),
             slippage=money(trade.slippage.amount),
-            fx_conversion=money(conversion.amount),
         )
+
+    def _holds_foreign(self, book: Mapping[InstrumentKey, _Held]) -> bool:
+        """Whether any of the account's capital is currently in a foreign currency.
+
+        Read off the book rather than off the trades, because the question is where the
+        capital *is* and not what was done to it. An empty book is capital in the
+        account's own currency; any open foreign-quoted position means it is not.
+        """
+        return any(
+            self.routing.is_foreign(self.instruments[key].symbol)
+            for key, held in book.items()
+            if held.value.amount != 0
+        )
+
+    def _crossing_cost(
+        self, *, was_foreign: bool, is_foreign: bool, capital: Notional
+    ) -> CostLines:
+        """The conversion charge for one currency crossing, or nothing.
+
+        Two crossings in a run that stays invested: capital enters the quote currency
+        when the first foreign position is opened and leaves it when the last one is
+        closed. A strategy that goes fully to cash and back in pays for both of those
+        crossings too, because it really did make them.
+
+        ``capital`` is the account's equity at the crossing instant, which is the amount
+        that changes currency. Not the notional traded: a levered or market-neutral book
+        moves more notional than it has capital, and the notional never touches the
+        account's own currency at all.
+        """
+        if was_foreign == is_foreign:
+            return CostLines()
+        return CostLines(fx_conversion=money(self.fx.conversion_cost(capital).amount))
 
     # -- plumbing ------------------------------------------------------------
 
