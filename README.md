@@ -11,6 +11,48 @@ A multi-strategy, multi-venue quantitative crypto trading system.
 
 ## Status
 
+**SEXTANT-006 is running: six strategy families, one at a time, each
+pre-registered before it is run. Family F1 is done and the answer is no.**
+
+The task asks one question. Is there any crypto strategy family with an edge
+robust enough to justify continuing to build the system? Family **F1,
+cash-and-carry** - long spot, short the perpetual, same base, equal notional -
+was chosen first because it is the family with an actual economic mechanism
+behind it: the funding stream a perpetual short receives.
+
+**Nine variants across four cost cells, all 36 trials charged before the engine
+ran, and every one of them lost money** over 56 out-of-sample months. The best
+lost 5.74% of the account and the worst 91.81%. No variant clears criterion 1:
+none beat the 95th percentile of its own exposure-matched null while also
+earning a positive net return. **The verdict for F1 is (B).**
+
+**The funding is real and the basis takes it back.** The best-funded variant
+received 387.33 EUR of funding on 1,500 of equity, and its price legs gave up
+most of it; costs then exceeded what was left. That is the finding, and it is a
+statement about the trade rather than about the fees: a cash-and-carry is paid
+for carrying basis risk, and here the pay and the risk cancel.
+
+**Two defects made the first execution void, and both are now regression-tested.**
+The engine was built without the published funding schedule, so every funding
+line was zero; and the delisting haircut was registered on either side and wired
+on one, so a delisted short read as a windfall. Both were registered values that
+the drift guard verified and no code path read. Every registered parameter is now
+perturbed by a test that asserts the output moves. The void run's rows stay in the
+trial registry and are counted in full by the Deflated Sharpe Ratio.
+
+- The numbers, and the six criteria:
+  [`docs/SPIKE-006-F1-RESULTS.md`](docs/SPIKE-006-F1-RESULTS.md)
+- What was going to be tested, written before it was:
+  [`docs/PRE-REGISTRATION-006-F1.md`](docs/PRE-REGISTRATION-006-F1.md) and
+  [`config/spike-006-f1.yaml`](config/spike-006-f1.yaml)
+
+Commands: `uv run sextant spike-006-f1 verify` checks the code against the
+registered specification and reaches no network; `run` executes the grid;
+`report` renders it; `depth` acquires the order-book sample **only** when the
+registered capacity rule asks for one.
+
+### What came before
+
 **SEXTANT-005 - the question was asked properly, and the answer is no.**
 
 The project set out to find whether a momentum or trend-following effect in crypto
@@ -52,8 +94,6 @@ is the honest limit of what any study this size could ever have claimed.
 Commands: `uv run sextant binance all` acquires and ingests the archive;
 `uv run sextant spike-005 run` runs the whole grid and `uv run sextant spike-005
 report` renders it.
-
-### What came before
 
 **SEXTANT-004 - the walk-forward backtesting engine, and what no edge looks
 like.** There is an engine, a real cost model and a calibrated null. Walk-

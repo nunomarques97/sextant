@@ -110,6 +110,15 @@ verified. Never report done without evidence.
   (answer: no. Every number behind it: `docs/SPIKE-005-RESULTS.md`; what was going
   to be tested, written before it was: `docs/PRE-REGISTRATION-005.md` and
   `config/spike-005.yaml`)
+- **SEXTANT-006, one family at a time.** F1, cash-and-carry: verdict (B), nine
+  variants, every one losing over 56 out-of-sample months.
+  `docs/PRE-REGISTRATION-006-F1.md` and `config/spike-006-f1.yaml` were committed
+  before the grid ran; `docs/SPIKE-006-F1-RESULTS.md` is every number;
+  `research/spike-006-f1.json` is what it was computed from, with
+  `research/spike-006-f1-depth.json` (the capacity sample rule C3 asked for) and
+  `research/spike-006-f1-contraction.json` beside it. The task verdict across all
+  six families will be `docs/VERDICT-006.md`, written once every family is run or
+  reported as not reached.
 - Which bytes the Binance results were computed from:
   `docs/binance-archive-checksums.md`
 - Every strategy and parameter set ever evaluated: `research/trial-registry.jsonl`
