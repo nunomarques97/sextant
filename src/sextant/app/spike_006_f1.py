@@ -134,7 +134,7 @@ MAXIMUM_RE_EXECUTIONS = 2
 #: The version of the pre-registration this code implements. Held here as well as in
 #: the configuration so a report can cite the specification's current version beside
 #: the version the run it describes actually read, without either being retyped.
-REGISTERED_VERSION = "v2.2"
+REGISTERED_VERSION = "v2.3"
 
 #: Section 30, amendment 8. Who may declare a run void, and who may not. Two roles
 #: rather than one sentence of prose, because the prose outlives the conversation it
@@ -210,6 +210,61 @@ ESTIMATOR_POSITIVE_SHARE = Decimal("0.90")
 #: instead, labelled as one.
 ESTIMATOR_TRAILING_DAYS = 30
 ESTIMATOR_MINIMUM_PAIRS = 20
+
+#: Section 34, amendment 12, rule A12.1. Two spread levels, and only one of them
+#: decides anything. The HEADLINE is the registered assumption and it is what every
+#: criterion, every verdict letter and every Deflated Sharpe Ratio is evaluated against.
+#: The BOUND is the measured deep-band half-spread and it is reported beside the
+#: headline on every cost-bearing table, never read by a criterion.
+SPREAD_HEADLINE_BPS = Decimal(10)
+SPREAD_BOUND_BPS = Decimal("0.53")
+
+#: What the headline is a multiple of the bound. Registered because A12.7 requires the
+#: 10 bps figure to be labelled with it wherever it appears, so that a reader cannot
+#: mistake an upper bound for a measurement. Quantised to two places, which is the
+#: precision the measured figure itself carries.
+SPREAD_BOUND_RATIO = Decimal("18.87")
+
+#: The two level names a scored row records. A row that does not name its level is read
+#: as the headline, which is what F1's result file predates the field with; a row that
+#: names the bound is refused by the criteria evaluation outright.
+SPREAD_LEVEL_HEADLINE = "registered-upper-bound"
+SPREAD_LEVEL_BOUND = "measured-lower-bound"
+
+#: Section 34, rule A12.2. The family-level outcome registered before any family could
+#: produce it: fails at the headline, clears at the bound. Not a failure and not a
+#: promotion - a deferral, which is the only honest answer when the number that decides
+#: the question is one this project invented.
+SPREAD_CONTINGENT = "spread-contingent"
+
+#: Section 34, rule B1. The bands are re-cut on whichever candidate quantity actually
+#: correlates with measured spread, decided by a permutation test rather than by
+#: inspection, and the number of bands is whatever separates rather than whatever there
+#: happens to be now.
+BAND_RECUT_RULE = "B1"
+BAND_RECUT_PERMUTATIONS = 10_000
+BAND_RECUT_SEED = 20260911
+BAND_RECUT_ALPHA = Decimal("0.05")
+BAND_MINIMUM_SYMBOLS = 3
+BAND_SEPARATION_FACTOR = Decimal(2)
+
+#: Section 34, rule M1. At least four symbols in each of the mid and thin bands, over
+#: rule S1's own protocol and at least its own six days - unless the band turns out to be
+#: empty in practice, which is an answer rather than a gap.
+EXTENDED_SAMPLE_RULE = "M1"
+EXTENDED_SAMPLE_PER_BAND = 4
+EXTENDED_SAMPLE_DAYS = 6
+
+#: Section 34, rule H1. Historical quoted spread from the venue's own archive, which
+#: fires only if a family is recorded spread-contingent. The response to a failed
+#: inference is not a better inference; it is to check whether the quantity was
+#: published.
+HISTORICAL_QUOTES_RULE = "H1"
+
+#: Section 34, rule A12.9. How many times capital crosses a currency boundary in one
+#: run: once in and once out. The FX charge must scale with this number and never with
+#: turnover, and a test holds it.
+FX_CROSSINGS_PER_RUN = 2
 
 #: The size rule S1 implies when it fires: six symbols on six days, which is section
 #: 12's own registered sample and already the minimum. No subsampling rule is added,
@@ -894,6 +949,285 @@ def _after(prose: str, marker: str) -> str:
     return prose.split(marker, 1)[1].split()[0].rstrip(".,;:")
 
 
+def _spread_level_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rules A12.1, A12.2, A12.6 and A12.7: two levels, one of which decides nothing.
+
+    Both figures are compared, and so is the sentence that says which of the two a
+    criterion reads. A configuration in which the bound could be read as a criterion is a
+    configuration in which a measurement this project cannot date becomes a verdict.
+    """
+    levels = _mapping(raw["spread_levels"], "spread_levels")
+    headline = _mapping(levels["headline"], "spread_levels.headline")
+    bound = _mapping(levels["bound"], "spread_levels.bound")
+    contingent = _mapping(raw["spread_contingent_verdict"], "spread_contingent_verdict")
+    trial = _mapping(raw["bound_is_not_a_trial"], "bound_is_not_a_trial")
+    relabel = _mapping(raw["relabel_the_assumption"], "relabel_the_assumption")
+    return [
+        ("spread_levels.rule_id", _text(levels["rule_id"]), "A12.1"),
+        ("spread_levels.applies_from", _text(levels["applies_from"]), "F2"),
+        ("spread_levels.is_a_trial", bool(levels["is_a_trial"]), False),
+        (
+            "spread_levels.headline.deep_bps",
+            Decimal(_text(headline["deep_bps"])),
+            SPREAD_HEADLINE_BPS,
+        ),
+        ("spread_levels.bound.deep_bps", Decimal(_text(bound["deep_bps"])), SPREAD_BOUND_BPS),
+        (
+            "spread_levels.headline is what every criterion reads",
+            "only it" in _text(headline["what_it_is"]),
+            True,
+        ),
+        (
+            "spread_levels.headline is labelled an upper bound",
+            "UPPER BOUND" in _text(headline["label_required_everywhere"]),
+            True,
+        ),
+        (
+            "spread_levels.headline label carries the ratio",
+            _ratio(_text(headline["label_required_everywhere"])),
+            SPREAD_BOUND_RATIO,
+        ),
+        (
+            "spread_levels.bound.never_a_criterion",
+            "No criterion" in _text(bound["never_a_criterion"]),
+            True,
+        ),
+        (
+            "spread_levels.both_or_neither",
+            "No table may show one level without the other" in _text(levels["both_or_neither"]),
+            True,
+        ),
+        (
+            "spread_contingent_verdict.outcome",
+            _text(contingent["outcome"]),
+            SPREAD_CONTINGENT,
+        ),
+        ("spread_contingent_verdict.applies_from", _text(contingent["applies_from"]), "F2"),
+        (
+            "spread_contingent_verdict.definition fails at the headline and clears at the bound",
+            "FAILS its criteria at the headline" in _text(contingent["definition"]),
+            True,
+        ),
+        (
+            "spread_contingent_verdict.definition is a deferral and not a promotion",
+            "not promoted" in _text(contingent["definition"]),
+            True,
+        ),
+        (
+            "spread_contingent_verdict.prevents both directions",
+            "BOTH directions" in _text(contingent["what_it_prevents"]),
+            True,
+        ),
+        ("bound_is_not_a_trial.rule_id", _text(trial["rule_id"]), "A12.6"),
+        (
+            "bound_is_not_a_trial.rule does not inflate the deflation count",
+            "not a new trial" in _text(trial["rule"]),
+            True,
+        ),
+        (
+            "bound_is_not_a_trial.conditions",
+            tuple(
+                _text(item)
+                for item in _sequence(trial["conditions_under_which_that_holds"], "conditions")
+            )[:1],
+            ("the headline level is fixed before the run, for every variant",),
+        ),
+        (
+            "bound_is_not_a_trial.drift_guard_assertion names the headline",
+            "read the HEADLINE spread level and never the bound"
+            in _text(trial["drift_guard_assertion"]),
+            True,
+        ),
+        (
+            "relabel_the_assumption.rule refuses the word estimate",
+            "never an estimate" in _text(relabel["rule"]),
+            True,
+        ),
+        (
+            "relabel_the_assumption.rule carries the ratio",
+            _ratio(_text(relabel["rule"])),
+            SPREAD_BOUND_RATIO,
+        ),
+        (
+            "relabel_the_assumption.f1_verdict_amended_not_edited",
+            "without editing the original text" in _text(relabel["f1_verdict_amended_not_edited"]),
+            True,
+        ),
+    ]
+
+
+def _band_recut_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rule B1: the cut quantity is decided by a test, and the band count by separation.
+
+    Every number is compared because the whole rule is a procedure with four thresholds
+    in it, and a procedure whose thresholds move after the data is seen is an inspection
+    wearing a procedure's clothes.
+    """
+    block = _mapping(raw["band_recut"], "band_recut")
+    return [
+        ("band_recut.rule_id", _text(block["rule_id"]), BAND_RECUT_RULE),
+        ("band_recut.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "band_recut.procedure.permutations",
+            _permutations(_text(block["procedure"])),
+            BAND_RECUT_PERMUTATIONS,
+        ),
+        ("band_recut.procedure.seed", _seed(_text(block["procedure"])), BAND_RECUT_SEED),
+        ("band_recut.procedure.alpha", _alpha(_text(block["procedure"])), BAND_RECUT_ALPHA),
+        (
+            "band_recut.how_many_bands.minimum_symbols",
+            _minimum_symbols(_text(block["how_many_bands"])),
+            BAND_MINIMUM_SYMBOLS,
+        ),
+        (
+            "band_recut.how_many_bands.separation",
+            _separation(_text(block["how_many_bands"])),
+            BAND_SEPARATION_FACTOR,
+        ),
+        (
+            "band_recut.how_many_bands takes the largest that separates",
+            "adopt the LARGEST number" in _text(block["how_many_bands"]),
+            True,
+        ),
+        (
+            "band_recut.candidates",
+            len(_sequence(block["candidates"], "band_recut.candidates")),
+            4,
+        ),
+        (
+            "band_recut.collapse_is_an_allowed_answer",
+            "One band is a legitimate outcome" in _text(block["collapse_is_an_allowed_answer"]),
+            True,
+        ),
+        (
+            "band_recut.changes_no_f1_figure",
+            "applies from F2" in _text(block["changes_no_f1_figure"]),
+            True,
+        ),
+    ]
+
+
+def _extended_sample_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rules M1 and H1: what is measured unconditionally, and what only on a condition."""
+    block = _mapping(raw["extended_spread_sample"], "extended_spread_sample")
+    historical = _mapping(raw["historical_quoted_spread"], "historical_quoted_spread")
+    return [
+        ("extended_spread_sample.rule_id", _text(block["rule_id"]), EXTENDED_SAMPLE_RULE),
+        ("extended_spread_sample.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "extended_spread_sample.requirement.per_band",
+            _per_band(_text(block["requirement"])),
+            EXTENDED_SAMPLE_PER_BAND,
+        ),
+        (
+            "extended_spread_sample.requirement.days",
+            _sample_days(_text(block["requirement"])),
+            EXTENDED_SAMPLE_DAYS,
+        ),
+        (
+            "extended_spread_sample.occupancy_is_computed_first",
+            "BEFORE anything is downloaded" in _text(block["occupancy_is_computed_first"]),
+            True,
+        ),
+        (
+            "extended_spread_sample.an_empty_band_is_the_answer",
+            "EMPTY" in _text(block["an_empty_band_is_the_answer"]),
+            True,
+        ),
+        (
+            "extended_spread_sample.dispersion_is_the_finding",
+            "Do not average away" in _text(block["dispersion_is_the_finding"]),
+            True,
+        ),
+        ("historical_quoted_spread.rule_id", _text(historical["rule_id"]), HISTORICAL_QUOTES_RULE),
+        ("historical_quoted_spread.is_a_trial", bool(historical["is_a_trial"]), False),
+        (
+            "historical_quoted_spread.fires_only_if names the contingent outcome",
+            SPREAD_CONTINGENT in _text(historical["fires_only_if"]),
+            True,
+        ),
+        (
+            "historical_quoted_spread.is not done speculatively",
+            "NOT done" in _text(historical["fires_only_if"]),
+            True,
+        ),
+        (
+            "historical_quoted_spread.if_it_does_not_exist_for_the_window",
+            "Do not substitute" in _text(historical["if_it_does_not_exist_for_the_window"]),
+            True,
+        ),
+    ]
+
+
+def _fx_invariant_checks(raw: Mapping[str, object]) -> list[tuple[str, object, object]]:
+    """Rule A12.9: the FX charge scales with crossings and never with turnover."""
+    block = _mapping(raw["fx_crossing_invariant"], "fx_crossing_invariant")
+    return [
+        ("fx_crossing_invariant.rule_id", _text(block["rule_id"]), "A12.9"),
+        ("fx_crossing_invariant.is_a_trial", bool(block["is_a_trial"]), False),
+        (
+            "fx_crossing_invariant.crossings_per_run",
+            int(_text(block["crossings_per_run"])),
+            FX_CROSSINGS_PER_RUN,
+        ),
+        (
+            "fx_crossing_invariant.invariant forbids scaling with turnover",
+            "must not scale with turnover" in _text(block["invariant"]),
+            True,
+        ),
+        (
+            "fx_crossing_invariant.invariant says reporting is not a charge",
+            "reporting, not a charge" in _text(block["invariant"]),
+            True,
+        ),
+        (
+            "fx_crossing_invariant.asserted_as_a_test",
+            "doubling the number of rebalances" in _text(block["asserted_as_a_test"]),
+            True,
+        ),
+    ]
+
+
+def _ratio(prose: str) -> Decimal:
+    """The headline-to-bound multiple, read out of the label that states it."""
+    return Decimal(_after(prose, "approximately "))
+
+
+def _permutations(prose: str) -> int:
+    """How many permutations the rank test draws, read out of the procedure."""
+    return int(_after(prose, "p-value from "))
+
+
+def _seed(prose: str) -> int:
+    """The permutation seed, read out of the procedure that names it."""
+    return int(_after(prose, "permutations at seed "))
+
+
+def _alpha(prose: str) -> Decimal:
+    """The significance level a candidate quantity has to clear."""
+    return Decimal(_after(prose, "p-value is below "))
+
+
+def _minimum_symbols(prose: str) -> int:
+    """How few sampled symbols a band may hold and still be a band."""
+    return int(_after(prose, "at least "))
+
+
+def _separation(prose: str) -> Decimal:
+    """How far apart adjacent bands' measured medians must sit."""
+    return Decimal(_after(prose, "a factor of "))
+
+
+def _per_band(prose: str) -> int:
+    """How many symbols rule M1 measures in each unmeasured band."""
+    return int(_after(prose, "At least "))
+
+
+def _sample_days(prose: str) -> int:
+    """How many days rule M1 measures each of them over."""
+    return int(_after(prose, "over at least the same "))
+
+
 def _cadence_checks(variants: Mapping[str, object]) -> list[tuple[str, object, object]]:
     """Amendment 28.3's pairing and its reporting requirement.
 
@@ -1222,6 +1556,10 @@ def assert_no_drift(config_path: Path = CONFIG_PATH) -> Mapping[str, object]:
     checks.extend(_every_family_checks(raw))
     checks.extend(_pairing_checks(raw))
     checks.extend(_estimator_checks(raw))
+    checks.extend(_spread_level_checks(raw))
+    checks.extend(_band_recut_checks(raw))
+    checks.extend(_extended_sample_checks(raw))
+    checks.extend(_fx_invariant_checks(raw))
     checks.extend(_cell_checks(_sequence(costs["cells"], "costs.cells")))
     for band in ("deep", "mid", "thin", "unknown"):
         checks.append(
@@ -1550,6 +1888,12 @@ def registered_grid() -> Iterable[tuple[str, str]]:
 __all__ = [
     "ACCOUNT_CURRENCY",
     "ACCOUNT_EQUITY",
+    "BAND_MINIMUM_SYMBOLS",
+    "BAND_RECUT_ALPHA",
+    "BAND_RECUT_PERMUTATIONS",
+    "BAND_RECUT_RULE",
+    "BAND_RECUT_SEED",
+    "BAND_SEPARATION_FACTOR",
     "BOOTSTRAP_SEED",
     "CADENCE_PAIR",
     "CONFIG_PATH",
@@ -1567,12 +1911,17 @@ __all__ = [
     "ESTIMATOR_TRAILING_DAYS",
     "EXACT_RESCUE_TEST_FROM",
     "EXECUTION_FEE_OF_EQUITY_BPS",
+    "EXTENDED_SAMPLE_DAYS",
+    "EXTENDED_SAMPLE_PER_BAND",
+    "EXTENDED_SAMPLE_RULE",
     "FAMILY",
     "FLOOR_ANCHOR",
     "FLOOR_FROM",
     "FOLD_COUNT",
+    "FX_CROSSINGS_PER_RUN",
     "HAIRCUT_FRACTION",
     "HAIRCUT_ON_EITHER_SIDE",
+    "HISTORICAL_QUOTES_RULE",
     "IN_SAMPLE_MONTHS",
     "MARGIN_FRACTION",
     "MAXIMUM_RE_EXECUTIONS",
@@ -1585,6 +1934,12 @@ __all__ = [
     "RESAMPLES",
     "RESEARCH_FEE_OF_EQUITY_BPS",
     "RESULTS_PATH",
+    "SPREAD_BOUND_BPS",
+    "SPREAD_BOUND_RATIO",
+    "SPREAD_CONTINGENT",
+    "SPREAD_HEADLINE_BPS",
+    "SPREAD_LEVEL_BOUND",
+    "SPREAD_LEVEL_HEADLINE",
     "SPREAD_SAMPLE_SYMBOL_DAYS",
     "SPREAD_TRIGGER_BAR",
     "SPREAD_TRIGGER_RULE",

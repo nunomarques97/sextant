@@ -1,6 +1,6 @@
 # SEXTANT-006 F1 pre-registration: funding, basis and carry
 
-**Version `v2.2`. Part 1, the specification, committed before any funding number was
+**Version `v2.3`. Part 1, the specification, committed before any funding number was
 computed and before a single object of the futures archive had finished downloading.
 Amendments 1 to 6 were all added before any variant had been run; no strategy result of any kind
 existed when any of them was written. Sections 16, 17, 18, 26, 27 and 28 state what they changed
@@ -22,7 +22,10 @@ it, gives rule S1 a floor **from F2**, and makes the measured spread the default
 `v2.2` adds section 33: it anchors that floor to **zero** rather than to the null, registers rule P1
 so the same defect cannot recur in a fourth place, strengthens criterion 1 **from F2**, and replaces
 the banded spread assumption **from F2** with an estimator that has to pass a test written before it
-was run. Section 33.7 records what that test said: the estimator is **refused**. No amendment in this document changes an F1 variant, cell, criterion, threshold, budget or
+was run. Section 33.7 records what that test said: the estimator is **refused**. `v2.3` adds
+section 34, which settles what 33.7 left open: the assumption is kept as the only number any
+criterion reads, the measurement is reported beside it as a bound, and a divergence between the two
+becomes a registered outcome rather than a judgement call. No amendment in this document changes an F1 variant, cell, criterion, threshold, budget or
 verdict letter.**
 
 Two parts, committed separately, for the same reason SEXTANT-005 split its own: the
@@ -2323,3 +2326,203 @@ The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6 **a
 them**, the seed counts, the null constructs, declared expectations D1 and D2, rules C1 to C3, and
 every threshold in sections 6, 7, 8, 11 and 14 are **unchanged**. Every clause in section 33 takes
 effect at F2.
+
+
+## 34. Amendment 12 — the settlement of section 33.7
+
+**Section 33.7 offered three options. None of the three is adopted as stated.** The settlement is
+that the assumption is kept as the number that determines every verdict, the measured figure is
+reported beside it on every headline as a bound, and a divergence between the two becomes a defined
+outcome rather than a judgement call.
+
+**Rule E1's failure clause is honoured exactly as written.** The clause said keep the assumption;
+the assumption is kept, and it alone decides whether a family passes or fails. What the clause never
+said, and what A12.1 adds, is that the assumption may be the only number a reader sees. It may not.
+**10 bps of half-spread against a measured 0.53 is a registered upper bound, not a measurement**, and
+an upper bound roughly nineteen times the only evidence there is cannot be allowed to stand alone on
+the largest line of the cost model.
+
+**Why not simply revert to 0.53.** The measurement is not point-in-time: six symbols, six days, deep
+band only, inside one eleven-month stretch of a five-year window. Projecting a measured present-day
+quoted spread backwards across the whole evaluation window is the same class of error as the
+estimator section 33.4 rejected, in the flattering direction. This project does not get to make that
+error in the direction it would prefer.
+
+**Every clause applies from F2 unless it says otherwise. No F1 figure, criterion or verdict letter
+is changed by any of it**; A12.7 adds a section to F1's results document without editing the
+original text, and A12.9 reports a correction there rather than rewriting a committed result.
+
+### 34.1 A12.1 — Headline and bound
+
+Every cost-bearing result, for every family from F2 onward, is computed and reported at two spread
+levels.
+
+| | figure | what it is | what reads it |
+|---|---:|---|---|
+| **headline** | 10 bps half-spread | the registered **assumption**, an upper bound | every criterion, every verdict letter, every Deflated Sharpe Ratio, and nothing else |
+| **bound** | 0.53 bps half-spread, deep band | the measured median quoted half-spread | reported as a **lower bound on cost**; no criterion |
+
+Mid and thin bands take whatever rule M1 establishes.
+
+**No table may show one level without the other.** Where a result already exists at zero spread and
+zero slippage — F1 has this, in sections 7.2 and 7.4 — the zero case is reported too and **no rerun
+is required for it**. The zero case bounds the question more strongly than the measured level does,
+because it deletes the whole assumed cost rather than shrinking it.
+
+### 34.2 A12.2 — The spread-contingent verdict, registered before F2
+
+> A family that **fails its criteria at the headline and clears them at the bound** is recorded as
+> **spread-contingent**. It is not closed as a failure and it is not promoted. Its verdict is
+> deferred, and rule H1 fires.
+>
+> A family that fails at both is closed normally. A family that clears at both is a pass on the
+> headline, unaffected by this rule.
+
+**This is the rule that stops a number this project invented from being the conclusion, and it stops
+it in both directions**: the assumption can no longer manufacture a failure, and the measurement can
+no longer manufacture a success.
+
+**Registered now so it cannot be invented after seeing a number.** No family has been recorded
+spread-contingent. F1 cannot be: it fails at the headline, it fails at the bound, and section 7.4
+shows it fails at zero.
+
+### 34.3 A12.3 — Rule B1: the band structure is defective and is re-cut
+
+**A band whose members do not share a spread is not a band, it is an average with a label.** The
+measurement established two orders of magnitude of spread inside one band, because the bands are cut
+on turnover and turnover is not what determines spread.
+
+> **Rule B1, the procedure.** For each candidate quantity, compute Spearman's rank correlation
+> against the measured median quoted half-spread across every sampled symbol, and its two-sided
+> permutation p-value from **10,000** permutations at seed **20260911**. The cut quantity is the
+> candidate with the largest absolute rank correlation **among those whose p-value is below 0.05**.
+> If no candidate clears it, the bands are not re-cut on any of them, and that is reported.
+>
+> **The candidates.** Trailing 30-day median quote turnover, which is what the bands are cut on
+> now; relative tick size, the venue's price increment over the price, derived from the greatest
+> common divisor of the stored price text; realised daily volatility over the trailing 30 days; and
+> the mean daily trade count over the trailing 30 days.
+>
+> **How many bands.** Try three, then two, then one, and adopt the **largest** number for which
+> every band holds at least **3** sampled symbols and adjacent bands' measured median half-spreads
+> differ by at least a factor of **2**.
+
+**Do not keep three bands because there are currently three.** One band is a legitimate outcome and
+is better than three that do not separate: a partition that does not partition carries the authority
+of a structure it does not have.
+
+**F1 ran and was judged on the turnover-cut bands and is not re-scored on re-cut ones.**
+
+### 34.4 A12.4 — Rule M1: extend the measurement, unconditionally
+
+All six symbols in rule S1's sample fall in the **deep** band, so the mid and thin band defaults are
+pure extrapolation from a band they are not in.
+
+> **Rule M1.** At least **4** symbols in each of the mid and thin bands, over rule S1's own protocol
+> — whole-day and 00:00–00:05 UTC time-weighted quoted spread from the venue's `bookTicker` archive
+> — over at least the same **6** days.
+>
+> **Occupancy is computed first, from data already held, before anything is downloaded.** Band
+> membership is decided by the cost model's own floors at every rebalance instant of the F1 window.
+>
+> **An empty band is the answer, not a gap.** If the traded universe contains no symbols in a band,
+> record that the band is **empty in practice** and that its default is therefore unused. That is a
+> better answer than a measured number for instruments the strategy would never touch.
+>
+> **Report the full per-symbol table. Do not average away the dispersion; the dispersion is the
+> finding.**
+
+Time-boxed to one working day.
+
+### 34.5 A12.5 — Rule H1: direct historical measurement, conditional
+
+**Fires only if rule A12.2 records a spread-contingent family. This work is not done
+speculatively.**
+
+**Why not another inference.** Rule E1 failed because it inferred spread from daily OHLC, and that
+inference has no chance when the spread-to-volatility ratio sits four orders of magnitude below
+where those estimators were validated. **The correct response to a failed inference is not a better
+inference. It is to check whether the quantity was published.**
+
+Established in the Stage 0 style already used for the Kraken listing calendar:
+
+- whether the venue's public archive publishes historical best bid and ask — the `bookTicker` tree
+  and its relatives — for the symbols and the window the contingent family uses;
+- the window actually covered per symbol, **from file presence, never inferred**;
+- the size and acquisition cost of a **sampled** subset rather than the whole tree. Sampling at the
+  decision timestamps is sufficient, because the model needs the spread at the instants the strategy
+  trades and not a continuous series.
+
+**If it exists**, build a point-in-time per-symbol, per-period quoted half-spread table from the
+archive, register it as a **measured** input with its own checksums, and rerun the contingent family
+against it. That result supersedes both the headline and the bound for that family, because it is
+measurement rather than assumption.
+
+**If it does not exist for the required window**, report the family as **undetermined** with the
+missing datum named precisely, and state which way the omission biases it. **Do not substitute.**
+
+Time-boxed to three working days. No Sponsor action is expected: the archive is unauthenticated and
+programmatic.
+
+### 34.6 A12.6 — Trial accounting, so the second level is not a back door
+
+> The bound is a **sensitivity re-run of an already-registered variant**, not a new trial, and it
+> does not inflate the deflation count. That holds only under these conditions:
+>
+> - the headline level is fixed before the run, for every variant;
+> - no variant is selected, retained, ranked or promoted on the bound;
+> - any variant introduced or kept because it looks better at the bound is a **post-hoc trial**,
+>   counts in full in the registry, and is reported separately with the reason it was added.
+
+**The mechanical guard.** Every scored row records the spread level it was computed at, and the
+criteria evaluation **refuses** a row that is not at the headline. A row with no level recorded is
+read as the headline, which is what F1's result file predates the field with. That defect class — a
+registered parameter that no code path actually reads — has already cost this project one worthless
+grid run, and it is the single most likely place for it to recur.
+
+### 34.7 A12.7 — Relabel the assumption, and amend F1's verdict
+
+**Wherever the 10 bps figure appears it is labelled a registered upper bound, approximately 18.87
+times the measured deep-band half-spread**, and never an estimate, a conservative estimate or a
+calibration. A downstream reader must not be able to mistake it for something that was measured.
+
+F1's verdict is amended in a **new section**, without editing the original text: the charges
+decomposition's largest line rests on that upper bound; the counterfactual already computed shows
+seven of nine variants still losing with spread and slippage at zero; **therefore F1's (B) stands on
+the counterfactual and not on the assumption, which is precisely why it survives this amendment
+unchanged.** An honest (B) that would survive the cost assumption being wrong is worth more than one
+that merely was not challenged.
+
+### 34.8 A12.8 — Keep the E1 result as a finding
+
+`docs/SPREAD-ESTIMATORS.md` records that Abdi-Ranaldo and Corwin-Schultz were tested against
+measured quoted spreads and both failed on magnitude, with the numbers, the simulation that recovers
+a known spread and then breaks down, and the mathematical reason. **It is a real methodological
+result and it is the reason a future version of this project must not reach for these estimators
+again.** It is worth more in the repository than the amendment that produced it.
+
+### 34.9 A12.9 — The FX conversion line, and an invariant for it
+
+> **The invariant.** The total FX conversion charge must scale with the **number of times capital
+> actually crosses currency**, and must not scale with turnover. Converting to the account's
+> currency for reporting is reporting, not a charge.
+
+**Two crossings per run.** The account is funded in EUR and trades USDT-quoted instruments. Capital
+crosses into USDT when it is deployed and back out when it is withdrawn. Rotating between
+USDT-quoted instruments moves no capital across a currency boundary: selling spot into USDT and
+buying another spot out of USDT is one currency throughout.
+
+**Asserted as a test**, directly: doubling the number of rebalances at constant capital must not
+change the FX charge, and doubling the number of crossings must double it.
+
+**If it currently scales with turnover** it is double-counted, F1's charges decomposition is wrong on
+its second largest line, and the corrected figures are reported in the same amendment section as
+A12.7 rather than edited into a committed result.
+
+### 34.10 What this does not touch
+
+The nine variants, the four cost cells, the 36-trial budget, criteria 1 to 6 **as F1 was judged on
+them**, the seed counts, the null constructs, declared expectations D1 and D2, and rules C1 to C3
+are **unchanged**. A12.1, A12.2 and A12.6 apply from F2. Rules B1 and M1 govern the cost model from
+F2. Rule H1 has not fired. A12.7, A12.8 and A12.9 are labelling and verification and add sections
+rather than editing them.

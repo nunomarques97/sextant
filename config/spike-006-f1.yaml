@@ -28,7 +28,7 @@
 # identifier, a NEW commit, and a full rerun. Both results are retained. Nothing
 # here is ever edited in place once a result has been published against it.
 
-version: v2.2
+version: v2.3
 family: F1
 family_name: cash-and-carry, funding and basis
 registered_on: 2026-09-10
@@ -63,6 +63,25 @@ amendments:
       The execution-venue re-cost is reported as a break-even turnover rather than as a
       pass or fail, with declared expectation D2 on holding period being the binding
       constraint. A reframing of one output; no new run, no criterion, no budget.
+  - id: amendment-12
+    document_section: "34"
+    subject: >
+      The settlement of section 33.7. None of its three options is adopted as stated.
+      The ASSUMPTION is kept as the number every criterion is evaluated against, the
+      MEASURED figure is reported beside it on every headline as a bound, and a
+      divergence between the two becomes a defined outcome - spread-contingent - rather
+      than a judgement call. Rule E1's failure clause is honoured exactly as written:
+      it said keep the assumption, and the assumption is kept and alone decides whether
+      a family passes. What it never said, and what A12.1 adds, is that the assumption
+      may not be the only number a reader sees. Also: the turnover-cut bands are
+      defective and are re-cut under rule B1; the mid and thin band defaults are
+      extrapolation from a band they are not in and are measured under rule M1;
+      historical quoted spread is established under rule H1 but only if a family is
+      recorded spread-contingent; the bound is registered as a sensitivity and not a
+      trial; the 10 bps figure is relabelled a registered UPPER BOUND everywhere; the
+      E1 result is kept as a methodological finding; and the FX conversion line is
+      verified against an invariant that says it must scale with currency crossings and
+      never with turnover.
   - id: amendment-11
     document_section: "33"
     subject: >
@@ -1441,6 +1460,231 @@ every_family_reports:
 # ---------------------------------------------------------------------------
 # Statistics
 # ---------------------------------------------------------------------------
+spread_levels:
+  rule_id: A12.1
+  added_by: amendment-12
+  applies_from: F2
+  is_a_trial: false
+  headline:
+    deep_bps: "10"
+    what_it_is: >
+      The registered ASSUMPTION, and an upper bound rather than an estimate. This is the
+      number every success criterion is evaluated against: every verdict letter, every
+      Deflated Sharpe Ratio and every criterion comparison uses it and only it.
+    label_required_everywhere: >
+      registered UPPER BOUND, approximately 18.87 times the measured deep-band
+      half-spread. NEVER an estimate, a conservative estimate or a calibration. A
+      downstream reader must not be able to mistake it for something that was measured.
+  bound:
+    deep_bps: "0.53"
+    what_it_is: >
+      The measured median quoted half-spread in the deep band, from the 36 symbol-days
+      of rule S1's sample. Reported as a LOWER BOUND on cost and never as a criterion.
+      Mid and thin bands take whatever rule M1 establishes.
+    never_a_criterion: >
+      No criterion, no verdict letter and no Deflated Sharpe Ratio reads the bound. It
+      is a reported sensitivity.
+  both_or_neither: >
+    No table may show one level without the other, for every family from F2 onward.
+  why_not_simply_reverting_to_the_bound: >
+    The measurement is not point-in-time: six symbols, six days, deep band only, inside
+    one eleven-month stretch of a five-year window. Projecting a measured present-day
+    quoted spread backwards across the whole evaluation window is the same class of
+    error as the estimator rule E1 rejected, in the flattering direction. This project
+    does not get to make that error in the direction it would prefer.
+  f1_needs_no_rerun: >
+    F1 already carries the zero-spread, zero-slippage counterfactual in section 7.2 and
+    7.4, which bounds the question more strongly than the measured level does. The zero
+    case is reported and no F1 rerun is required.
+
+spread_contingent_verdict:
+  rule_id: A12.2
+  added_by: amendment-12
+  applies_from: F2
+  is_a_trial: false
+  outcome: spread-contingent
+  definition: >
+    A family that FAILS its criteria at the headline and CLEARS them at the bound is
+    recorded as spread-contingent. It is not closed as a failure and it is not
+    promoted. Its verdict is deferred and rule H1 fires.
+  fails_at_both: closed normally
+  clears_at_both: >
+    a pass on the headline, unaffected by this rule. The bound adds nothing to a family
+    that already clears the number the criteria are evaluated against.
+  what_it_prevents: >
+    It stops a number this project invented from being the conclusion, and it stops it
+    in BOTH directions: the assumption can no longer manufacture a failure, and the
+    measurement can no longer manufacture a success.
+  registered_before_any_family_could_produce_it: >
+    Registered now precisely so it cannot be invented after seeing a number. No family
+    has yet been recorded spread-contingent; F1 cannot be, because it fails at the
+    headline, at the bound and at zero.
+
+band_recut:
+  rule_id: B1
+  added_by: amendment-12
+  is_a_trial: false
+  why: >
+    The measurement established that spread varies by two orders of magnitude INSIDE one
+    band, because the bands are cut on quote turnover and turnover is not what
+    determines spread. A band whose members do not share a spread is not a band, it is
+    an average with a label.
+  procedure: >
+    For every candidate quantity below, compute Spearman's rank correlation against the
+    measured median quoted half-spread across every sampled symbol, and its two-sided
+    permutation p-value from 10000 permutations at seed 20260911. The cut quantity is
+    the candidate with the largest absolute rank correlation among those whose p-value
+    is below 0.05. If no candidate clears it, the bands are not re-cut on any of them
+    and that is reported.
+  candidates:
+    - trailing 30-day median quote turnover, which is the quantity the bands are
+      currently cut on
+    - relative tick size, the venue's price increment over the price, derived from the
+      greatest common divisor of the stored price text
+    - realised daily volatility over the trailing 30 days
+    - the mean daily trade count over the trailing 30 days
+  how_many_bands: >
+    Try three bands, then two, then one, and adopt the LARGEST number for which every
+    band holds at least 3 sampled symbols and adjacent bands' measured median
+    half-spreads differ by at least a factor of 2. Do not keep three bands because there
+    are currently three. If the evidence supports one band, collapse to one and say so.
+  collapse_is_an_allowed_answer: >
+    One band is a legitimate outcome and is better than three bands that do not
+    separate. A partition that does not partition is worse than no partition, because it
+    carries the authority of a structure it does not have.
+  changes_no_f1_figure: >
+    F1 ran and was judged on the turnover-cut bands and is not re-scored on re-cut ones.
+    The re-cut applies from F2.
+
+extended_spread_sample:
+  rule_id: M1
+  added_by: amendment-12
+  is_a_trial: false
+  why: >
+    All six symbols in rule S1's sample fall in the DEEP band, so the mid and thin band
+    defaults are pure extrapolation from a band they are not in.
+  requirement: >
+    At least 4 symbols in each of the mid and thin bands, over the same protocol as rule
+    S1 - whole-day and 00:00-00:05 UTC time-weighted quoted spread from the venue's
+    bookTicker archive - and over at least the same 6 days.
+  occupancy_is_computed_first: >
+    Band membership is decided by the cost model's own floors at every rebalance instant
+    of the F1 window, from data already held, BEFORE anything is downloaded. A band that
+    no member of the traded universe ever occupies needs no measurement.
+  an_empty_band_is_the_answer: >
+    If the traded universe contains no symbols in a band, record that the band is EMPTY
+    IN PRACTICE and that its default is therefore unused. That is a better answer than a
+    measured number for instruments the strategy would never touch, and it is reported
+    as a finding rather than as a gap.
+  dispersion_is_the_finding: >
+    Report the full per-symbol table. Do not average away the dispersion.
+  time_box: one working day
+
+historical_quoted_spread:
+  rule_id: H1
+  added_by: amendment-12
+  is_a_trial: false
+  fires_only_if: >
+    rule A12.2 records a spread-contingent family. This work is NOT done
+    speculatively.
+  why_not_another_inference: >
+    Rule E1 failed because it inferred spread from daily OHLC, and that inference has no
+    chance when the spread-to-volatility ratio sits four orders of magnitude below where
+    those estimators were validated. The correct response to a failed inference is not a
+    better inference. It is to check whether the quantity was published.
+  establish_in_stage_0_style:
+    - whether the venue's public archive publishes historical best bid and ask - the
+      bookTicker tree and its relatives - for the symbols and the window the contingent
+      family uses
+    - the window actually covered per symbol, from file presence and never inferred
+    - >
+      the size and acquisition cost of a SAMPLED subset rather than the whole tree.
+      Sampling at the decision timestamps is sufficient, because the model needs the
+      spread at the instants the strategy trades and not a continuous series.
+  if_it_exists: >
+    Build a point-in-time per-symbol, per-period quoted half-spread table from the
+    archive, register it as a MEASURED input with its own checksums, and rerun the
+    contingent family against it. That result supersedes both the headline and the bound
+    for that family, because it is measurement rather than assumption.
+  if_it_does_not_exist_for_the_window: >
+    Report the family as UNDETERMINED with the missing datum named precisely, and state
+    which way the omission biases it. Do not substitute.
+  time_box: three working days
+  sponsor_action: >
+    none expected. The public archive is unauthenticated and programmatic. Ask only if
+    acquisition is blocked by something genuinely the Sponsor's, and name exactly what.
+
+bound_is_not_a_trial:
+  rule_id: A12.6
+  added_by: amendment-12
+  applies_from: F2
+  is_a_trial: false
+  rule: >
+    The bound is a sensitivity re-run of an already-registered variant, not a new trial,
+    and it does not inflate the deflation count.
+  conditions_under_which_that_holds:
+    - the headline level is fixed before the run, for every variant
+    - no variant is selected, retained, ranked or promoted on the bound
+    - any variant introduced or kept because it looks better at the bound is a POST-HOC
+      trial, counts in full in the registry, and is reported separately with the reason
+      it was added
+  drift_guard_assertion: >
+    The criteria evaluation must read the HEADLINE spread level and never the bound.
+    Every scored row records the level it was computed at, and the analysis refuses to
+    evaluate a criterion on a row that is not at the headline. That defect class has
+    already cost this project one worthless grid run.
+
+fx_crossing_invariant:
+  rule_id: A12.9
+  added_by: amendment-12
+  is_a_trial: false
+  invariant: >
+    The total FX conversion charge must scale with the NUMBER OF TIMES capital actually
+    crosses currency, and must not scale with turnover. Converting to the account's
+    currency for reporting is reporting, not a charge.
+  crossings_per_run: 2
+  why_two: >
+    The account is funded in EUR and trades USDT-quoted instruments. Capital crosses
+    into USDT when it is deployed and back out when it is withdrawn. Rotating between
+    USDT-quoted instruments moves no capital across a currency boundary: selling spot
+    into USDT and buying another spot out of USDT is one currency throughout.
+  asserted_as_a_test: >
+    A test holds the invariant directly: doubling the number of rebalances at constant
+    capital must not change the FX charge, and doubling the number of crossings must
+    double it.
+  if_it_scales_with_turnover: >
+    it is double-counted, F1's charges decomposition is wrong on its second largest
+    line, and the corrected figures are reported in the amendment section rather than
+    edited into the original.
+
+relabel_the_assumption:
+  rule_id: A12.7
+  added_by: amendment-12
+  is_a_trial: false
+  rule: >
+    Wherever the 10 bps figure appears it is labelled a registered UPPER BOUND,
+    approximately 18.87 times the measured deep-band half-spread, and never an estimate,
+    a conservative estimate or a calibration.
+  f1_verdict_amended_not_edited: >
+    A new section is added to F1's results document without editing the original text:
+    the charges decomposition's largest line rests on that upper bound; with spread and
+    slippage at zero, seven of nine variants still lose; therefore F1's (B) stands on
+    the counterfactual and not on the assumption, which is precisely why it survives
+    this amendment unchanged. An honest (B) that would survive the cost assumption being
+    wrong is worth more than one that merely was not challenged.
+
+estimator_result_is_a_finding:
+  rule_id: A12.8
+  added_by: amendment-12
+  is_a_trial: false
+  document: docs/SPREAD-ESTIMATORS.md
+  rule: >
+    The rule E1 result is kept as a methodological finding rather than filed as a failed
+    amendment. Abdi-Ranaldo and Corwin-Schultz were tested against measured quoted
+    spreads and both failed on magnitude. It is the reason a future version of this
+    project must not reach for these estimators again, and it is worth more in the
+    repository than the amendment that produced it.
+
 absolute_pairing:
   rule_id: P1
   added_by: amendment-11

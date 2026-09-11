@@ -23,7 +23,24 @@ from sextant.app.spike_006_f1 import (
     ACCOUNT_EQUITY,
     CADENCE_PAIR,
     CONFIG_PATH,
+    BAND_MINIMUM_SYMBOLS,
+    BAND_RECUT_ALPHA,
+    BAND_RECUT_PERMUTATIONS,
+    BAND_RECUT_RULE,
+    BAND_RECUT_SEED,
+    BAND_SEPARATION_FACTOR,
     CRITERION_ONE_STRENGTHENED_FROM,
+    EXTENDED_SAMPLE_DAYS,
+    EXTENDED_SAMPLE_PER_BAND,
+    EXTENDED_SAMPLE_RULE,
+    FX_CROSSINGS_PER_RUN,
+    HISTORICAL_QUOTES_RULE,
+    SPREAD_BOUND_BPS,
+    SPREAD_BOUND_RATIO,
+    SPREAD_CONTINGENT,
+    SPREAD_HEADLINE_BPS,
+    SPREAD_LEVEL_BOUND,
+    SPREAD_LEVEL_HEADLINE,
     ENGINE_VERSION,
     ESTIMATOR_COMPARISON_ID,
     ESTIMATOR_FACTOR_LOG2,
@@ -1105,4 +1122,379 @@ def test_slippage_is_not_estimated_by_anything_here(tmp_path: Path) -> None:
     )
     altered = _write(payload, tmp_path / "slippage.yaml")
     with pytest.raises(DriftedFromPreRegistration, match="slippage_is_untouched"):
+        assert_no_drift(altered)
+
+
+# ---------------------------------------------------------------------------
+# Amendment 12: the settlement of section 33.7
+# ---------------------------------------------------------------------------
+
+
+def test_two_spread_levels_and_only_one_of_them_decides_anything() -> None:
+    """The assumption is kept as the criterion; the measurement is reported beside it."""
+    assert SPREAD_HEADLINE_BPS == Decimal(10)
+    assert SPREAD_BOUND_BPS == Decimal("0.53")
+    assert SPREAD_LEVEL_HEADLINE != SPREAD_LEVEL_BOUND
+    registered = _registered()
+    levels = registered["spread_levels"]
+    assert isinstance(levels, dict)
+    assert str(levels["applies_from"]) == "F2"
+    assert levels["is_a_trial"] is False
+
+
+def test_the_ratio_the_upper_bound_must_be_labelled_with_is_registered() -> None:
+    """A label that cannot carry the multiple lets a bound read as a measurement."""
+    assert SPREAD_BOUND_RATIO == Decimal("18.87")
+    computed = SPREAD_HEADLINE_BPS / SPREAD_BOUND_BPS
+    assert abs(computed - SPREAD_BOUND_RATIO) < Decimal("0.01")
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("spread_levels", "headline", "deep_bps"), "0.53"),
+        (("spread_levels", "bound", "deep_bps"), "10"),
+    ],
+)
+def test_swapping_the_two_spread_levels_refuses_the_run(
+    tmp_path: Path, path: tuple[str, ...], value: str
+) -> None:
+    """The flattering swap: the measurement as the criterion, the assumption as colour."""
+    payload = _registered()
+    _alter(payload, path, value)
+    altered = _write(payload, tmp_path / "levels.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="deep_bps"):
+        assert_no_drift(altered)
+
+
+def test_letting_a_criterion_read_the_bound_refuses_the_run(tmp_path: Path) -> None:
+    """A measurement this project cannot date must never become a verdict."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_levels", "bound", "never_a_criterion"),
+        "The bound is used as the criterion where it is the more realistic figure.",
+    )
+    altered = _write(payload, tmp_path / "bound.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="never_a_criterion"):
+        assert_no_drift(altered)
+
+
+def test_showing_one_level_without_the_other_refuses_the_run(tmp_path: Path) -> None:
+    """The whole point of two levels is that a reader sees both of them."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_levels", "both_or_neither"),
+        "The bound is reported where it is informative.",
+    )
+    altered = _write(payload, tmp_path / "both.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="both_or_neither"):
+        assert_no_drift(altered)
+
+
+def test_the_spread_contingent_outcome_is_registered_before_any_family_can_produce_it() -> None:
+    """Deferred, not failed and not promoted. Registered now so it cannot be invented."""
+    assert SPREAD_CONTINGENT == "spread-contingent"
+    registered = _registered()
+    block = registered["spread_contingent_verdict"]
+    assert isinstance(block, dict)
+    assert str(block["applies_from"]) == "F2"
+    assert str(block["fails_at_both"]) == "closed normally"
+
+
+def test_promoting_a_spread_contingent_family_refuses_the_run(tmp_path: Path) -> None:
+    """It is a deferral. A family that clears only at the bound has not cleared."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_contingent_verdict", "definition"),
+        "A family that FAILS its criteria at the headline and clears them at the bound is "
+        "recorded as a pass.",
+    )
+    altered = _write(payload, tmp_path / "contingent.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="deferral"):
+        assert_no_drift(altered)
+
+
+def test_the_contingent_rule_must_cut_in_both_directions(tmp_path: Path) -> None:
+    """It stops the assumption manufacturing a failure AND the measurement a success."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_contingent_verdict", "what_it_prevents"),
+        "It stops a conservative assumption from killing a family that would work.",
+    )
+    altered = _write(payload, tmp_path / "directions.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="both directions"):
+        assert_no_drift(altered)
+
+
+def test_rule_b1s_thresholds_are_the_registered_ones() -> None:
+    """A procedure whose thresholds move after the data is seen is not a procedure."""
+    assert BAND_RECUT_RULE == "B1"
+    assert BAND_RECUT_PERMUTATIONS == 10_000
+    assert BAND_RECUT_SEED == 20260911
+    assert BAND_RECUT_ALPHA == Decimal("0.05")
+    assert BAND_MINIMUM_SYMBOLS == 3
+    assert BAND_SEPARATION_FACTOR == Decimal(2)
+
+
+@pytest.mark.parametrize(
+    ("field", "softened", "match"),
+    [
+        (
+            "procedure",
+            "compute Spearman's rank correlation against the measured median quoted "
+            "half-spread, and its two-sided permutation p-value from 50 permutations at "
+            "seed 20260911. The cut quantity is the candidate with the largest absolute "
+            "rank correlation among those whose p-value is below 0.05.",
+            "permutations",
+        ),
+        (
+            "procedure",
+            "compute Spearman's rank correlation against the measured median quoted "
+            "half-spread, and its two-sided permutation p-value from 10000 permutations at "
+            "seed 20260911. The cut quantity is the candidate with the largest absolute "
+            "rank correlation among those whose p-value is below 0.5.",
+            "alpha",
+        ),
+        (
+            "how_many_bands",
+            "adopt the LARGEST number for which every band holds at least 1 sampled symbol "
+            "and adjacent bands' measured median half-spreads differ by at least a factor "
+            "of 2.",
+            "minimum_symbols",
+        ),
+        (
+            "how_many_bands",
+            "adopt the LARGEST number for which every band holds at least 3 sampled symbols "
+            "and adjacent bands' measured median half-spreads differ by at least a factor "
+            "of 1.05.",
+            "separation",
+        ),
+    ],
+)
+def test_softening_rule_b1_refuses_the_run(
+    tmp_path: Path, field: str, softened: str, match: str
+) -> None:
+    """Fewer permutations, a looser alpha, a band of one, a separation of nothing."""
+    payload = _registered()
+    _alter(payload, ("band_recut", field), softened)
+    altered = _write(payload, tmp_path / f"b1-{match}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=match):
+        assert_no_drift(altered)
+
+
+def test_keeping_three_bands_because_there_are_three_refuses_the_run(tmp_path: Path) -> None:
+    """A partition that does not partition carries authority it has not got."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("band_recut", "collapse_is_an_allowed_answer"),
+        "Three bands are retained so that the cost model keeps its existing shape.",
+    )
+    altered = _write(payload, tmp_path / "collapse.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="collapse"):
+        assert_no_drift(altered)
+
+
+def test_dropping_a_candidate_quantity_refuses_the_run(tmp_path: Path) -> None:
+    """Which quantities were considered is part of what was registered."""
+    payload = _registered()
+    candidates = payload["band_recut"]["candidates"]  # type: ignore[index]
+    assert isinstance(candidates, list)
+    _alter(payload, ("band_recut", "candidates"), candidates[:2])
+    altered = _write(payload, tmp_path / "candidates.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="candidates"):
+        assert_no_drift(altered)
+
+
+def test_rule_m1_measures_four_symbols_a_band_over_six_days() -> None:
+    """Rule S1's own protocol, in the two bands rule S1 never reached."""
+    assert EXTENDED_SAMPLE_RULE == "M1"
+    assert EXTENDED_SAMPLE_PER_BAND == 4
+    assert EXTENDED_SAMPLE_DAYS == 6
+
+
+@pytest.mark.parametrize(
+    ("softened", "match"),
+    [
+        (
+            "At least 1 symbol in each of the mid and thin bands, over the same protocol as "
+            "rule S1, and over at least the same 6 days.",
+            "per_band",
+        ),
+        (
+            "At least 4 symbols in each of the mid and thin bands, over the same protocol as "
+            "rule S1, and over at least the same 1 days.",
+            "days",
+        ),
+    ],
+)
+def test_shrinking_rule_m1_refuses_the_run(tmp_path: Path, softened: str, match: str) -> None:
+    """One symbol is not a band and one day is not a protocol."""
+    payload = _registered()
+    _alter(payload, ("extended_spread_sample", "requirement"), softened)
+    altered = _write(payload, tmp_path / f"m1-{match}.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match=match):
+        assert_no_drift(altered)
+
+
+def test_occupancy_is_decided_before_anything_is_downloaded(tmp_path: Path) -> None:
+    """A band nobody trades needs no measurement, and that is computable in advance."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("extended_spread_sample", "occupancy_is_computed_first"),
+        "Band membership is decided once the sample has been acquired.",
+    )
+    altered = _write(payload, tmp_path / "occupancy.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="occupancy"):
+        assert_no_drift(altered)
+
+
+def test_an_empty_band_stays_an_answer_rather_than_a_gap(tmp_path: Path) -> None:
+    """Measuring instruments the strategy would never touch is not a better answer."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("extended_spread_sample", "an_empty_band_is_the_answer"),
+        "If the universe contains no symbols in a band, sample the nearest ones outside it.",
+    )
+    altered = _write(payload, tmp_path / "empty.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="empty_band"):
+        assert_no_drift(altered)
+
+
+def test_rule_h1_fires_only_on_a_spread_contingent_family() -> None:
+    """Three working days of acquisition, on a condition and never speculatively."""
+    assert HISTORICAL_QUOTES_RULE == "H1"
+    registered = _registered()
+    block = registered["historical_quoted_spread"]
+    assert isinstance(block, dict)
+    assert SPREAD_CONTINGENT in str(block["fires_only_if"])
+    assert block["is_a_trial"] is False
+
+
+def test_making_rule_h1_unconditional_refuses_the_run(tmp_path: Path) -> None:
+    """An acquisition with no condition on it is an acquisition nobody decided."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("historical_quoted_spread", "fires_only_if"),
+        "always, so that the data is there when it is wanted.",
+    )
+    altered = _write(payload, tmp_path / "h1.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="fires_only_if"):
+        assert_no_drift(altered)
+
+
+def test_a_missing_datum_is_named_rather_than_substituted(tmp_path: Path) -> None:
+    """Undetermined with the gap named beats a number standing in for the gap."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("historical_quoted_spread", "if_it_does_not_exist_for_the_window"),
+        "Use the measured present-day spread for the missing window.",
+    )
+    altered = _write(payload, tmp_path / "substitute.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="does_not_exist"):
+        assert_no_drift(altered)
+
+
+def test_the_bound_is_a_sensitivity_and_not_a_trial() -> None:
+    """A second level that counted as a trial would make honest reporting expensive."""
+    registered = _registered()
+    block = registered["bound_is_not_a_trial"]
+    assert isinstance(block, dict)
+    assert str(block["applies_from"]) == "F2"
+    conditions = block["conditions_under_which_that_holds"]
+    assert isinstance(conditions, list)
+    assert len(conditions) == 3
+
+
+def test_selecting_a_variant_on_the_bound_refuses_the_run(tmp_path: Path) -> None:
+    """The back door the trial-accounting rule exists to close."""
+    payload = _registered()
+    conditions = payload["bound_is_not_a_trial"]["conditions_under_which_that_holds"]  # type: ignore[index]
+    assert isinstance(conditions, list)
+    _alter(
+        payload,
+        ("bound_is_not_a_trial", "conditions_under_which_that_holds"),
+        ["variants may be retained on whichever level is kinder", *conditions[1:]],
+    )
+    altered = _write(payload, tmp_path / "select.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="conditions"):
+        assert_no_drift(altered)
+
+
+def test_the_fx_invariant_is_registered_with_its_crossing_count() -> None:
+    """Once in and once out. Everything between is one currency."""
+    assert FX_CROSSINGS_PER_RUN == 2
+    registered = _registered()
+    block = registered["fx_crossing_invariant"]
+    assert isinstance(block, dict)
+    assert block["is_a_trial"] is False
+    assert "must not scale with turnover" in str(block["invariant"])
+
+
+def test_letting_the_fx_charge_scale_with_turnover_refuses_the_run(tmp_path: Path) -> None:
+    """The defect the invariant exists to catch cannot be registered as the rule."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("fx_crossing_invariant", "invariant"),
+        "The FX conversion charge is applied to every trade, in proportion to turnover.",
+    )
+    altered = _write(payload, tmp_path / "fx.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="turnover"):
+        assert_no_drift(altered)
+
+
+def test_raising_the_crossing_count_refuses_the_run(tmp_path: Path) -> None:
+    """Two is not a tuning parameter; it is how many times capital changes currency."""
+    payload = _registered()
+    _alter(payload, ("fx_crossing_invariant", "crossings_per_run"), 8)
+    altered = _write(payload, tmp_path / "crossings.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="crossings_per_run"):
+        assert_no_drift(altered)
+
+
+def test_calling_the_upper_bound_an_estimate_refuses_the_run(tmp_path: Path) -> None:
+    """A downstream reader must not be able to mistake it for something measured."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("relabel_the_assumption", "rule"),
+        "The 10 bps figure is described as a conservative estimate of the half-spread.",
+    )
+    altered = _write(payload, tmp_path / "relabel.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="approximately"):
+        assert_no_drift(altered)
+
+
+def test_dropping_the_ratio_from_the_headline_label_refuses_the_run(tmp_path: Path) -> None:
+    """The label is what stops an upper bound reading as a measurement downstream."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("spread_levels", "headline", "label_required_everywhere"),
+        "A conservative half-spread for the deep band.",
+    )
+    altered = _write(payload, tmp_path / "label.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="UPPER BOUND|approximately"):
+        assert_no_drift(altered)
+
+
+def test_amending_f1s_verdict_may_not_edit_its_original_text(tmp_path: Path) -> None:
+    """A correction that rewrites the thing it corrects leaves no record of either."""
+    payload = _registered()
+    _alter(
+        payload,
+        ("relabel_the_assumption", "f1_verdict_amended_not_edited"),
+        "F1's results document is updated in place with the corrected figures.",
+    )
+    altered = _write(payload, tmp_path / "amend.yaml")
+    with pytest.raises(DriftedFromPreRegistration, match="f1_verdict"):
         assert_no_drift(altered)
