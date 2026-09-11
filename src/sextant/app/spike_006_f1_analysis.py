@@ -158,8 +158,24 @@ class Decomposition:
     timing_effect: Decimal | None
     selection_effect: Decimal | None
     funding: Decimal
+    price: Decimal
+    """The two legs' price move, funding aside. The ledger's own ``gross_pnl``."""
     gross: Decimal
+    """The carry before every charge: the price move **plus** the funding stream.
+
+    Deliberately not serialised as ``gross_pnl``. The ledger uses that name for the
+    price move alone, and a file carrying one name for two quantities is a file whose
+    two blocks contradict each other.
+    """
+    charges: Decimal
+    """Fees, spread, slippage, conversion and delisting. Funding is not in here."""
     costs: Decimal
+    """The ledger's own cost total, which *is* net of the funding receipt."""
+
+    @property
+    def net(self) -> Decimal:
+        """Price plus funding, less charges. Equals the ledger's net by construction."""
+        return self.price + self.funding - self.charges
 
     @property
     def funding_share(self) -> Decimal | None:
@@ -178,15 +194,22 @@ class Decomposition:
             if self.selection_effect is None
             else str(self.selection_effect),
             "funding_received_net": str(self.funding),
-            "gross_pnl": str(self.gross),
-            "total_costs": str(self.costs),
+            "price_pnl": str(self.price),
+            "carry_before_costs": str(self.gross),
+            "charges_excluding_funding": str(self.charges),
+            "net_pnl": str(self.net),
+            "total_costs_net_of_funding": str(self.costs),
             "funding_share_of_combined": None
             if self.funding_share is None
             else str(self.funding_share),
             "note": (
-                "Funding is the return, not a cost line. A share above one means the "
-                "funding stream earned more than the book kept, and the difference is "
-                "basis and costs."
+                "Funding is the return, not a cost line. The identity is price_pnl plus "
+                "funding_received_net less charges_excluding_funding equals net_pnl. "
+                "carry_before_costs is the first two added, and total_costs_net_of_funding "
+                "is the ledger's own total, which already nets the funding receipt: "
+                "subtracting it from the carry would count funding twice. A funding share "
+                "above one means the settlement stream earned more than the book kept, and "
+                "the difference is the basis and the charges."
             ),
         }
 
@@ -393,6 +416,22 @@ class CostLines:
         """
         return self.market_gain + self.funding_received
 
+    @property
+    def charges(self) -> Decimal:
+        """Everything the book paid to hold and trade, funding excluded.
+
+        ``total`` is not this figure. The ledger records funding as a cost line and a
+        receipt is a negative one, so ``total`` is already net of the carry. Subtracting
+        ``total`` from a carry that also contains the funding counts the funding twice,
+        with opposite signs, and produces a number that is not any quantity at all.
+        """
+        return self.fees + self.spread + self.slippage + self.conversion + self.delisting
+
+    @property
+    def net(self) -> Decimal:
+        """The identity the page prints: price plus funding, less what was charged."""
+        return self.market_gain + self.funding_received - self.charges
+
 
 def _costs_of(row: Mapping[str, object]) -> CostLines:
     """One run's cost breakdown, itemised, never collapsed to a total."""
@@ -584,7 +623,9 @@ def analyse(payload: Mapping[str, object]) -> tuple[VariantRow, ...]:
             timing_effect=None if timing is None else _decimal(timing["terminal_return"]),
             selection_effect=None if selection is None else _decimal(selection["terminal_return"]),
             funding=lines.funding_received,
+            price=lines.market_gain,
             gross=lines.gross_before_costs,
+            charges=lines.charges,
             costs=lines.total,
         )
         passive = by_key.get((EQUAL_WEIGHT_PASSIVE, cell))

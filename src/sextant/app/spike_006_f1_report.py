@@ -78,6 +78,11 @@ def render(
         if contraction_path.is_file()
         else None
     )
+    # Every derived block is recomputed from the file's own monthly series rather than
+    # read back. The runner writes them too, for a reader of the file, but a page that
+    # trusted them would silently print an older schema's field names for a run made
+    # before a reporting fix - which is exactly what happened once already.
+    payload = {**payload, "variants": [row.as_json() for row in analyse(payload)]}
     sections = [
         _preamble(payload),
         _provenance_section(payload),
@@ -570,8 +575,8 @@ def _decomposition_section(payload: Mapping[str, object]) -> str:
         "selection, none of its timing. **Funding** is the realised settlement stream, which is",
         "the return rather than a cost line and is never blended into fees.",
         "",
-        "| variant | combined | timing | selection | funding | gross | costs |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| variant | combined | timing | selection | price legs | + funding | - charges | = net |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         block = _mapping(row["decomposition"])
@@ -580,16 +585,25 @@ def _decomposition_section(payload: Mapping[str, object]) -> str:
             f"| {_percent(block['combined_net_return'])} "
             f"| {_percent(block['timing_effect_net_return'])} "
             f"| {_percent(block['selection_effect_net_return'])} "
+            f"| {_money(block['price_pnl'])} "
             f"| {_money(block['funding_received_net'])} "
-            f"| {_money(block['gross_pnl'])} "
-            f"| {_money(block['total_costs'])} |"
+            f"| {_money(block['charges_excluding_funding'])} "
+            f"| {_money(block['net_pnl'])} |"
         )
     lines.extend(
         [
             "",
-            "Funding, gross and costs are in account currency on the registered starting",
-            "equity. A funding figure larger than the combined return means the settlement",
-            "stream earned more than the book kept, and the difference is basis and costs.",
+            "The first three columns are returns on the account. The last four are amounts in",
+            "account currency on the registered starting equity and they add up as written:",
+            "price legs plus funding less charges is net. **Charges exclude funding**, because",
+            "the ledger books a receipt as a negative cost and its own total is therefore",
+            "already net of the carry; subtracting that total from a carry that also contains",
+            "the funding would count the funding twice.",
+            "",
+            "**This is the family's whole result in one table.** The funding stream is real and",
+            "in most variants it is large. The price legs of a hedged pair should hold only the",
+            "basis, and they give most of it back. What the two leave is then smaller than the",
+            "cost of trading it.",
             "",
         ]
     )

@@ -199,21 +199,29 @@ selection. **Selection** holds the variant's own pairs scaled to full investment
 selection, none of its timing. **Funding** is the realised settlement stream, which is
 the return rather than a cost line and is never blended into fees.
 
-| variant | combined | timing | selection | funding | gross | costs |
-|---|---:|---:|---:|---:|---:|---:|
-| `carry-basket-10` | -16.11% | -20.77% | -16.11% | -25.81 | -4.25 | 263.27 |
-| `carry-basket-5` | -5.74% | -20.77% | -5.74% | 108.70 | 135.76 | 113.18 |
-| `carry-positive-10` | -57.13% | -20.77% | -57.13% | 304.79 | 32.27 | 584.49 |
-| `carry-premium-10` | -91.81% | -20.77% | -91.81% | 13.75 | -739.67 | 623.69 |
-| `carry-rank30-10` | -57.13% | -20.77% | -57.13% | 304.79 | 32.27 | 584.49 |
-| `carry-rank30-5` | -72.31% | -20.77% | -72.31% | 322.00 | -148.58 | 614.12 |
-| `carry-rank90-10` | -31.09% | -20.77% | -31.09% | 387.33 | 227.52 | 306.56 |
-| `carry-rank90-10-quarterly` (18 rebalances) | -15.49% | -20.78% | -16.26% | 370.68 | 267.06 | 128.76 |
-| `carry-rank90-5` | -35.60% | -20.77% | -35.60% | 327.39 | 216.47 | 423.04 |
+| variant | combined | timing | selection | price legs | + funding | - charges | = net |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `carry-basket-10` | -16.11% | -20.77% | -16.11% | 21.55 | -25.81 | 237.46 | -241.72 |
+| `carry-basket-5` | -5.74% | -20.77% | -5.74% | 27.06 | 108.70 | 221.88 | -86.12 |
+| `carry-positive-10` | -57.13% | -20.77% | -57.13% | -272.51 | 304.79 | 889.28 | -857.00 |
+| `carry-premium-10` | -91.81% | -20.77% | -91.81% | -753.42 | 13.75 | 637.44 | -1,377.11 |
+| `carry-rank30-10` | -57.13% | -20.77% | -57.13% | -272.51 | 304.79 | 889.28 | -857.00 |
+| `carry-rank30-5` | -72.31% | -20.77% | -72.31% | -470.58 | 322.00 | 936.12 | -1,084.70 |
+| `carry-rank90-10` | -31.09% | -20.77% | -31.09% | -159.80 | 387.33 | 693.88 | -466.36 |
+| `carry-rank90-10-quarterly` (18 rebalances) | -15.49% | -20.78% | -16.26% | -103.62 | 370.68 | 499.44 | -232.38 |
+| `carry-rank90-5` | -35.60% | -20.77% | -35.60% | -110.92 | 327.39 | 750.43 | -533.96 |
 
-Funding, gross and costs are in account currency on the registered starting
-equity. A funding figure larger than the combined return means the settlement
-stream earned more than the book kept, and the difference is basis and costs.
+The first three columns are returns on the account. The last four are amounts in
+account currency on the registered starting equity and they add up as written:
+price legs plus funding less charges is net. **Charges exclude funding**, because
+the ledger books a receipt as a negative cost and its own total is therefore
+already net of the carry; subtracting that total from a carry that also contains
+the funding would count the funding twice.
+
+**This is the family's whole result in one table.** The funding stream is real and
+in most variants it is large. The price legs of a hedged pair should hold only the
+basis, and they give most of it back. What the two leave is then smaller than the
+cost of trading it.
 
 ## 8. Regime stability
 

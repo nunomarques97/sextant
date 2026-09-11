@@ -719,3 +719,28 @@ def test_a_variant_whose_series_never_held_the_month_is_not_listed() -> None:
 def test_the_contraction_section_is_empty_when_no_check_was_written() -> None:
     """The section is written by the composition check, not by the grid."""
     assert _contraction_section(payload(deterministic=[], nulls=[]), None) == ""
+
+
+def test_the_decomposition_table_adds_up_the_way_it_is_printed() -> None:
+    """price legs + funding - charges = net, and it equals the ledger's own net.
+
+    The two routes to the same number are the point. The ledger's cost total already
+    nets the funding receipt, because a receipt is a negative cost line; the printed
+    table puts funding on the return side instead and excludes it from charges. Both
+    must land on the same net, or one of the two is counting funding twice.
+    """
+    rows = analyse(payload(deterministic=[run(construct="v", gross="200", fees="50")], nulls=[]))
+    block = rows[0].decomposition
+    assert block.charges == Decimal(50) + Decimal(10) + Decimal(10) + Decimal(3) + Decimal(0)
+    assert block.funding == Decimal(30), "a paid receipt is a negative cost line"
+    assert block.net == block.price + block.funding - block.charges
+    assert block.net == block.price - block.costs, "the ledger's own route to the same net"
+
+
+def test_the_carry_and_the_ledger_total_are_not_subtracted_from_each_other() -> None:
+    """The arithmetic the old table invited, named so nobody repeats it."""
+    rows = analyse(payload(deterministic=[run(construct="v", gross="200", fees="50")], nulls=[]))
+    block = rows[0].decomposition
+    double_counted = block.gross - block.costs
+    assert double_counted != block.net
+    assert double_counted == block.net + block.funding, "off by the funding, twice counted"
