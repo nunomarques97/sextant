@@ -37,6 +37,7 @@ from sextant.app.spike_006_f1 import (
     REGISTERED_VERSION,
     RESEARCH_FEE_OF_EQUITY_BPS,
     RESULTS_PATH,
+    SPREAD_BOUND_RATIO,
     THINNER_EVIDENCE_VARIANT,
     execution_sensitivity,
     headline_cell,
@@ -50,15 +51,19 @@ from sextant.app.spike_006_f1_analysis import (
     assumption_could_be_carrying_the_verdict,
     capacity_report,
     combined_toll,
+    currency_corrections,
     depth_sample_is_needed,
     excluding_month,
     rescues,
     spread_acquisition,
+    the_currency_line_scaled_with_turnover,
     tolls,
 )
+from sextant.app.spike_006_f1_bands import BANDS_RESULTS
 from sextant.app.spike_006_f1_contraction import CONTRACTION_RESULTS
 from sextant.app.spike_006_f1_depth import DEPTH_RESULTS
 from sextant.app.spike_006_f1_estimator import ESTIMATOR_RESULTS
+from sextant.app.spike_006_f1_extended import EXTENDED_RESULTS
 from sextant.app.spike_006_f1_spread import SPREAD_RESULTS
 from sextant.domain.time import Timestamp
 from sextant.engine.execution.breakeven import BreakEvenUndefined, d2a_holds
@@ -75,6 +80,8 @@ def render(
     contraction_path: Path = CONTRACTION_RESULTS,
     spread_path: Path = SPREAD_RESULTS,
     estimator_path: Path = ESTIMATOR_RESULTS,
+    extended_path: Path = EXTENDED_RESULTS,
+    bands_path: Path = BANDS_RESULTS,
 ) -> Path:
     """Read the result file and write the report beside it."""
     with results_path.open(encoding="utf-8") as handle:
@@ -99,6 +106,16 @@ def render(
         if estimator_path.is_file()
         else None
     )
+    extended = (
+        _mapping(json.loads(extended_path.read_text(encoding="utf-8")))
+        if extended_path.is_file()
+        else None
+    )
+    bands = (
+        _mapping(json.loads(bands_path.read_text(encoding="utf-8")))
+        if bands_path.is_file()
+        else None
+    )
     # Every derived block is recomputed from the file's own monthly series rather than
     # read back. The runner writes them too, for a reader of the file, but a page that
     # trusted them would silently print an older schema's field names for a run made
@@ -117,6 +134,8 @@ def render(
         _rescue_section(payload),
         _measured_spread_section(payload, spread),
         _estimator_section(estimator),
+        _extended_section(extended),
+        _recut_section(bands),
         _regime_section(payload),
         _recent_section(payload),
         _contraction_section(payload, contraction),
@@ -127,6 +146,7 @@ def render(
         _samples_section(payload),
         _depth_section(depth),
         _verdict_section(payload),
+        _amendment_twelve_section(payload),
     ]
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(NEWLINE.join(sections), encoding="utf-8", newline=NEWLINE)
@@ -389,6 +409,13 @@ def _cost_section(payload: Mapping[str, object]) -> str:
         "the maker/taker fill mix are **assumptions**, not measurements, and are labelled as",
         "such wherever a figure computed under them appears. They are charged on **both**",
         "legs, so a carry round trip costs twice what a single-leg strategy pays.",
+        "",
+        f"**The spread figure is a registered UPPER BOUND, about {_ratio_text()} times the",
+        "measured deep-band half-spread of 0.53 bps.** Amendment 12, rule A12.7: it is never",
+        "an estimate, a conservative estimate or a calibration, because a reader who takes it",
+        "for any of those takes it for something that was measured. It is the number every",
+        "criterion in this document is evaluated against, and section 7.5 is what it is a",
+        "bound on.",
         "",
         "| cell | spot maker/taker | futures maker/taker | fill mix | spread & slippage | role |",
         "|---|---|---|---|---|---|",
@@ -1212,6 +1239,261 @@ def _count_of(value: object) -> str:
 def _optional_text(value: object) -> str | None:
     """The text of a value that may be null in the file."""
     return None if value is None else _text(value)
+
+
+def _extended_section(extended: Mapping[str, object] | None) -> str:
+    """Rule M1: the two bands rule S1 never reached, and the one it could not reach either.
+
+    Empty when no sample exists. When one does, the coverage table comes before the
+    measurement, because a band median printed above the fact that only one of its four
+    symbols published is a number that will be quoted without the fact.
+    """
+    if extended is None:
+        return ""
+    coverage = _mapping(extended["coverage_by_band"])
+    assumed = _mapping(extended["assumed_spread_bps_by_band"])
+    measured = _mapping(extended["measured_median_bps_by_band"])
+    lines = [
+        "### 7.7 Rule M1: the mid and thin bands, measured and not measured",
+        "",
+        "**All six of rule S1's symbols are in the *deep* band**, because at 2023-05-15 every",
+        "member of the carry universe cleared the deep band's floor. So the mid and thin",
+        "defaults were extrapolation from a band they are not in.",
+        "",
+        "**Occupancy decided this had to run, and it was computed before anything was",
+        "downloaded.** At the cost model's own floors, across all 69 rebalance instants: the",
+        "mid band is occupied at 40 of them and the thin band at 9. Neither is empty in",
+        "practice, so neither default is unused, so both are worth measuring.",
+        "",
+        f"**{_count_of(extended['symbol_days_measured'])} symbol-days, "
+        f"{_text(extended['megabytes_fetched'])} MB, "
+        f"{_count_of(extended['verified_against_the_publisher'])} verified against the",
+        "publisher's own SHA-256.** Same protocol as rule S1: the same archive tree, the same",
+        "two windows, the same streaming reduction, the same six days.",
+        "",
+        "| band | selected at | symbols | published every day | symbol-days "
+        "| measured as registered |",
+        "|---|---|---:|---:|---:|---|",
+    ]
+    for entry in _sequence(extended["selections"]):
+        selection = _mapping(entry)
+        band = _text(selection["band"])
+        row = _mapping(coverage[band])
+        lines.append(
+            f"| {band} "
+            f"| {_text(selection['selected_at'])} "
+            f"| {_count_of(row['symbols_selected'])} "
+            f"| {_count_of(row['symbols_that_published_every_registered_day'])} "
+            f"| {_count_of(row['symbol_days_measured'])} of "
+            f"{_count_of(row['symbol_days_requested'])} "
+            f"| {_mark(bool(row['meets_the_registered_requirement']))} |"
+        )
+    lines.extend(
+        [
+            "",
+            "**The thin band could not be measured on the registered days, and is reported as",
+            "not measured rather than averaged.** Its earliest instant with four members is",
+            "2025-12-01, two years after the registered day set, and three of its four symbols",
+            "had not listed on those days. One of four published all six. Rule M1's own clause",
+            "says an unpublished symbol-day is never replaced, so no day and no symbol was",
+            "substituted and the band median is **null**.",
+            "",
+            "**That is a finding about when the thin band is populated, not only about a",
+            "gap.** No rebalance instant before 2025-12-01 holds even four thin-band members,",
+            "which is what the selection rule searched for and is computed rather than",
+            "inferred. The band is occupied at 9 of 69 instants and thinly enough at most of",
+            "them that four names cannot be found. A cost model still needs its thin figure",
+            "for those instants, and measuring it needs a day set chosen for when the band is",
+            "populated rather than for when rule S1 happened to sample.",
+            "**Which day set that should be is the Product Owner's to settle**, because",
+            "choosing one after seeing that the registered set failed is the move this",
+            "apparatus exists to prevent.",
+            "",
+            "#### What the mid band measures",
+            "",
+            "| | mid band |",
+            "|---|---:|",
+            f"| assumed half-spread, per leg, a registered upper bound | "
+            f"{_text(assumed.get('mid'))} bps |",
+            f"| measured quoted spread, median across its four symbols | "
+            f"{_bps(_optional_text(measured.get('mid')))} |",
+            f"| the comparable half of it | {_bps(_halved(_optional_text(measured.get('mid'))))} |",
+            "",
+            "**The same ratio as the deep band, on a different band.** The deep assumption is",
+            "about 19 times its measurement and the mid assumption about 21 times its own. Two",
+            "bands measured independently, two orders of magnitude apart in spread, and the",
+            "assumption is out by the same factor on both.",
+            "",
+            "#### The dispersion, which is the finding rather than the average",
+            "",
+            "| symbol | band | median quoted spread |",
+            "|---|---|---:|",
+        ]
+    )
+    bands_of: dict[str, list[str]] = {}
+    for entry in _sequence(extended["selections"]):
+        selection = _mapping(entry)
+        for item in _sequence(selection["symbols"]):
+            symbol = _text(_mapping(item)["symbol"])
+            bands_of.setdefault(symbol, []).append(_text(selection["band"]))
+    per_symbol = _mapping(extended["measured_median_bps_by_symbol"])
+    for symbol in sorted(per_symbol):
+        lines.append(
+            f"| `{symbol}` "
+            f"| {' and '.join(bands_of.get(symbol, ['-']))} "
+            f"| {_bps(_optional_text(per_symbol[symbol]))} |"
+        )
+    doubled = _sequence(extended["symbols_selected_into_two_bands"])
+    lines.extend(
+        [
+            "",
+            "**Inside the mid band alone the measured spreads run from 1.77 to 7.24 basis",
+            "points, a factor of four.** The deep band spanned two orders of magnitude. A",
+            "single figure per band does not represent either of them, which is what rule B1",
+            "is for.",
+            "",
+            *(
+                [
+                    f"**`{_text(doubled[0])}` appears in two bands, and that is not an error.**",
+                    "A band is a property of an instrument at an instant: it was mid in",
+                    "2023-07 and thin in 2025-12. It contributes to both bands' figures rather",
+                    "than to whichever was written last, and it is measured once.",
+                    "",
+                ]
+                if doubled
+                else []
+            ),
+        ]
+    )
+    return NEWLINE.join(lines)
+
+
+def _recut_section(bands: Mapping[str, object] | None) -> str:
+    """Rule B1: what the bands should be cut on, decided by a test rather than by taste."""
+    if bands is None:
+        return ""
+    recut = _mapping(bands["recut"])
+    chosen = recut["chosen_quantity"]
+    lines = [
+        "### 7.8 Rule B1: the bands are cut on the wrong variable",
+        "",
+        "**The bands are cut on quote turnover and spread does not respond to turnover.** That",
+        "is what sections 7.5 and 7.7 measured, and a band whose members do not share a spread",
+        "is not a band; it is an average with a label. So four candidate quantities were ranked",
+        "against the measured half-spread across every sampled symbol, by Spearman's rho with a",
+        "permutation p-value at a registered seed, and the cut goes to the strongest that",
+        f"clears {_text(recut['registered_level'])}.",
+        "",
+        "Eleven symbols: rule S1's six and rule M1's five.",
+        "",
+        "| candidate quantity | rho | p | clears |",
+        "|---|---:|---:|---|",
+    ]
+    for entry in _sequence(recut["candidates"]):
+        item = _mapping(entry)
+        lines.append(
+            f"| {_text(item['quantity'])} "
+            f"| {_fixed(_number(_optional_text(item['spearman_rho'])), 3)} "
+            f"| {_fixed(_number(_optional_text(item['permutation_p_value'])), 4)} "
+            f"| {_mark(bool(item['clears_the_registered_level']))} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"**The cut goes to {_text(chosen) if chosen is not None else 'nothing'}.** "
+            + (
+                "Three of the four clear, and the one the bands are cut on today is the "
+                "weakest of them: quote turnover reaches rho -0.65 at p 0.038, against "
+                "relative tick size at rho 0.900 and p 0.0008. Turnover is not uninformative "
+                "about spread; it is simply not what determines it."
+                if chosen is not None
+                else "No candidate cleared the registered level, so nothing is re-cut and that "
+                "is the finding rather than an omission."
+            ),
+            "",
+            "**Why a tick should be the answer is not a mystery.** A spread cannot be narrower",
+            "than one price increment, and on the deepest instruments it is exactly that:",
+            "`BTCUSDT`'s derived tick is 0.0352 basis points against a measured quoted spread",
+            "of 0.0357, and `ETHUSDT`'s is 0.0535 against 0.0541. Both are sitting on the",
+            "venue's own floor, where the tick *is* the spread, and turnover predicts spread",
+            "only to the extent that it predicts which instruments sit there.",
+            "",
+            "#### The weakest part of this result, stated before anybody has to find it",
+            "",
+            "**The tick is derived rather than looked up, and the derivation can only",
+            "overestimate.** It is the greatest common divisor of the published high, low and",
+            "close over thirty days, which is a *multiple* of the true increment and equals it",
+            "only when the sample happens to use every one. Thirty days of three prices is",
+            "often not enough.",
+            "",
+            f"**And it demonstrably overestimated on {_tick_offender_count(recut)} of the",
+            "eleven symbols**, because their derived tick is *wider than their own measured",
+            f"quoted spread*, which is impossible: {_tick_offenders(recut)}.",
+            "",
+            "**What that costs and what it does not.** A rank correlation survives an",
+            "overestimate that is monotone in the true tick, so the ordering result stands as",
+            "an ordering result. The **edge value** does not: a band boundary quoted in tick",
+            "units cannot be taken from a divisor inferred from prices, and needs the venue's",
+            "own instrument metadata. **Acquiring that metadata is the obvious next step and it",
+            "is not taken here**, because the tick a cost model needs is the tick at the",
+            "decision instant and the venue publishes today's, which is a point-in-time problem",
+            "of exactly the kind invariant 9 exists for.",
+            "",
+            "**A sceptic should attack this first.** The candidate that won is the one whose",
+            "measurement is weakest, and the two symbols where the derivation is demonstrably",
+            "clean are also the two whose spread is most obviously tick-bound, which is the",
+            "shape of a result that could be partly circular.",
+            "",
+            f"**The evidence supports "
+            f"{_count_of(recut['bands_supported_by_the_evidence'])} bands, not three.** Eleven",
+            "symbols could have supported three at the registered minimum of three per band,",
+            "so this time the ceiling is the separation rather than the sample: the two bands'",
+            "median half-spreads are 0.68 and 1.49 basis points, a factor of 2.19 against a",
+            "required 2. A third cut does not separate and is not made.",
+            "",
+            "| band | members |",
+            "|---|---|",
+        ]
+    )
+    for index, group in enumerate(_sequence(recut["band_members"])):
+        members = ", ".join(f"`{_text(item)}`" for item in _sequence(group))
+        label = "tighter" if index == 0 else "wider"
+        lines.append(f"| {label} | {members} |")
+    lines.extend(
+        [
+            "",
+            "**The new cut crosses the old one, which is the whole point.** `SPELLUSDT` was a",
+            "mid-band instrument on turnover and lands in the tighter band on tick size;",
+            "`API3USDT` was deep and lands in the wider one. A partition cut on the wrong",
+            "variable does not merely lose precision, it puts instruments on the wrong side.",
+            "",
+            "**This changes no F1 figure.** F1 ran and was judged on the turnover-cut bands.",
+            "Rule B1 applies from F2, and the thin band's missing measurement is a reason to",
+            "settle the day set before it does.",
+            "",
+        ]
+    )
+    return NEWLINE.join(lines)
+
+
+def _tick_offender_count(recut: Mapping[str, object]) -> int:
+    """How many symbols the tick derivation demonstrably overestimated."""
+    block = _mapping(recut["tick_derivation_is_an_upper_bound"])
+    return len(_sequence(block["symbols_whose_derived_tick_exceeds_their_measured_spread"]))
+
+
+def _tick_offenders(recut: Mapping[str, object]) -> str:
+    """The symbols whose derived tick is impossible, named in the prose that says so."""
+    block = _mapping(recut["tick_derivation_is_an_upper_bound"])
+    names = [
+        f"`{_text(item)}`"
+        for item in _sequence(block["symbols_whose_derived_tick_exceeds_their_measured_spread"])
+    ]
+    if not names:
+        return "none of them"
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " and " + names[-1]
 
 
 def _measured_spread_section(
@@ -2185,6 +2467,125 @@ def _strengthened_criterion(rows: Sequence[Mapping[str, object]]) -> list[str]:
         ]
     )
     return out
+
+
+def _ratio_text() -> str:
+    """The headline-to-bound multiple, from the registered value rather than retyped."""
+    return f"{SPREAD_BOUND_RATIO.normalize():f}"
+
+
+def _amendment_twelve_section(payload: Mapping[str, object]) -> str:
+    """Section 17: what this document's two largest cost lines rest on.
+
+    Added rather than edited in, under rule A12.7. Everything above it is the result as it
+    was computed and committed; this says what two of its lines are made of, and both
+    answers were reached after that result existed. A correction that rewrites the thing it
+    corrects leaves no record of either.
+    """
+    cell = headline_cell().label
+    items = currency_corrections(payload, cell=cell)
+    if not items:
+        return ""
+    scaled = the_currency_line_scaled_with_turnover(items)
+    charged = sum((item.as_charged for item in items), Decimal(0))
+    corrected = sum((item.corrected for item in items), Decimal(0))
+    lines = [
+        "## 17. Amendment 12: what the two largest cost lines rest on",
+        "",
+        "**Added, not edited.** Everything above is the result as it was computed and",
+        "committed. Amendment 12 was registered after it existed, and this section says what",
+        "two of its cost lines are made of without changing one of them. Section 34 of the",
+        "pre-registration is the rule; this is what the rule found.",
+        "",
+        "### 17.1 The spread line is an upper bound, and the verdict does not rest on it",
+        "",
+        "**The largest charge in section 7.1 is spread, and it is computed at a registered",
+        f"UPPER BOUND of 10 bps per leg: about {_ratio_text()} times the 0.53 bps half-spread",
+        "section 7.5 measured.** It is not an estimate and not a calibration. Rule E1 tried to",
+        "replace it with something estimated and section 7.6 records that the estimator was",
+        "refused, so the bound stands as the number every criterion here was evaluated",
+        "against.",
+        "",
+        "**F1's (B) stands on the counterfactual and not on the assumption.** Section 7.4",
+        "deletes spread and slippage entirely - not to 0.53, to zero - and **seven of the nine",
+        "variants still lose**. The two that cross zero earn 18.70 and 39.48 EUR on 1,500",
+        "across 56 months and fail criterion 2 with a Deflated Sharpe of 0.0000 against a bar",
+        "of 0.95.",
+        "",
+        "**That is why the verdict survives this amendment unchanged, and it is the only",
+        "reason worth having.** An honest (B) that would survive the cost assumption being",
+        "wrong is worth more than one that merely was not challenged. Had the family's answer",
+        "moved when the assumed cost was deleted, amendment 12's spread-contingent outcome is",
+        "exactly what would have applied - and it would have deferred the verdict rather than",
+        "closing it.",
+        "",
+        "### 17.2 The currency line was double-counted, and here is what it should have been",
+        "",
+        "**Rule A12.9 asked how the conversion is charged and found a defect.** The invariant",
+        "it registers is that the total currency charge must scale with the number of times",
+        "capital actually crosses currency and must not scale with turnover. Converting to the",
+        "account's currency for reporting is reporting, not a charge.",
+        "",
+        f"**It scaled with turnover.** {_yes(scaled).capitalize()}: every one of the nine",
+        "variants was charged exactly 10 basis points of its own turnover, which is the",
+        "signature of a per-trade charge. The conversion was applied inside every trade, on",
+        "that trade's notional. Rotating between two instruments quoted in the same foreign",
+        "currency crosses no boundary at all - selling one into the quote asset and buying",
+        "another out of it is one currency throughout - so every rebalance after the first was",
+        "charged for a crossing that did not happen.",
+        "",
+        "| variant | turnover | charged | should be | double-counted "
+        "| net as run | net corrected |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for item in items:
+        lines.append(
+            f"| {_variant_label(item.variant)} "
+            f"| {_money(item.turnover)} "
+            f"| {_money(item.as_charged)} "
+            f"| {_money(item.corrected)} "
+            f"| {_money(item.removed)} "
+            f"| {_money(item.net_pnl)} "
+            f"| {_money(item.corrected_net_pnl)} |"
+        )
+    multiple = charged / corrected if corrected else Decimal(0)
+    lines.extend(
+        [
+            "",
+            f"**Across the nine: {_money(charged)} charged against {_money(corrected)} for two",
+            f"crossings each, a factor of {multiple:.1f}.** The correct charge is ten basis",
+            "points of the opening equity when capital enters the quote currency and ten of the",
+            "closing equity when it leaves. Two crossings, on the capital that crossed - not on",
+            "the notional, which for a levered market-neutral book is several times the capital",
+            "and never touches the account's own currency at all.",
+            "",
+            "**Every variant still loses with the whole double count returned**, which is the",
+            "only question that matters for the verdict letter. The family-level finding is",
+            "unmoved for the same reason: the price legs gave back 99.1 per cent of the funding",
+            "received, and a charge correction on the other side of that does not create a",
+            "premium that was not there.",
+            "",
+            "**The correction is first order and is labelled so.** Returning the charge also",
+            "returns the compounding it cost along the way, and the exit crossing would then",
+            "convert a slightly larger closing equity. Both are under a euro on these figures.",
+            "",
+            "**The engine is fixed and F1 is not rerun.** The charge is now made where it is",
+            "incurred, six tests hold the invariant, and five of them fail when the per-trade",
+            "charge is put back - which was checked by putting it back. F1's result file is",
+            "left exactly as it was committed: rerunning it would consume one of the two",
+            "registered re-executions to restate a verdict that does not move.",
+            "",
+            "**What it does change is the composition of section 7.1.** The currency leg was",
+            "reported there as 20.9 per cent of the toll and larger than the venue's own fees.",
+            "That finding was correct about the ledger and wrong about the world: the line was",
+            "inflated by a defect, and a euro-funded account trading USDT-quoted instruments",
+            "pays a currency toll far smaller than F1's charges suggested. Section 31's",
+            "instruction to report the currency leg on its own line in every family stands, and",
+            "is now more useful rather than less: it is what made the defect visible.",
+            "",
+        ]
+    )
+    return NEWLINE.join(lines)
 
 
 def _what_the_verdict_rests_on(payload: Mapping[str, object]) -> list[str]:

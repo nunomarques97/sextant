@@ -118,7 +118,11 @@ verified. Never report done without evidence.
   `research/spike-006-f1-depth.json` (the capacity sample rule C3 asked for),
   `research/spike-006-f1-spread.json` (the quoted-spread sample rule S1 fired for),
   `research/spike-006-f1-estimator.json` (rule E1's spread estimator, refused by its
-  own acceptance test) and `research/spike-006-f1-contraction.json` beside it. The task verdict across all
+  own acceptance test), `research/spike-006-f1-extended.json` (rule M1's mid and thin
+  band sample), `research/spike-006-f1-bands.json` (rule B1's re-cut and the band
+  occupancy that decided M1) and `research/spike-006-f1-contraction.json` beside it.
+  Why the two standard low-frequency spread estimators cannot work on this market:
+  `docs/SPREAD-ESTIMATORS.md`. The task verdict across all
   six families will be `docs/VERDICT-006.md`, written once every family is run or
   reported as not reached.
 - Which bytes the Binance results were computed from:

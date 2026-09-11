@@ -13,7 +13,7 @@ ancestry is checkable with `git merge-base --is-ancestor`.
 - everything denominated in **EUR**
 - **verdict: (B)**
 
-> **This run read `v1.7.1`; the specification is now `v2.2`.** Amendments 7 and 8 were registered while the grid
+> **This run read `v1.7.1`; the specification is now `v2.3`.** Amendments 7 and 8 were registered while the grid
 > was running and neither changes a computed value: amendment 7 fixes how a void
 > execution is counted in the trial registry, and amendment 8 fixes who may
 > declare one void and makes the spread sample conditional on rule S1. No
@@ -96,6 +96,13 @@ Fees are the venue's published schedules and differ by leg. Spread, slippage and
 the maker/taker fill mix are **assumptions**, not measurements, and are labelled as
 such wherever a figure computed under them appears. They are charged on **both**
 legs, so a carry round trip costs twice what a single-leg strategy pays.
+
+**The spread figure is a registered UPPER BOUND, about 18.87 times the
+measured deep-band half-spread of 0.53 bps.** Amendment 12, rule A12.7: it is never
+an estimate, a conservative estimate or a calibration, because a reader who takes it
+for any of those takes it for something that was measured. It is the number every
+criterion in this document is evaluated against, and section 7.5 is what it is a
+bound on.
 
 | cell | spot maker/taker | futures maker/taker | fill mix | spread & slippage | role |
 |---|---|---|---|---|---|
@@ -612,6 +619,150 @@ remains an assumption at its registered figures.
 **The spot leg, and the mid and thin bands.** The calibration is against perpetual
 quotes in the deep band, because that is what section 12 registered.
 
+### 7.7 Rule M1: the mid and thin bands, measured and not measured
+
+**All six of rule S1's symbols are in the *deep* band**, because at 2023-05-15 every
+member of the carry universe cleared the deep band's floor. So the mid and thin
+defaults were extrapolation from a band they are not in.
+
+**Occupancy decided this had to run, and it was computed before anything was
+downloaded.** At the cost model's own floors, across all 69 rebalance instants: the
+mid band is occupied at 40 of them and the thin band at 9. Neither is empty in
+practice, so neither default is unused, so both are worth measuring.
+
+**26 symbol-days, 100.0 MB, 26 verified against the
+publisher's own SHA-256.** Same protocol as rule S1: the same archive tree, the same
+two windows, the same streaming reduction, the same six days.
+
+| band | selected at | symbols | published every day | symbol-days | measured as registered |
+|---|---|---:|---:|---:|---|
+| mid | 2023-07-01 | 4 | 4 | 24 of 24 | yes |
+| thin | 2025-12-01 | 4 | 1 | 8 of 24 | no |
+
+**The thin band could not be measured on the registered days, and is reported as
+not measured rather than averaged.** Its earliest instant with four members is
+2025-12-01, two years after the registered day set, and three of its four symbols
+had not listed on those days. One of four published all six. Rule M1's own clause
+says an unpublished symbol-day is never replaced, so no day and no symbol was
+substituted and the band median is **null**.
+
+**That is a finding about when the thin band is populated, not only about a
+gap.** No rebalance instant before 2025-12-01 holds even four thin-band members,
+which is what the selection rule searched for and is computed rather than
+inferred. The band is occupied at 9 of 69 instants and thinly enough at most of
+them that four names cannot be found. A cost model still needs its thin figure
+for those instants, and measuring it needs a day set chosen for when the band is
+populated rather than for when rule S1 happened to sample.
+**Which day set that should be is the Product Owner's to settle**, because
+choosing one after seeing that the registered set failed is the move this
+apparatus exists to prevent.
+
+#### What the mid band measures
+
+| | mid band |
+|---|---:|
+| assumed half-spread, per leg, a registered upper bound | 25 bps |
+| measured quoted spread, median across its four symbols | 2.4231 bps |
+| the comparable half of it | 1.2115 bps |
+
+**The same ratio as the deep band, on a different band.** The deep assumption is
+about 19 times its measurement and the mid assumption about 21 times its own. Two
+bands measured independently, two orders of magnitude apart in spread, and the
+assumption is out by the same factor on both.
+
+#### The dispersion, which is the finding rather than the average
+
+| symbol | band | median quoted spread |
+|---|---|---:|
+| `CTKUSDT` | mid and thin | 1.7738 bps |
+| `CVXUSDT` | mid | 2.9808 bps |
+| `RIFUSDT` | thin | 2.4875 bps |
+| `SPELLUSDT` | mid | 1.8653 bps |
+| `TLMUSDT` | mid | 7.2395 bps |
+
+**Inside the mid band alone the measured spreads run from 1.77 to 7.24 basis
+points, a factor of four.** The deep band spanned two orders of magnitude. A
+single figure per band does not represent either of them, which is what rule B1
+is for.
+
+**`CTKUSDT` appears in two bands, and that is not an error.**
+A band is a property of an instrument at an instant: it was mid in
+2023-07 and thin in 2025-12. It contributes to both bands' figures rather
+than to whichever was written last, and it is measured once.
+
+### 7.8 Rule B1: the bands are cut on the wrong variable
+
+**The bands are cut on quote turnover and spread does not respond to turnover.** That
+is what sections 7.5 and 7.7 measured, and a band whose members do not share a spread
+is not a band; it is an average with a label. So four candidate quantities were ranked
+against the measured half-spread across every sampled symbol, by Spearman's rho with a
+permutation p-value at a registered seed, and the cut goes to the strongest that
+clears 0.05.
+
+Eleven symbols: rule S1's six and rule M1's five.
+
+| candidate quantity | rho | p | clears |
+|---|---:|---:|---|
+| trailing 30-day median quote turnover | -0.645 | 0.0385 | yes |
+| relative tick size | 0.900 | 0.0008 | yes |
+| realised daily volatility | 0.591 | 0.0587 | no |
+| mean daily trade count | -0.700 | 0.0221 | yes |
+
+**The cut goes to relative tick size.** Three of the four clear, and the one the bands are cut on today is the weakest of them: quote turnover reaches rho -0.65 at p 0.038, against relative tick size at rho 0.900 and p 0.0008. Turnover is not uninformative about spread; it is simply not what determines it.
+
+**Why a tick should be the answer is not a mystery.** A spread cannot be narrower
+than one price increment, and on the deepest instruments it is exactly that:
+`BTCUSDT`'s derived tick is 0.0352 basis points against a measured quoted spread
+of 0.0357, and `ETHUSDT`'s is 0.0535 against 0.0541. Both are sitting on the
+venue's own floor, where the tick *is* the spread, and turnover predicts spread
+only to the extent that it predicts which instruments sit there.
+
+#### The weakest part of this result, stated before anybody has to find it
+
+**The tick is derived rather than looked up, and the derivation can only
+overestimate.** It is the greatest common divisor of the published high, low and
+close over thirty days, which is a *multiple* of the true increment and equals it
+only when the sample happens to use every one. Thirty days of three prices is
+often not enough.
+
+**And it demonstrably overestimated on 5 of the
+eleven symbols**, because their derived tick is *wider than their own measured
+quoted spread*, which is impossible: `API3USDT`, `CTKUSDT`, `RIFUSDT`, `SPELLUSDT` and `TLMUSDT`.
+
+**What that costs and what it does not.** A rank correlation survives an
+overestimate that is monotone in the true tick, so the ordering result stands as
+an ordering result. The **edge value** does not: a band boundary quoted in tick
+units cannot be taken from a divisor inferred from prices, and needs the venue's
+own instrument metadata. **Acquiring that metadata is the obvious next step and it
+is not taken here**, because the tick a cost model needs is the tick at the
+decision instant and the venue publishes today's, which is a point-in-time problem
+of exactly the kind invariant 9 exists for.
+
+**A sceptic should attack this first.** The candidate that won is the one whose
+measurement is weakest, and the two symbols where the derivation is demonstrably
+clean are also the two whose spread is most obviously tick-bound, which is the
+shape of a result that could be partly circular.
+
+**The evidence supports 2 bands, not three.** Eleven
+symbols could have supported three at the registered minimum of three per band,
+so this time the ceiling is the separation rather than the sample: the two bands'
+median half-spreads are 0.68 and 1.49 basis points, a factor of 2.19 against a
+required 2. A third cut does not separate and is not made.
+
+| band | members |
+|---|---|
+| tighter | `BTCUSDT`, `ETHUSDT`, `THETAUSDT`, `BLZUSDT`, `UNFIUSDT`, `SPELLUSDT` |
+| wider | `RIFUSDT`, `CVXUSDT`, `CTKUSDT`, `API3USDT`, `TLMUSDT` |
+
+**The new cut crosses the old one, which is the whole point.** `SPELLUSDT` was a
+mid-band instrument on turnover and lands in the tighter band on tick size;
+`API3USDT` was deep and lands in the wider one. A partition cut on the wrong
+variable does not merely lose precision, it puts instruments on the wrong side.
+
+**This changes no F1 figure.** F1 ran and was judged on the turnover-cut bands.
+Rule B1 applies from F2, and the thin band's missing measurement is a reason to
+settle the day set before it does.
+
 ## 8. Regime stability
 
 Months are counted over the **scored** window. Counting them over the whole usable
@@ -1077,3 +1228,90 @@ same way on every family quoted away from the account's currency. Section 31.5.
 This is one family's verdict, not the task's. The task's verdict lives in
 `docs/VERDICT-006.md` and is written once every family has been run or reported
 as not reached.
+
+## 17. Amendment 12: what the two largest cost lines rest on
+
+**Added, not edited.** Everything above is the result as it was computed and
+committed. Amendment 12 was registered after it existed, and this section says what
+two of its cost lines are made of without changing one of them. Section 34 of the
+pre-registration is the rule; this is what the rule found.
+
+### 17.1 The spread line is an upper bound, and the verdict does not rest on it
+
+**The largest charge in section 7.1 is spread, and it is computed at a registered
+UPPER BOUND of 10 bps per leg: about 18.87 times the 0.53 bps half-spread
+section 7.5 measured.** It is not an estimate and not a calibration. Rule E1 tried to
+replace it with something estimated and section 7.6 records that the estimator was
+refused, so the bound stands as the number every criterion here was evaluated
+against.
+
+**F1's (B) stands on the counterfactual and not on the assumption.** Section 7.4
+deletes spread and slippage entirely - not to 0.53, to zero - and **seven of the nine
+variants still lose**. The two that cross zero earn 18.70 and 39.48 EUR on 1,500
+across 56 months and fail criterion 2 with a Deflated Sharpe of 0.0000 against a bar
+of 0.95.
+
+**That is why the verdict survives this amendment unchanged, and it is the only
+reason worth having.** An honest (B) that would survive the cost assumption being
+wrong is worth more than one that merely was not challenged. Had the family's answer
+moved when the assumed cost was deleted, amendment 12's spread-contingent outcome is
+exactly what would have applied - and it would have deferred the verdict rather than
+closing it.
+
+### 17.2 The currency line was double-counted, and here is what it should have been
+
+**Rule A12.9 asked how the conversion is charged and found a defect.** The invariant
+it registers is that the total currency charge must scale with the number of times
+capital actually crosses currency and must not scale with turnover. Converting to the
+account's currency for reporting is reporting, not a charge.
+
+**It scaled with turnover.** Yes: every one of the nine
+variants was charged exactly 10 basis points of its own turnover, which is the
+signature of a per-trade charge. The conversion was applied inside every trade, on
+that trade's notional. Rotating between two instruments quoted in the same foreign
+currency crosses no boundary at all - selling one into the quote asset and buying
+another out of it is one currency throughout - so every rebalance after the first was
+charged for a crossing that did not happen.
+
+| variant | turnover | charged | should be | double-counted | net as run | net corrected |
+|---|---:|---:|---:|---:|---:|---:|
+| `carry-basket-10` | 74,731.43 | 74.73 | 2.76 | 71.97 | -241.72 | -169.74 |
+| `carry-basket-5` | 69,880.30 | 69.88 | 2.91 | 66.97 | -86.12 | -19.15 |
+| `carry-positive-10` | 179,781.35 | 179.78 | 2.14 | 177.64 | -857.00 | -679.37 |
+| `carry-premium-10` | 143,916.33 | 143.92 | 1.62 | 142.29 | -1,377.11 | -1,234.82 |
+| `carry-rank30-10` | 179,781.35 | 179.78 | 2.14 | 177.64 | -857.00 | -679.37 |
+| `carry-rank30-5` | 176,110.98 | 176.11 | 1.92 | 174.20 | -1,084.70 | -910.50 |
+| `carry-rank90-10` | 141,036.89 | 141.04 | 2.53 | 138.50 | -466.36 | -327.86 |
+| `carry-rank90-10-quarterly` (18 rebalances) | 91,566.95 | 91.57 | 2.77 | 88.80 | -232.38 | -143.58 |
+| `carry-rank90-5` | 144,888.53 | 144.89 | 2.47 | 142.42 | -533.96 | -391.54 |
+
+**Across the nine: 1,201.69 charged against 21.26 for two
+crossings each, a factor of 56.5.** The correct charge is ten basis
+points of the opening equity when capital enters the quote currency and ten of the
+closing equity when it leaves. Two crossings, on the capital that crossed - not on
+the notional, which for a levered market-neutral book is several times the capital
+and never touches the account's own currency at all.
+
+**Every variant still loses with the whole double count returned**, which is the
+only question that matters for the verdict letter. The family-level finding is
+unmoved for the same reason: the price legs gave back 99.1 per cent of the funding
+received, and a charge correction on the other side of that does not create a
+premium that was not there.
+
+**The correction is first order and is labelled so.** Returning the charge also
+returns the compounding it cost along the way, and the exit crossing would then
+convert a slightly larger closing equity. Both are under a euro on these figures.
+
+**The engine is fixed and F1 is not rerun.** The charge is now made where it is
+incurred, six tests hold the invariant, and five of them fail when the per-trade
+charge is put back - which was checked by putting it back. F1's result file is
+left exactly as it was committed: rerunning it would consume one of the two
+registered re-executions to restate a verdict that does not move.
+
+**What it does change is the composition of section 7.1.** The currency leg was
+reported there as 20.9 per cent of the toll and larger than the venue's own fees.
+That finding was correct about the ledger and wrong about the world: the line was
+inflated by a defect, and a euro-funded account trading USDT-quoted instruments
+pays a currency toll far smaller than F1's charges suggested. Section 31's
+instruction to report the currency leg on its own line in every family stands, and
+is now more useful rather than less: it is what made the defect visible.

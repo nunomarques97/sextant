@@ -943,6 +943,17 @@
     "seed": 20260911,
     "separation_factor": "2",
     "symbols_ranked": 11,
+    "tick_derivation_is_an_upper_bound": {
+      "method": "the greatest common divisor of the published high, low and close over the trailing 30 days, which is a MULTIPLE of the true tick and equals it only when the sample happens to use every increment.",
+      "symbols_whose_derived_tick_exceeds_their_measured_spread": [
+        "API3USDT",
+        "CTKUSDT",
+        "RIFUSDT",
+        "SPELLUSDT",
+        "TLMUSDT"
+      ],
+      "why_that_is_impossible_and_what_it_proves": "A quoted spread cannot be narrower than one price increment. Where the derived tick is larger than the measured spread, the derivation has overestimated for that symbol, which it can do and cannot do in the other direction. The rank statistic survives an overestimate that is monotone in the true tick; the EDGE VALUE does not, and a band boundary in tick units needs the venue's own instrument metadata rather than a divisor inferred from prices."
+    },
     "what_limited_it": "the separation requirement, not the sample size"
   },
   "rule_m1": {

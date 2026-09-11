@@ -65,6 +65,9 @@ BANDS_RESULTS = RESEARCH_ROOT / "spike-006-f1-bands.json"
 #: The three bands as the cost model cuts them now, widest first.
 BANDS = ("deep", "mid", "thin")
 
+#: Basis points in one unit, for comparing a relative tick against a spread in bps.
+BASIS_POINTS_IN_ONE = 10_000
+
 NEWLINE = chr(10)
 
 
@@ -265,6 +268,23 @@ class Recut:
     group_medians: tuple[float, ...]
     limited_by_the_sample: bool
 
+    def tick_exceeds_spread(self) -> list[str]:
+        """Symbols whose derived tick is wider than their measured quoted spread.
+
+        An impossibility, and therefore a proof that the derivation overestimates for those
+        symbols. Reported rather than corrected, because the correction is a different data
+        source and not a different arithmetic.
+        """
+        ticks = next(
+            (item.values for item in self.candidates if item.name == "relative tick size"),
+            {},
+        )
+        return sorted(
+            symbol
+            for symbol, half in self.measured.items()
+            if symbol in ticks and ticks[symbol] * float(BASIS_POINTS_IN_ONE) > half * 2.0
+        )
+
     def as_json(self) -> dict[str, object]:
         return {
             "rule": BAND_RECUT_RULE,
@@ -283,6 +303,25 @@ class Recut:
             "band_members": [list(group) for group in self.groups],
             "band_median_half_spread_bps": list(self.group_medians),
             "symbols_ranked": len(self.measured),
+            "tick_derivation_is_an_upper_bound": {
+                "method": (
+                    "the greatest common divisor of the published high, low and close over "
+                    "the trailing 30 days, which is a MULTIPLE of the true tick and equals "
+                    "it only when the sample happens to use every increment."
+                ),
+                "symbols_whose_derived_tick_exceeds_their_measured_spread": (
+                    self.tick_exceeds_spread()
+                ),
+                "why_that_is_impossible_and_what_it_proves": (
+                    "A quoted spread cannot be narrower than one price increment. Where the "
+                    "derived tick is larger than the measured spread, the derivation has "
+                    "overestimated for that symbol, which it can do and cannot do in the "
+                    "other direction. The rank statistic survives an overestimate that is "
+                    "monotone in the true tick; the EDGE VALUE does not, and a band boundary "
+                    "in tick units needs the venue's own instrument metadata rather than a "
+                    "divisor inferred from prices."
+                ),
+            },
             "band_count_is_limited_by_the_sample_size": self.limited_by_the_sample,
             "what_limited_it": (
                 f"{len(self.measured)} symbols are measured and rule B1 requires at least "

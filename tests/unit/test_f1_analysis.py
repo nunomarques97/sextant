@@ -61,8 +61,11 @@ from sextant.app.spike_006_f1_analysis import (
     verdict,
 )
 from sextant.app.spike_006_f1_report import (
+    _amendment_twelve_section,
     _contraction_section,
     _estimator_section,
+    _extended_section,
+    _recut_section,
     _samples_section,
     _strengthened_criterion,
 )
@@ -1344,3 +1347,113 @@ def test_f1s_own_currency_line_scaled_with_turnover_on_every_variant() -> None:
     assert len(items) == 9
     assert the_currency_line_scaled_with_turnover(items)
     assert all(item.still_loses for item in items)
+
+
+# ---------------------------------------------------------------------------
+# The report sections amendment 12 adds
+# ---------------------------------------------------------------------------
+
+
+def test_the_amendment_section_is_added_and_not_edited_in() -> None:
+    """It says so in its first line, because a correction that rewrites leaves no record."""
+    rendered = _amendment_twelve_section(
+        payload(
+            deterministic=[run(construct="v", turnover="100000", conversion="100")],
+            nulls=[],
+        )
+    )
+    assert "Added, not edited" in rendered
+    assert "UPPER BOUND" in rendered
+    assert "18.87" in rendered
+
+
+def test_the_amendment_section_reports_the_currency_correction() -> None:
+    """The charged line, the correct one, and whether the variant still loses."""
+    rendered = _amendment_twelve_section(
+        payload(
+            deterministic=[run(construct="v", turnover="100000", conversion="100", net_pnl="-100")],
+            nulls=[],
+        )
+    )
+    assert "must not scale with turnover" in rendered
+    assert "still loses" in rendered
+    assert "first order" in rendered
+
+
+def test_no_variants_renders_no_amendment_section() -> None:
+    """A section with nothing to say says nothing."""
+    assert _amendment_twelve_section(payload(deterministic=[], nulls=[])) == ""
+
+
+def test_no_extended_sample_renders_no_section() -> None:
+    assert _extended_section(None) == ""
+
+
+def test_no_band_study_renders_no_section() -> None:
+    assert _recut_section(None) == ""
+
+
+def test_a_band_that_falls_short_is_reported_as_not_measured() -> None:
+    """Printing a median of whatever published would be the substitution the rule forbids."""
+    rendered = _extended_section(
+        {
+            "symbol_days_measured": 26,
+            "megabytes_fetched": "100.0",
+            "verified_against_the_publisher": 26,
+            "selections": [
+                {"band": "mid", "selected_at": "2023-07-01", "symbols": [{"symbol": "AAAUSDT"}]},
+                {"band": "thin", "selected_at": "2025-12-01", "symbols": [{"symbol": "BBBUSDT"}]},
+            ],
+            "coverage_by_band": {
+                "mid": {
+                    "symbols_selected": 4,
+                    "symbols_that_published_every_registered_day": 4,
+                    "symbol_days_measured": 24,
+                    "symbol_days_requested": 24,
+                    "meets_the_registered_requirement": True,
+                },
+                "thin": {
+                    "symbols_selected": 4,
+                    "symbols_that_published_every_registered_day": 1,
+                    "symbol_days_measured": 8,
+                    "symbol_days_requested": 24,
+                    "meets_the_registered_requirement": False,
+                },
+            },
+            "assumed_spread_bps_by_band": {"mid": "25", "thin": "60"},
+            "measured_median_bps_by_band": {"mid": "2.42", "thin": None},
+            "measured_median_bps_by_symbol": {"AAAUSDT": "2.42", "BBBUSDT": "1.00"},
+            "symbols_selected_into_two_bands": [],
+        }
+    )
+    assert "not measured rather than averaged" in rendered
+    assert "Product Owner's to settle" in rendered
+
+
+def test_the_recut_section_states_the_tick_derivations_own_weakness() -> None:
+    """The winning candidate's measurement is the weakest and the section says so first."""
+    rendered = _recut_section(
+        {
+            "recut": {
+                "registered_level": "0.05",
+                "chosen_quantity": "relative tick size",
+                "bands_supported_by_the_evidence": 2,
+                "candidates": [
+                    {
+                        "quantity": "relative tick size",
+                        "spearman_rho": 0.9,
+                        "permutation_p_value": 0.0008,
+                        "clears_the_registered_level": True,
+                    }
+                ],
+                "band_members": [["AAAUSDT"], ["BBBUSDT"]],
+                "tick_derivation_is_an_upper_bound": {
+                    "symbols_whose_derived_tick_exceeds_their_measured_spread": ["BBBUSDT"],
+                },
+            }
+        }
+    )
+    assert "can only" in rendered
+    assert "overestimate" in rendered
+    assert "which is impossible" in rendered
+    assert "sceptic should attack this first" in rendered
