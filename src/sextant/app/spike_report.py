@@ -238,7 +238,7 @@ def policies(
 ) -> tuple[UniversePolicy, UniversePolicy, UniversePolicy, UniversePolicy]:
     """Three policies, because one of the seven rules is not computable.
 
-    The research/executable split is PO decision D1: rules 1, 2, 3, 4 and 7
+    The research/executable split is decision D1: rules 1, 2, 3, 4 and 7
     describe the market and belong to research; rules 5 and 6 describe our
     wallet and belong only to execution.
 

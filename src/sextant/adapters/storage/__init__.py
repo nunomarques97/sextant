@@ -1,4 +1,4 @@
-"""Storage adapters. Not implemented in SEXTANT-001.
+"""Storage adapters. Not implemented yet.
 
 This is where a ``BarRepository`` implementation will live. The store is keyed
 by ``(venue, symbol, timeframe)`` and must retain delisted instruments, because

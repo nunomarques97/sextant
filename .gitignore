@@ -71,7 +71,7 @@ credentials.json
 *token*
 *secret*
 
-# ---- Local agent instructions and internal notes ----
+# ---- Local tooling instructions and internal notes ----
 CLAUDE.md
 AGENTS.md
 .claude/

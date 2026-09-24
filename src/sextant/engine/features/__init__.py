@@ -1,4 +1,4 @@
-"""Feature computation. Not implemented in SEXTANT-001.
+"""Feature computation. Not implemented yet.
 
 Contract for whoever fills this in:
 

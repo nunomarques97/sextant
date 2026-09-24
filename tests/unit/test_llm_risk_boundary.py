@@ -1,6 +1,6 @@
 """The boundary between what a model may recommend and what only code may decide.
 
-This is the test that must break if a future session widens the LLM schemas.
+This is the test that must break if a future change widens the LLM schemas.
 It is not testing a convention; it is testing that the schema physically cannot
 express a position size, and that adding such a field is a build failure.
 """
@@ -78,7 +78,7 @@ def test_no_shipped_response_schema_declares_a_risk_owned_field() -> None:
     ["position_size", "leverage", "max_exposure", "stop_distance", "risk_budget_pct"],
 )
 def test_adding_a_risk_field_to_a_response_schema_is_a_build_failure(field_name: str) -> None:
-    """A future session that widens the schema breaks here, not in the risk model."""
+    """A future change that widens the schema breaks here, not in the risk model."""
     widened = type(
         "WidenedRecommendation",
         (BaseModel,),

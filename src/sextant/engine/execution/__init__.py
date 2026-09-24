@@ -1,4 +1,4 @@
-"""Execution. Not implemented in SEXTANT-001.
+"""Execution. Not implemented yet.
 
 Execution receives an approved decision and turns it into orders through the
 ``ExchangeClient`` port. It asks ``capabilities()`` what the venue and account

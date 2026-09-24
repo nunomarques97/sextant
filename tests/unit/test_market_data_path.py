@@ -1,7 +1,7 @@
 """The public market-data read path, driven by recorded venue responses.
 
 Every payload in ``tests/fixtures`` is a real response captured from the live
-endpoint during SEXTANT-002, trimmed but not reshaped. Parsing is therefore
+endpoint during the data-availability spike, trimmed but not reshaped. Parsing is therefore
 tested against what the venues actually send, while CI stays offline.
 
 The distinction these tests exist to protect: **a failed request and an empty

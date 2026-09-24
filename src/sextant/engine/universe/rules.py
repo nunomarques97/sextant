@@ -76,7 +76,7 @@ class _Rule:
 class AccountParameters:
     """The account the *executable* universe is measured against.
 
-    Per PO decision D2: the filter is evaluated against the most binding
+    Per decision D2: the filter is evaluated against the most binding
     plausible constraint rather than the midpoint of a range, because a filter
     calibrated on the midpoint admits instruments the account could not actually
     trade at the bottom of the range.
@@ -233,7 +233,7 @@ class MedianSpreadRule(_Rule):
 class MinNotionalFeasibilityRule(_Rule):
     """The venue's minimum order value must be small against a target position.
 
-    An account rule, not a market rule. Per D1 it belongs to the executable
+    An account rule, not a market rule. Per decision D1 it belongs to the executable
     universe only: an instrument we cannot size a position in is still perfectly
     good evidence about whether a signal works.
     """

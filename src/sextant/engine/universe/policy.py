@@ -1,6 +1,6 @@
 """Research and executable universes, kept as two distinct objects.
 
-Per PO decision D1, Phase 0 conflated two questions that deserve separate
+Per decision D1, Phase 0 conflated two questions that deserve separate
 answers:
 
 * **research** - does the edge exist at all? Judged on tradability and liquidity

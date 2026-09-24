@@ -10,7 +10,7 @@ The boundary, stated once:
 That second list is enforced structurally rather than by convention. The
 response schemas forbid extra fields, so a model that volunteers
 ``position_size`` is rejected at parse time; and ``assert_no_risk_fields`` runs
-at import, so a future session that *adds* such a field to the schema breaks the
+at import, so a future change that *adds* such a field to the schema breaks the
 build instead of quietly widening what a language model is allowed to decide.
 
 The flow is one-way and always passes through deterministic code:

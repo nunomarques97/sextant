@@ -1,4 +1,4 @@
-"""LLM adapters. Not implemented in SEXTANT-001. No provider call exists yet.
+"""LLM adapters. Not implemented yet. No provider call exists yet.
 
 An implementation of ``LLMAnalyst`` will live here. It parses provider output
 into the pydantic schemas in ``sextant.ports.llm`` and nothing else: a response

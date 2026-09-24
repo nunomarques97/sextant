@@ -1,4 +1,4 @@
-"""Strategies. Not implemented in SEXTANT-001.
+"""Strategies. Not implemented yet.
 
 A strategy consumes domain types and ports. It never names a venue, never reads
 configuration to discover which symbol it is about, and is never evaluated on

@@ -1,4 +1,4 @@
-"""Regime classification. Not implemented in SEXTANT-001.
+"""Regime classification. Not implemented yet.
 
 The deterministic classifier is the authoritative source. An LLM regime label is an
 additional opinion recorded alongside it, never a replacement for it, so that

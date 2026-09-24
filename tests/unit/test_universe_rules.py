@@ -38,7 +38,7 @@ DECISION = Timestamp(datetime(2024, 6, 1, tzinfo=UTC))
 
 
 def account() -> AccountParameters:
-    """PO decision D2, exactly."""
+    """Decision D2, exactly."""
     return AccountParameters(equity_quote=Notional(Decimal(1500)), max_positions=8)
 
 
@@ -207,7 +207,7 @@ def test_the_spread_rule_is_not_evaluable_at_an_instant_with_no_measurement() ->
 
 
 def test_an_instrument_we_cannot_size_stays_in_research_and_leaves_execution() -> None:
-    """PO decision D1: the account filters what we trade, never what we measure."""
+    """Decision D1: the account filters what we trade, never what we measure."""
     deep = history("AAAEUR", days=30, quote_volume="5000000")
     histories = {deep.key: deep}
     unsizable = instrument("AAAEUR", min_notional="500")

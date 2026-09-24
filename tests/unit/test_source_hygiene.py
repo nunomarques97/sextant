@@ -117,8 +117,8 @@ def test_datetime_now_appears_only_in_the_adapters_layer() -> None:
 def test_no_exchange_sdk_is_imported_anywhere() -> None:
     """No venue SDK exists in this project, and none is smuggled in.
 
-    httpx is deliberately absent from this list: SEXTANT-002 introduced it as
-    the one sanctioned HTTP client. Where it may live is asserted separately,
+    httpx is deliberately absent from this list: it is the
+    one sanctioned HTTP client. Where it may live is asserted separately,
     below and in .importlinter.
     """
     pattern = re.compile(

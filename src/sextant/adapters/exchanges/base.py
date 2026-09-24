@@ -5,8 +5,8 @@ layers are combined, and unimplemented port methods. It contains no branch on
 any venue's identity, and it never will - a venue's differences belong in that
 venue's own package, expressed as declared data and its own request handling.
 
-Every port method raises ``NotImplementedError`` in SEXTANT-001. No adapter
-makes a network call yet.
+Every port method raises ``NotImplementedError`` until an adapter overrides
+it.
 """
 
 from __future__ import annotations

@@ -51,7 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("run", help="Perform the full startup sequence.")
     spike = subparsers.add_parser(
         "spike",
-        help="SEXTANT-002 research spike: fetch public market data and measure the universe.",
+        help="Research spike: fetch public market data and measure the universe.",
     )
     spike.add_argument(
         "stage",
@@ -110,7 +110,7 @@ def _command_run(profile: str | None, config_dir: Path | None) -> int:
     print(f"  {describe_mode(metadata.mode)}")
     _print_report(result.preflight)
     _LOGGER.info("no engine is implemented yet; stopping after startup")
-    print("  no engine is implemented yet (SEXTANT-001 is bootstrap only); stopping.")
+    print("  no engine is implemented yet (bootstrap only); stopping.")
     return EXIT_OK
 
 

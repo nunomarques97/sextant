@@ -49,7 +49,7 @@ def test_each_adapter_satisfies_the_exchange_client_port(
 
 @pytest.mark.parametrize("client_class", CLIENT_CLASSES)
 def test_the_trading_path_is_still_unwired(client_class: type[BaseExchangeClient]) -> None:
-    """SEXTANT-002 wired public market data and nothing else.
+    """Only public market data is wired; the trading path is not.
 
     No network call is made here: every assertion below fails before a request
     would be built.

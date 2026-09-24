@@ -1,7 +1,7 @@
 """Risk verdict types.
 
 The Risk Engine itself lives in ``sextant.engine.risk`` and is not implemented
-in SEXTANT-001. These are the types its verdicts take, and they are in the
+yet. These are the types its verdicts take, and they are in the
 domain because the audit record refers to them.
 
 The engine has veto authority over every decision, including anything an LLM

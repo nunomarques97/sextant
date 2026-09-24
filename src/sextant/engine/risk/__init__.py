@@ -1,4 +1,4 @@
-"""The Risk Engine. Not implemented in SEXTANT-001.
+"""The Risk Engine. Not implemented yet.
 
 It has veto authority over every decision in the system, including anything a
 language model recommends, and returns ``RiskVerdict.APPROVE``, ``REDUCE`` or

@@ -1,4 +1,4 @@
-"""SEXTANT-002 data-availability spike.
+"""Data-availability spike.
 
 A research entrypoint, not a product surface. It exists to answer three
 questions by fetching rather than by expecting:
@@ -65,7 +65,7 @@ DATA_ROOT = Path("data") / "spike"
 NEWLINE = chr(10)
 """Explicit, so generated markdown is LF on every host."""
 
-#: Quote currencies we fetch history for. The three policies in PO decision D3
+#: Quote currencies we fetch history for. The three policies in decision D3
 #: are subsets of this set, so one fetch serves all three measurements.
 FETCHED_QUOTES: frozenset[str] = frozenset({"EUR", "USD", "USDT"})
 
@@ -512,7 +512,7 @@ RESEARCH_PROFILES: Mapping[str, VenueResearchProfile] = {
 
 
 def quote_policies() -> Mapping[str, frozenset[str]]:
-    """The three policies the PO asked to be measured rather than chosen."""
+    """The three quote policies, measured rather than chosen (decision D3)."""
     return {
         "EUR": frozenset({"EUR"}),
         "EUR+USD": frozenset({"EUR", "USD"}),
@@ -521,7 +521,7 @@ def quote_policies() -> Mapping[str, frozenset[str]]:
 
 
 def default_account() -> AccountParameters:
-    """PO decision D2: 1,500 EUR of equity, at most 8 concurrent positions."""
+    """Decision D2: 1,500 EUR of equity, at most 8 concurrent positions."""
     return AccountParameters(equity_quote=Notional(Decimal(1500)), max_positions=8)
 
 
