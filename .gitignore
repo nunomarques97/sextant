@@ -60,3 +60,19 @@ $RECYCLE.BIN/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# ---- Credentials ----
+*.key
+*.pem
+*.jks
+*.keystore
+google-services.json
+credentials.json
+*token*
+*secret*
+
+# ---- Local agent instructions and internal notes ----
+CLAUDE.md
+AGENTS.md
+.claude/
+docs/REMOTE-SETUP.md
