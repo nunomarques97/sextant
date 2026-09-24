@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-09-09
-**Deciders:** Product Owner / Tech Lead (decision), Developer (implementation)
+**Deciders:** project maintainer
 
 ## Context
 

@@ -9,8 +9,7 @@ A multi-strategy, multi-venue quantitative crypto trading system.
 
 ## Status
 
-**SEXTANT-002 - data-availability spike and the public market-data read
-path.** Both venue adapters now implement `health`, `instruments` and
+**Data-availability spike and the public market-data read path.** Both venue adapters now implement `health`, `instruments` and
 `get_bars` against real public endpoints, read-only. No credential is used, no
 private endpoint is called and no order can be placed. There is still no
 strategy, no indicator, no backtester and no storage engine.
@@ -22,7 +21,7 @@ strategy, no indicator, no backtester and no storage engine.
 - The architecture proposal and the running risk register:
   [`docs/PHASE-0-FINDINGS.md`](docs/PHASE-0-FINDINGS.md)
 
-**SEXTANT-001 - repository bootstrap.** Engineering foundation: package layout,
+**Repository bootstrap.** Engineering foundation: package layout,
 an enforced layering contract, the capability model, layered configuration,
 credentials handling, preflight, structured logging and CI.
 
@@ -72,7 +71,7 @@ uv run sextant status          # resolved configuration and preflight, no side e
 uv run sextant run             # full startup sequence; stops, because there is no engine
 uv run sextant --profile paper status
 
-# Research spike (SEXTANT-002). The collect stages reach public endpoints and
+# Data-availability research spike. The collect stages reach public endpoints and
 # take minutes; measure is offline and regenerates docs/universe-tables.md.
 uv run sextant spike collect-binance
 uv run sextant spike collect-kraken
@@ -84,7 +83,7 @@ environment. The spike reads public market data only.
 
 ## Checks
 
-Every one of these must pass before any work is reported as done:
+Every one of these must pass before a change is merged:
 
 ```powershell
 uv run ruff check
@@ -135,8 +134,6 @@ docs/adr/          architecture decision records
 
 ## Documentation
 
-- [`CLAUDE.md`](CLAUDE.md) - the rules every session must follow
 - [`docs/PHASE-0-FINDINGS.md`](docs/PHASE-0-FINDINGS.md) - architecture proposal, universe proposal, ranked risks
 - [`docs/LIVE-GATES.md`](docs/LIVE-GATES.md) - what must be true before live trading is considered
 - [`docs/adr/`](docs/adr/) - decisions and the alternatives that were rejected
-- [`docs/REMOTE-SETUP.md`](docs/REMOTE-SETUP.md) - the two commands still needed to push and to install uv

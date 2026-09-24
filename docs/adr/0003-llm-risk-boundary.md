@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-09-09
-**Deciders:** Product Owner / Tech Lead (decision), Developer (implementation)
+**Deciders:** project maintainer
 
 ## Context
 
@@ -19,7 +19,7 @@ response, remove the protection that every other part of the system depends on.
 The risk is not that a model is asked to size a position. Nobody would write
 that on purpose. The risk is drift: a `notes` field that starts carrying
 "suggest 3x", a `confidence` that gets multiplied into a size somewhere
-downstream, a future session that adds `suggested_size` to the schema because it
+downstream, a future change that adds `suggested_size` to the schema because it
 seemed harmless and the docstring said "advisory".
 
 ## Decision
@@ -64,7 +64,7 @@ later rather than assumed away.
 ### Option A: Enforce by schema (chosen)
 
 **Pros:** a value that cannot be expressed cannot be smuggled through. The rule
-survives sessions that never read this document, which is the actual threat
+survives contributors who never read this document, which is the actual threat
 model: guidance decays, a failing build does not. The token-based check catches
 plausible variants nobody enumerated in advance.
 
@@ -78,8 +78,8 @@ and false positives fail loudly at import rather than silently at runtime.
 
 **Pros:** zero machinery; no false positives.
 
-**Cons:** relies on every future session reading and honouring a rule. With one
-developer and no shared session memory, this is the failure mode the whole
+**Cons:** relies on every future contributor reading and honouring a rule. With one
+developer and long gaps between changes, this is the failure mode the whole
 project is built to avoid. It also fails silently: nothing tells you the rule
 was broken until a position is the wrong size.
 

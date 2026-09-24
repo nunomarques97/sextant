@@ -2,11 +2,11 @@
 
 **Status:** accepted
 **Date:** 2026-09-09
-**Task:** SEXTANT-002
+**Scope:** data-availability spike
 
 ## Context
 
-SEXTANT-002 has to answer, by fetching, whether a point-in-time universe
+The data-availability spike has to answer, by fetching, whether a point-in-time universe
 including delisted instruments can be reconstructed on Binance and Kraken.
 That requires real requests against public REST endpoints and against Binance's
 public S3 data archive. Phase 0 deliberately shipped with no HTTP client at all.

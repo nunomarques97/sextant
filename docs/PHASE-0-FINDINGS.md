@@ -1,8 +1,8 @@
 # Phase 0 findings and architecture proposal
 
-**Task:** SEXTANT-001 - repository bootstrap and architecture proposal
+**Scope:** repository bootstrap and architecture proposal
 **Date:** 2026-09-09
-**Status:** for Product Owner review. No trading logic exists. Phase 1 has not started.
+**Status:** proposal. No trading logic exists. Phase 1 has not started.
 
 ---
 
@@ -109,33 +109,26 @@ status 0.
 Implemented as specified: Python 3.12, uv, ruff, mypy strict, pytest,
 import-linter, and exactly the three permitted runtime dependencies.
 
-**I have no material disagreement with the stack.** The .NET alternative is
+**There is no material disagreement with the stack.** The .NET alternative is
 argued and rejected in ADR-0001; the short version is that the compile-time
 safety it offers is aimed at a class of bug that does not kill trading systems,
 while the research ecosystem it lacks is the binding constraint on every phase
 ahead. The three-dependency table is right, and `pyyaml` is correctly preferred
 over a hand-rolled parser.
 
-Four things I had to decide or deviate on. All are technical, none change a
-product decision.
+Four technical decisions and deviations. None changes a product decision.
 
-**1. `uv` is not installed on this machine.** `uv --version` is not found, and
-it is absent from the usual install locations. Per the standing rule I did not
-install it globally. To produce the lockfile and verify the acceptance criteria
-I installed `uv` into a throwaway virtual environment inside the session
-scratchpad, which changes nothing outside that directory. **The Sponsor needs to
-run one command**, in PowerShell:
+**1. `uv` is required.** The lockfile is produced and verified with `uv`. On
+Windows it installs with one command, in PowerShell:
 
 ```powershell
 winget install --id=astral-sh.uv -e
 ```
 
-Until then, `uv run ...` will not work from a normal shell. The command is
-repeated in `docs/REMOTE-SETUP.md` alongside the other command the Sponsor needs
-to run.
+Without it, `uv run ...` does not work from a normal shell.
 
-**2. `disallow_any_explicit` was removed from the mypy configuration.** I first
-enabled it to enforce the "no `Any`" constraint mechanically. It reports an
+**2. `disallow_any_explicit` was removed from the mypy configuration.** It was
+first enabled to enforce the "no `Any`" constraint mechanically. It reports an
 error on *every* `pydantic.BaseModel` subclass, because `BaseModel` itself
 declares `__pydantic_extra__: dict[str, Any]`. That is an incompatibility
 between an optional strictness flag and a mandated dependency, not a finding
@@ -151,21 +144,21 @@ init values underneath the environment - but mypy synthesises a strictly typed
 `__init__` from the field annotations, which no mapping can satisfy. Rather than
 a `cast()` or a `# type: ignore`, the merged YAML is passed through a
 `Callable[..., Settings]` binding that describes the real signature. Validation
-is unaffected: an unknown or mistyped key still fails loudly. I am flagging it
-because it is the one place where I widened a type rather than satisfying it.
+is unaffected: an unknown or mistyped key still fails loudly. It is called out
+because it is the one place where a type was widened rather than satisfied.
 
 **4. PAPER with credentials cannot start today.** R7 says the
 withdrawal-permission check applies in PAPER "only when credentials are actually
-in use". I implemented that, and additionally treat an *undeterminable*
+in use". That is implemented, and preflight additionally treats an *undeterminable*
 withdrawal permission as a failure in PAPER as well as in LIVE, not only in
 LIVE. Since the venue probe is stubbed and returns `UNKNOWN`, the consequence is
 that a paper run which requests `ACCOUNT_DATA` or any trading capability will
 refuse to start until the probe is wired. Paper trading on public data with a
 simulated portfolio - the mandatory path - works with no credentials at all and
-is unaffected. My reasoning: a key with withdrawal permission is exactly as
+is unaffected. The reasoning: a key with withdrawal permission is exactly as
 dangerous in a paper run as in a live one, because the danger is the key, not
-the mode. If the PO wants paper-with-account-data to be usable before the probe
-exists, say so and I will downgrade the PAPER case to a warning.
+the mode. If paper-with-account-data needs to be usable before the probe
+exists, the PAPER case can be downgraded to a warning.
 
 ---
 
@@ -263,7 +256,7 @@ Risk Engine, which decides alone.
 
 Requested explicitly. This defines the boundary and the lifecycle so later
 phases can implement it without leaking venue or jurisdiction logic into the
-domain. None of the "not yet implemented" rows are built in SEXTANT-001.
+domain. None of the "not yet implemented" rows are built in the bootstrap phase.
 
 | | **Venue layer** | **Account layer** | **Jurisdiction layer** |
 |---|---|---|---|
@@ -287,8 +280,8 @@ two can be told apart in a diagnostic.
 
 ### The venue to start on
 
-**Kraken.** The account exists there, it quotes in EUR, and its account
-capabilities are the ones we can actually confirm. Binance is configured as an
+**Kraken.** It quotes in EUR, and its account capabilities are the ones that
+can actually be confirmed. Binance is configured as an
 equal peer with market-data capabilities only, pending research into what a
 Portuguese retail account may actually do there. This is a starting point for
 research, not a ranking: the point of the cost model is that the venue question
@@ -314,13 +307,13 @@ Median rather than mean throughout, for volume and spread alike: both
 distributions are dominated by outliers, and a mean lets one frantic day admit
 an instrument that was untradable for the other twenty-nine.
 
-Target position size, for rules 5 and 6. **Superseded by PO decision D2:**
-`account_equity_quote` is 1,500 EUR and `max_positions` is 8, so a target
+Target position size, for rules 5 and 6. **Superseded by decision D2:** with
+the example account of `account_equity_quote` 1,500 EUR and `max_positions` 8, a target
 position is 187.50 EUR, rule 5 requires `min_notional <= 46.875 EUR` and rule 6
 requires one lot step to be worth at most 1.875 EUR. Both numbers remain
 configuration (`config/base.yaml`), not code.
 
-**Also superseded, by PO decision D1:** rules 5 and 6 apply to the *executable*
+**Also superseded, by decision D1:** rules 5 and 6 apply to the *executable*
 universe only. The *research* universe is rules 1, 2, 3, 4 and 7, with no
 account-size rule at all, because an instrument we cannot size a position in is
 still perfectly good evidence about whether a signal works.
@@ -365,22 +358,22 @@ Sharpe calculation. It is not free.
 
 ### Historical universe, including delisted assets
 
-This is the part I am least able to promise, and I want to be explicit about
-what I know versus what I expect. **No network call was made in this task**, so
+This is the part least able to be promised, so what is known is kept apart from
+what is expected. **No network call was made in the bootstrap phase**, so
 nothing below is verified.
 
 **Superseded by measurement.** The expectations below were written before any
-network call. They were tested in SEXTANT-002 and the results are in
+network call. They were tested in the data-availability spike and the results are in
 `docs/DATA-AVAILABILITY.md`; the Kraken expectation proved optimistic and the
 Binance one proved conservative. See risk 1 for the current position.
 
 **Treat this as an unresolved risk, not a solved problem.** The first task of
 the data phase should be to establish, by actually fetching, whether a delisted
 pair's history is retrievable per venue. If it is not, there are three options
-and the PO should choose: accept a survivorship-biased historical universe and
+and it is a product choice: accept a survivorship-biased historical universe and
 state the bias in every result; buy a vendor dataset; or restrict the backtest
-window to a period we can reconstruct completely. The first option is the one I
-would argue against, because a survivorship-biased backtest that clears the live
+window to a period we can reconstruct completely. The first option is the one to
+argue against, because a survivorship-biased backtest that clears the live
 gates has cleared nothing.
 
 ### Refreshing membership over time
@@ -410,7 +403,7 @@ look wrong", defends against selection bias in the refresh itself.
 ## 6. Technical risks, most serious first
 
 **1. Delisted historical data may not be obtainable per venue.**
-**PARTIALLY RESOLVED (SEXTANT-002).** Answered by fetching; the evidence is in
+**PARTIALLY RESOLVED (data-availability spike).** Answered by fetching; the evidence is in
 `docs/DATA-AVAILABILITY.md`.
 
 *Binance: resolved.* `exchangeInfo` retains delisted symbols with status
@@ -430,7 +423,7 @@ reaches back about two years. The venue's own bulk OHLCVT dataset may contain
 the missing history, but it is a 7.3 GB Google Drive download that was quota
 blocked on every attempt, so its contents remain unverified.
 
-Standing fallback, per PO decision D7: where delisted history cannot be
+Standing fallback, per decision D7: where delisted history cannot be
 obtained, restrict the backtest window rather than accept the bias.
 
 **2. Statistical power may never be sufficient.** This is the risk the whole
@@ -443,11 +436,11 @@ never come out positive. That is a real possible outcome of this project and
 planning should accommodate it rather than assume it away.
 
 **3. Cost modelling may be optimistic in exactly the way that matters.**
-**CONFIRMED (SEXTANT-002).** Neither venue publishes historical quoted spread
+**CONFIRMED (data-availability spike).** Neither venue publishes historical quoted spread
 for spot at any granularity, free or paid. Kraken's `Spread` endpoint with
 `since=0` returned 250 rows spanning twelve seconds. Binance's public archive
 carries `klines`, `trades` and `aggTrades` for spot, and top-of-book files only
-for futures, which are out of scope under PO decision D4.
+for futures, which are out of scope under decision D4.
 
 What a cost model can honestly be calibrated from is therefore: published fee
 schedules, exactly; and effective spread estimated from trade prints, on
@@ -464,11 +457,11 @@ effective-spread estimate exists, every backtest must carry an explicit,
 deliberately pessimistic spread assumption rather than an implicit optimistic
 one.
 
-**4. Binance account capabilities for a Portuguese retail account are
-unknown.** Configured as market-data only pending research. If it turns out to
+**4. Binance account capabilities for a retail account in the configured
+jurisdiction (PT) are unknown.** Configured as market-data only pending research. If it turns out to
 be market-data only in practice too, the "two independent venues" premise
 weakens to one tradable venue plus one data source. The architecture handles
-that without a code change, but the PO should know it is a live possibility.
+that without a code change, but it is a live possibility.
 
 **5. Capability staleness has no detection mechanism.** All three layers are
 semi-static and none has a freshness check. A venue that quietly stops
@@ -476,8 +469,8 @@ supporting something, or a key whose scope was changed in a web UI, produces a
 venue-side rejection at the worst moment rather than a clean local refusal.
 Proposals are in section 4; none is implemented.
 
-**6. Position sizing is marginal at this account size.** 1,750 EUR across up to
-12 positions is about 145 EUR each. A 30% drawdown puts several positions near
+**6. Position sizing is marginal at small account sizes.** The default
+configuration of 1,750 EUR across up to 12 positions is about 145 EUR each. A 30% drawdown puts several positions near
 venue minimums, at which point the strategy cannot be executed as designed and
 the live results stop resembling the backtest. The `min_notional` rule defends
 the entry case; it does not defend the drawdown case.
@@ -489,7 +482,7 @@ with the model version pinned in run metadata. Otherwise a result cannot be
 re-derived six months later, which fails the reproducibility gate.
 
 **8. Development is on Windows, CI is on Linux.** Encoding and path divergence
-is real - it surfaced during this task as a `cp1252` decode failure on a
+is real - it surfaced during the bootstrap as a `cp1252` decode failure on a
 subprocess capture. `.gitattributes` normalises line endings and CI runs on
 Linux, so divergence surfaces on every push rather than at a bad moment.
 
@@ -574,8 +567,8 @@ feature that is stable under universe changes is secretly per-symbol.
 
 ## 9. Decisions taken, and what was rejected
 
-Each of these was mine to make technically. The rejected alternative is stated
-so the PO can overrule cheaply.
+Each of these is a technical decision. The rejected alternative is stated so
+the decision can be revisited cheaply.
 
 **Venue is an opaque slug, not an enum.** Rejected: a `Venue` enum listing
 binance and kraken. An enum in the domain is one `match` statement away from
@@ -637,16 +630,16 @@ would be invisible.
 
 ---
 
-## 10. Open questions for the Product Owner
+## 10. Open product questions
 
 Only genuinely product-level questions. Everything technical was decided and is
 recorded above.
 
 1. **If delisted history proves unobtainable free, what is the fallback?**
    Accept and declare survivorship bias, buy a vendor dataset (there is a real
-   cost), or restrict the backtest window to a fully reconstructible period? My
-   recommendation is to restrict the window rather than accept the bias, but the
-   trade-off is the PO's.
+   cost), or restrict the backtest window to a fully reconstructible period? The
+   recommendation is to restrict the window rather than accept the bias, but it
+   is a product trade-off.
 
 2. **Quote-currency policy.** EUR only, matching the account and avoiding FX and
    stablecoin credit risk but yielding a materially thinner universe? Or include
@@ -659,13 +652,13 @@ recorded above.
    the funding-rate work and the futures capability be deferred entirely.
 
 4. **Confirm the account parameters.** 1,750 EUR equity and a maximum of 12
-   concurrent positions are currently configuration defaults I chose from the
-   stated 1,500-2,000 range. Both drive the `min_notional` feasibility rule and
+   concurrent positions are currently configuration defaults for a small
+   retail account. Both drive the `min_notional` feasibility rule and
    therefore the universe size.
 
 5. **Should LLM analysis be in scope for the first backtests at all?** Including
    it early costs reproducibility work (recorded responses, pinned model
-   versions) before there is a deterministic baseline to compare it against. My
+   versions) before there is a deterministic baseline to compare it against. The
    recommendation is to build and evaluate the deterministic pipeline first, and
    add the analyst as a measured increment once there is something to measure it
    against. That is a scope call, not a technical one.

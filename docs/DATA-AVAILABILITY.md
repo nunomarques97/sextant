@@ -1,6 +1,6 @@
 # Data availability - what each venue can actually supply
 
-**Task:** SEXTANT-002. **Measured:** 2026-09-09. **Method:** real requests to
+**Scope:** data-availability spike. **Measured:** 2026-09-09. **Method:** real requests to
 public endpoints, journalled.
 
 Everything below is either backed by a request recorded in
@@ -203,7 +203,7 @@ So: it may contain exactly what is missing, and that is **unverified**. The
 smallest step that would resolve it is a single manual download of one quarterly
 increment - `Kraken_OHLCVT_Q3_2024.zip` - and a check of whether `WAVESEUR.csv`
 and `ANTEUR.csv` appear in it. Both pairs were trading during that quarter, so
-their presence or absence settles the question outright. This is a Sponsor
+their presence or absence settles the question outright. This is a manual
 action, not a code change, and it is the only thing that could move Kraken from
 "no" to "yes".
 
@@ -225,7 +225,7 @@ Full month-by-month tables with per-rule exclusion counts, for both venues and
 all three quote policies, are in
 [`docs/universe-tables.md`](universe-tables.md).
 
-Account applied to the executable universe, per PO decision D2: 1,500 EUR over
+Example account applied to the executable universe, per decision D2: 1,500 EUR over
 at most 8 concurrent positions, so a target position of 187.50 EUR, a minimum
 notional ceiling of 46.875 EUR and a lot-step ceiling of 1.875 EUR.
 
@@ -268,7 +268,7 @@ instrument. On the full EUR+USD+USDT policy it reaches **11** out of 384, in
 December 2021, and the account rules reject at most 18 instruments in any single
 month (April 2021). So the split matters at the margin and in the frothiest
 periods, which is where it would matter most, and it is nowhere near large
-enough to be the reason a strategy does or does not work. PO decision D1 is
+enough to be the reason a strategy does or does not work. Decision D1 is
 right architecturally and the measured cost of ignoring it would have been
 around 3% of the universe at its worst.
 
@@ -406,14 +406,14 @@ Stated so that none of it is mistaken for a finding.
    past dates.
 5. **Spread at any past instant, on either venue.** One live snapshot exists per
    venue and nothing else.
-6. **Whether a Portuguese retail account may actually trade on Binance.** Phase 0
-   risk 4 is untouched by this task; nothing here required or used a credential.
+6. **Whether a retail account in the configured jurisdiction (PT) may actually
+   trade on Binance.** Phase 0 risk 4 is untouched by the spike; nothing here required or used a credential.
 
 ---
 
 ## 8. Standing fallback
 
-Per PO decision D7, and recorded here so it is not re-litigated: **where delisted
+Per decision D7, and recorded here so it is not re-litigated: **where delisted
 history cannot be obtained, restrict the backtest window rather than accept the
 bias.** A survivorship-biased backtest that clears the live gates has cleared
 nothing.

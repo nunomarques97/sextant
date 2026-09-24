@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-09-09
-**Deciders:** Sponsor (direction), Product Owner / Tech Lead (decision), Developer (implementation)
+**Deciders:** project maintainer
 
 ## Context
 
@@ -12,8 +12,8 @@ objective gates. The forces at play:
 
 - **Research velocity dominates.** Most of the work ahead is backtesting,
   statistical evaluation and cost modelling, not throughput engineering. The
-  target horizon is multi-day, on a universe of tens of instruments, with an
-  account of roughly EUR 1,500-2,000. Nothing about that is latency-sensitive.
+  target horizon is multi-day, on a universe of tens of instruments, with a
+  small retail account. Nothing about that is latency-sensitive.
 - **The ecosystem is not neutral.** Every serious tool for market data
   handling, statistics, walk-forward evaluation and exchange connectivity is
   written for Python. Rebuilding that surface in another language is a cost paid
@@ -22,7 +22,7 @@ objective gates. The forces at play:
   bias, survivorship bias, a strategy that quietly depends on one venue, a
   language model that sets position size. None of these are prevented by a
   compiler.
-- **One developer, sessions without shared memory.** Conventions decay. Only
+- **One developer, long gaps between changes.** Conventions decay. Only
   mechanically enforced rules survive.
 
 ## Decision

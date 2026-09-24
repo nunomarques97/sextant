@@ -1,6 +1,6 @@
 # Live gate criteria
 
-These are the contract. They are not to be edited by the Developer.
+These are the contract. They are not changed as part of implementation work.
 
 LIVE mode may not be enabled until all of the following are demonstrated and
 reviewed:
@@ -13,7 +13,7 @@ reviewed:
    parameter set tried, still positive.
 5. At least 60 days of paper trading with tracking error against the backtest
    below a configured threshold.
-6. Explicit written Sponsor sign-off.
+6. Explicit written sign-off by the project owner.
 
 Backtest return alone is never sufficient. A strategy showing an extraordinary
 backtest return is treated as a suspected defect until proven otherwise.

@@ -11,7 +11,7 @@
 #
 # Beyond those mechanical gates, LIVE must not be enabled until every criterion
 # in docs/LIVE-GATES.md has been demonstrated, reviewed, and signed off in
-# writing by the Sponsor. The gates are the contract; this file is only the
+# writing by the project owner. The gates are the contract; this file is only the
 # switch.
 
 run:
